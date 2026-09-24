@@ -49,11 +49,11 @@ export default function DevKit({
         </button>
       </div>
       <p className="dev-kit-rate">
-        <strong>{stats.fps ? Math.round(stats.fps) : "—"}</strong>
+        <strong>{stats.fps ? Math.round(stats.fps) : "N/A"}</strong>
         <span>FPS</span>
         <small>
-          {stats.frameMs ? stats.frameMs.toFixed(1) : "—"} ms avg ·{" "}
-          {stats.worstMs ? stats.worstMs.toFixed(1) : "—"} ms worst
+          {stats.frameMs ? stats.frameMs.toFixed(1) : "N/A"} ms avg ·{" "}
+          {stats.worstMs ? stats.worstMs.toFixed(1) : "N/A"} ms worst
         </small>
       </p>
       <svg
@@ -84,7 +84,7 @@ export default function DevKit({
           value={
             stats.width
               ? `${stats.width}×${stats.height} @${stats.pixelRatio}x`
-              : "—"
+              : "N/A"
           }
         />
       </dl>

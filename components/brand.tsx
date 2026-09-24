@@ -1,10 +1,16 @@
-export default function Brand() {
+export default function Brand({
+  emblemWidth = 29,
+  emblemHeight = 36,
+}: {
+  emblemWidth?: number;
+  emblemHeight?: number;
+} = {}) {
   return (
     <>
       <svg
         className="brand-emblem"
-        width={29}
-        height={36}
+        width={emblemWidth}
+        height={emblemHeight}
         viewBox="0 0 32 40"
         fill="none"
         aria-hidden="true"

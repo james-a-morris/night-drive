@@ -60,9 +60,15 @@ Configure these server environment variables before deployment:
 - `DATABASE_URL`: a persistent PostgreSQL connection URL, preferably pooled. Required on Vercel; the application creates its tables on first connection. For providers that require TLS, use their supplied connection URL and SSL settings.
 - `CLERK_PUBLISHABLE_KEY` and `CLERK_SECRET_KEY`: keys for the same Clerk instance. Use Clerk's production instance and configure its domain for a public production launch.
 - `OPENROUTER_API_KEY`: the server-only key used for intention moderation.
-- `APP_ORIGIN`: the public application origin, such as `https://night-line.example.com`. Leave unset for development or previews that use their request origin.
+- `APP_ORIGIN`: the public application origin, such as `https://night-line.example.com`. Also used for absolute social preview URLs. On Vercel, social metadata falls back to `VERCEL_PROJECT_PRODUCTION_URL`, then `VERCEL_URL`; local development uses `PORT` (5173 by default). Set `APP_ORIGIN` when self-hosting. Authentication still uses the request origin when it is unset.
 
 For self-hosting, run `pnpm build` and `pnpm start` with PostgreSQL or a durable SQLite volume. Never expose the project directory with a general-purpose static file server.
+
+## Social previews
+
+`app/opengraph-image.tsx` renders a 1200 × 630 PNG for Open Graph and Twitter/X large-image cards, including Discord and other link previews. It shows the logo, title, and "Lo-fi + coffee. Let’s ride together." byline on a solid dark green background, generated at build time from the shared brand component and local wordmark font with no external API dependency. The layout supplies the title, description, image alt text, and absolute URLs. Preview it at `/opengraph-image`.
+
+Edit the card's JSX to change the background or layout. The logo and title come from `components/brand.tsx`, and the title uses `public/assets/night-line-wordmark.ttf`.
 
 ## Verification
 
