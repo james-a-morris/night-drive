@@ -1,4 +1,4 @@
-/* The account menu belongs to Night Line; Clerk supplies its session data. */
+/* The account menu belongs to Night Rail; Clerk supplies its session data. */
 .account-control { position:relative; letter-spacing:normal; }
 .account-trigger { display:grid; place-items:center; width:38px; height:38px; padding:0; border:1px solid rgba(220,225,220,.2); border-radius:50%; background:linear-gradient(145deg,rgba(39,54,60,.85),rgba(17,29,36,.86)); color:#d7dcd4; cursor:pointer; box-shadow:inset 0 1px 0 rgba(255,255,255,.04),0 2px 10px rgba(0,0,0,.08); backdrop-filter:blur(16px); transition:border-color .2s,background .2s; }
 .account-trigger:hover,.account-trigger[aria-expanded="true"] { border-color:rgba(239,177,145,.5); background:linear-gradient(145deg,rgba(46,58,62,.95),rgba(25,36,41,.95)); }
@@ -45,7 +45,10 @@
 .account-actions { margin-top:0; padding-top:4px; border-top:1px solid rgba(255,255,255,.08); }
 
 /* Supported Clerk appearance classes keep every auth step in the app's theme. */
-.night-auth-backdrop { background:rgba(2,8,14,.66); backdrop-filter:blur(9px); }
+.night-auth-backdrop { background:rgba(2,8,14,.38); backdrop-filter:blur(3px); }
+.auth-feedback { position:fixed; z-index:20; top:76px; right:24px; max-width:min(340px,calc(100vw - 48px)); padding:14px 18px; border:1px solid rgba(207,218,213,.17); border-radius:12px; background:#101e26; color:#dce0d9; box-shadow:0 12px 36px rgba(0,0,0,.25); font:var(--text-body)/1.6 var(--font-ui); }
+.auth-feedback p { margin:0; }
+.auth-feedback button { margin:10px 16px 0 0; padding:4px 0; border:0; background:none; color:#efb191; font:inherit; cursor:pointer; text-decoration:underline; text-underline-offset:4px; }
 .night-auth-modal { max-width:calc(100vw - 32px); }
 .night-auth-root { width:100%; max-width:100%; font:var(--text-body)/1.6 var(--font-ui); }
 /* Keep provider defaults on our type scale; the roles below choose the sizes. */
@@ -54,7 +57,7 @@
 :where(.night-auth-root) :is(h1,h2,h3) { margin:0; font:500 var(--text-body)/1.35 var(--font-ui); letter-spacing:normal; }
 .night-auth-card-box { width:420px; max-width:100%; border:1px solid rgba(207,218,213,.17); border-radius:17px; background:linear-gradient(145deg,#1b2b32,#0c1921); box-shadow:0 30px 100px rgba(0,0,0,.45); }
 .night-auth-card { width:100%; min-width:0; gap:26px; padding:38px 34px 30px; background:transparent; box-shadow:none; border:0; }
-.cl-signIn-root .night-auth-card::before,.cl-signUp-root .night-auth-card::before { content:'NIGHT LINE / YOUR OWN LITTLE ESCAPE'; display:block; color:#cba38c; font:var(--text-label) var(--font-ui); letter-spacing:.16em; }
+.cl-signIn-root .night-auth-card::before,.cl-signUp-root .night-auth-card::before { content:'NIGHT RAIL / YOUR OWN LITTLE ESCAPE'; display:block; color:#cba38c; font:var(--text-label) var(--font-ui); letter-spacing:.16em; }
 .night-auth-close { top:15px; right:15px; padding:7px; color:#a4b1b3; }
 .night-auth-title { color:#efd1bd; font:400 var(--text-title)/1.13 var(--font-ui); letter-spacing:-.035em; }
 .night-auth-subtitle { margin-top:10px; color:#a4b1b3; font-size:var(--text-body); line-height:1.8; }

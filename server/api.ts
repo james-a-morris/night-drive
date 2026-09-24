@@ -165,7 +165,7 @@ function checkOrigin(req: Request, configuredOrigin?: string) {
     )
       throw new Error();
   } catch {
-    throw new ApiError(403, "Open Night Line to update your journey.");
+    throw new ApiError(403, "Open Night Rail to update your journey.");
   }
 }
 
@@ -591,7 +591,7 @@ export function createApi({
           error:
             "We could not check that just now. Please try again in a moment.",
         });
-      console.error("Night Line API error:", requestError(error).name);
+      console.error("Night Rail API error:", requestError(error).name);
       return send(503, {
         error:
           "The shared carriage is temporarily unavailable. Please try again shortly.",

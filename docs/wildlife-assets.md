@@ -16,7 +16,7 @@ accessors and buffer views were removed. Geometry, skin weights, skeletons,
 colors, and the retained animation data are unchanged. The four local files
 total about 4.5 MiB and require no runtime connection to the asset mirror.
 
-Night Line shares geometry between instances, clones each skeleton, and uses
+Night Rail shares geometry between instances, clones each skeleton, and uses
 different animation phases. Materials are made matte at runtime; each species
 is scaled to fit the landscape. Animals alternate between walking, short trots,
 looking around, and grazing, with eased movement and animation crossfades.

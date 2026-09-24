@@ -5,7 +5,7 @@ import Waveform from "./waveform.tsx";
 const timeLabel = (seconds: number) =>
   `${Math.floor(seconds / 60)}:${String(Math.floor(seconds % 60)).padStart(2, "0")}`;
 const STATUS = {
-  idle: "NIGHT LINE RADIO",
+  idle: "NIGHT RAIL RADIO",
   loading: "FINDING LO-FI STATIONS",
   connecting: "TUNING IN · LO-FI RADIO",
   live: "LIVE · LO-FI RADIO",
@@ -37,7 +37,7 @@ export default function RadioPlayer({ radio }: { radio: NightRadio | null }) {
   return (
     <div
       className="radio-widget"
-      aria-label="Night Line Radio"
+      aria-label="Night Rail Radio"
       data-journey-tile
     >
       <div className="playback-row">

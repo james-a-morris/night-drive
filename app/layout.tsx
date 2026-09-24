@@ -9,7 +9,7 @@ import "../src/about.css";
 import "../src/dev-kit.css";
 
 export const metadata = {
-  title: "Night Line — a little room for your thoughts",
+  title: "Night Rail — a little room for your thoughts",
   description:
     "A cozy train cabin for study and quiet thoughts. Pick a window seat, put on some lo-fi, and let the world pass by.",
   icons: { icon: "/icon.svg" },
