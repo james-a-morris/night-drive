@@ -5,6 +5,8 @@ import { stationAvailable, stationsNear, type StationStop } from "./station-rout
 import { environmentWeights, type SceneryMode } from "./environments.ts";
 import type { Lifecycle } from "./lifecycle.ts";
 import { stationClockHands } from "./station-clock.ts";
+import { stationPrism } from "./station-geometry.ts";
+import { terrainSurfaceHeight } from "./terrain.ts";
 
 export function createStations(world: THREE.Group, scope: Lifecycle) {
   const root = new THREE.Group(); root.name = "wayside-station"; world.add(root);
@@ -39,6 +41,19 @@ export function createStations(world: THREE.Group, scope: Lifecycle) {
       const point = roadPoint(at, lateral);
       geometry.rotateY(roadFrame(at).heading); geometry.translate(point.x, y, point.z); paint(geometry, color, bucket);
     }
+    function slab(from: number, to: number, side: number, inner: number, outer: number, bottom: number, top: number, color: number, step = 3) {
+      paint(stationPrism(stop.at + from, stop.at + to, side,
+        [[inner, bottom], [inner, top], [outer, top], [outer, bottom]], step), color);
+    }
+    function brace(at: number, side: number, from: [number, number], to: [number, number], color: number) {
+      const a = roadPoint(at, side * from[0]), b = roadPoint(at, side * to[0]);
+      const start = new THREE.Vector3(a.x, from[1], a.z), end = new THREE.Vector3(b.x, to[1], b.z);
+      const direction = end.clone().sub(start);
+      const geometry = new THREE.BoxGeometry(.14, direction.length(), .16).toNonIndexed();
+      geometry.applyQuaternion(new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 1, 0), direction.normalize()));
+      geometry.translate(...start.add(end).multiplyScalar(.5).toArray());
+      paint(geometry, color);
+    }
     function gable(at: number, lateral: number, base: number, width: number, rise: number, depth: number) {
       const shape = new THREE.Shape(); shape.moveTo(-width / 2, 0); shape.lineTo(width / 2, 0); shape.lineTo(0, rise); shape.closePath();
       const geometry = new THREE.ExtrudeGeometry(shape, { depth, bevelEnabled: false, steps: 1 });
@@ -46,41 +61,66 @@ export function createStations(world: THREE.Group, scope: Lifecycle) {
       const point = roadPoint(at, lateral); geometry.rotateY(roadFrame(at).heading); geometry.translate(point.x, 0, point.z);
       paint(geometry, roof);
     }
-    // Curved deck sections follow the railway. All fixed detail is merged into
+    // Closed platforms follow the railway. All fixed detail is merged into
     // two meshes, with eight simple signs and clocks; there are no extra lights or shaders.
     for (const side of [-1, 1]) {
+      // Bury the retaining walls in the actual bank, including the coastal slope.
+      let foundation = -.35;
+      for (let offset = -30; offset <= 96; offset += 3) {
+        const point = roadPoint(stop.at + offset, side * 16.5);
+        foundation = Math.min(foundation, terrainSurfaceHeight(point.x, point.z, mode) - .25);
+      }
+      slab(-30, 96, side, 3.58, 16.5, foundation, .65, 0x646558);
+      slab(-30, 96, side, 3.5, 16.5, .65, .74, 0x686b60);
+      const paving = snow ? [0xb1b6ac, 0xa9afa6, 0xb7b9ad, 0xaeb2a8]
+        : [0x939080, 0x8e8c7d, 0x999585, 0x908f80];
       for (let offset = -30; offset < 96; offset += 3) {
-        const a = stop.at + offset, b = a + 3;
-        const innerA = roadPoint(a, side * 3.5), outerA = roadPoint(a, side * 16.5);
-        const innerB = roadPoint(b, side * 3.5), outerB = roadPoint(b, side * 16.5);
-        const positions = [innerA.x,.8,innerA.z, outerA.x,.8,outerA.z, innerB.x,.8,innerB.z,
-          outerA.x,.8,outerA.z, outerB.x,.8,outerB.z, innerB.x,.8,innerB.z,
-          innerA.x,0,innerA.z,innerA.x,.8,innerA.z,innerB.x,0,innerB.z,
-          innerA.x,.8,innerA.z,innerB.x,.8,innerB.z,innerB.x,0,innerB.z];
-        const deck = new THREE.BufferGeometry(); deck.setAttribute("position", new THREE.Float32BufferAttribute(positions, 3)); deck.computeVertexNormals(); paint(deck, 0x777b6d);
-        const edgeA=roadPoint(a,side*3.75), edgeB=roadPoint(b,side*3.75);
-        const edge=new THREE.BufferGeometry();
-        edge.setAttribute("position",new THREE.Float32BufferAttribute([
-          innerA.x,.825,innerA.z,edgeA.x,.825,edgeA.z,innerB.x,.825,innerB.z,
-          edgeA.x,.825,edgeA.z,edgeB.x,.825,edgeB.z,innerB.x,.825,innerB.z,
-        ],3));edge.computeVertexNormals();paint(edge,cream);
+        for (let row = 0; row < 5; row++) {
+          const inner = 4.04 + row * 2.42;
+          const color = paving[((offset + 30) / 3 * 7 + row * 3) % paving.length];
+          slab(offset + .018, offset + 2.982, side, inner, inner + 2.395, .735, .8, color);
+        }
+        // The coping overhang leaves a dark lip above coursed masonry.
+        slab(offset + .014, offset + 2.986, side, 3.46, 4.015, .66, .825, cream);
+        slab(offset + .018, offset + 2.982, side, 16.17, 16.56, .69, .87, 0xa5a38e);
+        for (const y of [.17, .4]) {
+          slab(offset, offset + 3, side, 3.573, 3.59, y, y + .025, 0x858474);
+        }
+        for (const [shift, bottom, top] of [[0, .195, .4], [1.5, .425, .64]]) {
+          slab(offset + shift, offset + shift + .028, side, 3.573, 3.59, bottom, top, 0x858474);
+        }
       }
-      // One continuous curved canopy, with shared seams at every cross-section.
-      // Rigid roof boxes left triangular gaps when viewed along the platform.
-      const canopy: number[] = [];
-      const profile = [[4.1, 3.8], [6.4, 4.3], [8.7, 3.8]];
-      for(let offset=-14;offset<35;offset+=1)for(let panel=0;panel<2;panel++) {
-        const corners = [[offset,panel],[offset,panel+1],[offset+1,panel],[offset+1,panel+1]].map(([along,cross])=>{
-          const p=roadPoint(stop.at+along,side*profile[cross][0]);return [p.x,profile[cross][1],p.z];
-        });
-        for(const index of [0,1,2,1,3,2])canopy.push(...corners[index]);
+      for (const end of [-30, 95.58]) {
+        slab(end, end + .42, side, 3.46, 16.56, .65, .825, cream);
       }
-      const canopyGeometry=new THREE.BufferGeometry();canopyGeometry.setAttribute("position",new THREE.Float32BufferAttribute(canopy,3));canopyGeometry.computeVertexNormals();paint(canopyGeometry,roof);
-      for (const offset of [-8, 4, 16, 28]) {
+      for (let step = 0; step < 3; step++) {
+        const height = .6 - step * .2;
+        slab(-30 - (step + 1) * .48, -30 - step * .48, side, 12.3, 15.6, foundation, height, 0xa29c85);
+        slab(96 + step * .48, 96 + (step + 1) * .48, side, 12.3, 15.6, foundation, height, 0xa29c85);
+      }
+      // A pitched roof with a real soffit and closed gables, joined continuously
+      // through bends. Fascias, rafters and knee braces carry it down to the deck.
+      const profile: [number, number][] = [[4.1, 3.62], [4.1, 3.8], [6.4, 4.3], [8.7, 3.8], [8.7, 3.62], [6.4, 4.12]];
+      paint(stationPrism(stop.at - 14, stop.at + 35, side, profile, 1), roof);
+      for (const edge of [4.03, 8.6]) slab(-14, 35, side, edge, edge + .17, 3.51, 3.79, cream, 1);
+      for (const end of [-14.06, 34.94]) {
+        paint(stationPrism(stop.at + end, stop.at + end + .12, side, profile), cream);
+      }
+      for (const offset of [-13, -1, 11, 23, 34]) {
         const at = stop.at + offset;
-        box(at - 5.5, side * 7.7, 2.3, .2, 3, .2, wood);
-        box(at - 5.5, side * 4.9, 2.3, .2, 3, .2, wood);
-        box(at, side * 6.7, 3.65, .18, .09, 1.1, 0xffd797, glowing);
+        for (const lateral of [4.9, 7.7]) {
+          box(at, side * lateral, 2.32, .22, 3.04, .22, wood);
+          box(at, side * lateral, .93, .4, .26, .4, 0xa09a81);
+          box(at, side * lateral, 1.13, .28, .15, .28, 0x46564d);
+          box(at, side * lateral, 3.53, .35, .18, .32, cream);
+        }
+        box(at, side * 6.4, 3.66, 4.5, .18, .2, wood);
+        brace(at, side, [4.12, 3.6], [6.4, 4.1], wood);
+        brace(at, side, [6.4, 4.1], [8.68, 3.6], wood);
+        brace(at, side, [4.9, 2.96], [5.65, 3.66], wood);
+        brace(at, side, [7.7, 2.96], [6.95, 3.66], wood);
+        box(at, side * 6.4, 3.9, .14, .48, .16, wood);
+        box(at, side * 6.7, 3.52, .18, .09, 1.1, 0xffd797, glowing);
       }
       for (const offset of [-4, 18, 52]) {
         const at = stop.at + offset;
@@ -165,6 +205,7 @@ export function createStations(world: THREE.Group, scope: Lifecycle) {
       const sign = new THREE.Mesh(signGeometry(3.7, .7, 0, 0, 512, 96), signMaterial);
       sign.name = "station-nameboard"; sign.position.set(point.x, 2.4, point.z);
       sign.rotation.y = roadFrame(at).heading - side * Math.PI / 2; root.add(sign);
+      box(at, side * 7.99, 2.4, .14, .8, 3.8, 0x30493f);
       for (const leg of [-1.5, 1.5]) box(at + leg, side * 7.9, 1.6, .1, 1.6, .1, wood);
     }
     for (const side of [-1, 1]) {
@@ -175,8 +216,12 @@ export function createStations(world: THREE.Group, scope: Lifecycle) {
         const point = roadPoint(at, side * 4.95), sign=new THREE.Mesh(geometry, signMaterial);
         sign.position.set(point.x,y,point.z);sign.rotation.y=roadFrame(at).heading-side*Math.PI/2;root.add(sign);
         if(y === 3.0) {
+          const housing = new THREE.CylinderGeometry(.49, .49, .16, 24).toNonIndexed();
+          housing.rotateZ(Math.PI / 2); housing.rotateY(roadFrame(at).heading);
+          const center = roadPoint(at, side * 5.04);
+          housing.translate(center.x, y, center.z); paint(housing, 0x354e43);
           const rim=new THREE.RingGeometry(.44,.49,24).toNonIndexed();rim.rotateY(sign.rotation.y);rim.translate(point.x,y,point.z);paint(rim,cream);
-        }
+        } else box(at, side * 5.04, y, .16, .8, .8, 0x30493f);
         box(at, side * 4.95,3.55,.06,.5,.06,wood);
       }
     }
