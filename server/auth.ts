@@ -11,6 +11,7 @@ export function publicConfig() {
 }
 
 export function requestOrigin(request: Request) {
+  if (process.env.APP_ORIGIN) return new URL(process.env.APP_ORIGIN).origin;
   const url = new URL(request.url);
   const host = request.headers.get("x-forwarded-host")?.split(",")[0].trim();
   const protocol = request.headers

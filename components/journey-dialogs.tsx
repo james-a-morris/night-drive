@@ -228,12 +228,14 @@ export default function JourneyDialogs({
   onClose,
   onRequireAccount,
   onAuthenticate,
+  authError,
 }: {
   dialog: JourneyDialog;
   room: Room;
   onClose(): void;
   onRequireAccount(): void;
   onAuthenticate(signUp: boolean): void;
+  authError: string;
 }) {
   if (dialog === "intention")
     return (
@@ -285,6 +287,9 @@ export default function JourneyDialogs({
       >
         Already have a seat? Sign in
       </button>
+      <p id="account-error" className="form-error" role="alert">
+        {authError}
+      </p>
       <button
         className="drive-only"
         id="continue-guest"

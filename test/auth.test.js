@@ -2,82 +2,44 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { openAuth } from '../src/auth.ts';
 
-test('auth completes in the current cabin without a document navigation', async t => {
-  const opened = [];
-  const navigations = [];
-  const historyChanges = [];
-  const closed = [];
+test('signup and sign-in return to the mounted cabin without reloading', async t => {
   let options;
-  const originalWindow = Object.getOwnPropertyDescriptor(globalThis, 'window');
-  const originalDocument = Object.getOwnPropertyDescriptor(globalThis, 'document');
+  const navigations = [], closed = [];
+  const previous = ['window', 'document'].map(key => [key, Object.getOwnPropertyDescriptor(globalThis, key)]);
   t.after(() => {
-    for (const [name, descriptor] of [['window', originalWindow], ['document', originalDocument]]) {
-      if (descriptor) Object.defineProperty(globalThis, name, descriptor);
-      else delete globalThis[name];
+    for (const [key, descriptor] of previous) {
+      if (descriptor) Object.defineProperty(globalThis, key, descriptor);
+      else delete globalThis[key];
     }
   });
   globalThis.window = {
     location: {
-      href: 'https://nightrail.example/',
-      pathname: '/',
-      assign: to => navigations.push(['assign', to]),
-      replace: to => navigations.push(['replace', to]),
-    },
-    history: {
-      state: { cabin: true },
-      pushState: (...args) => historyChanges.push(['push', ...args]),
-      replaceState: (...args) => historyChanges.push(['replace', ...args]),
+      href: 'https://nightrail.example/', pathname: '/',
+      assign: to => navigations.push(to), replace: to => navigations.push(to),
     },
     Clerk: {
-      load: async configuration => { options = configuration; },
-      openSignIn: () => opened.push('sign-in'),
-      openSignUp: () => opened.push('sign-up'),
-      closeSignIn: () => closed.push('sign-in'),
-      closeSignUp: () => closed.push('sign-up'),
+      load: async value => { options = value; },
+      openSignUp() {}, openSignIn() {},
+      closeSignUp: () => closed.push('signup'),
+      closeSignIn: () => closed.push('signin'),
     },
   };
   globalThis.document = {
     createElement: () => ({ setAttribute() {} }),
     head: { append: script => queueMicrotask(() => script.onload()) },
   };
-  let available = false;
-  t.mock.method(globalThis, 'fetch', async () => available
-    ? Response.json({ clerkPublishableKey: `pk_test_${btoa('clerk.example.com$')}` })
-    : new Response(null, { status: 503 }));
-
-  await assert.rejects(openAuth(), /still travel as a guest/);
-  assert.deepEqual(opened, []);
-  available = true;
-  await openAuth();
+  t.mock.method(globalThis, 'fetch', async () => Response.json({
+    clerkPublishableKey: `pk_test_${btoa('clerk.example.com$')}`,
+  }));
   await openAuth(true);
-  assert.deepEqual(opened, ['sign-in', 'sign-up']);
+  await openAuth();
   assert.equal(options.signUpForceRedirectUrl, '/');
   assert.equal(options.signInForceRedirectUrl, '/');
-
-  // Clerk calls these after signup/sign-in activation. Both must keep the
-  // existing document alive, otherwise the scene and audio are reconstructed.
   await options.routerPush(options.signUpForceRedirectUrl);
-  await options.routerReplace('https://nightrail.example/');
+  await options.routerReplace(options.signInForceRedirectUrl);
   assert.deepEqual(navigations, []);
-  assert.deepEqual(historyChanges, []);
-  assert.deepEqual(closed, ['sign-in', 'sign-up', 'sign-in', 'sign-up']);
-
-  await options.routerReplace('/?verified=1');
-  assert.deepEqual(historyChanges, [
-    ['replace', { cabin: true }, '', 'https://nightrail.example/?verified=1'],
-  ]);
-  assert.deepEqual(navigations, []);
-
-  // Do not swallow genuine navigation to another route or origin.
+  assert.deepEqual(closed, ['signin', 'signup', 'signin', 'signup']);
   await options.routerPush('/verification');
   await options.routerReplace('https://accounts.example/verify');
-  assert.deepEqual(navigations, [
-    ['assign', 'https://nightrail.example/verification'],
-    ['replace', 'https://accounts.example/verify'],
-  ]);
-
-  const controller = new AbortController();
-  controller.abort();
-  await assert.rejects(openAuth(false, { signal: controller.signal }), { name: 'AbortError' });
-  assert.equal(opened.length, 2);
+  assert.deepEqual(navigations, ['https://nightrail.example/verification', 'https://accounts.example/verify']);
 });

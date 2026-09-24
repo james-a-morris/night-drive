@@ -4,13 +4,12 @@ import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { createStore } from '../server/store.ts';
-import { createTestStore } from './helpers/store.js';
 import { createApi, ApiError, mileageCredit } from '../server/api.ts';
 import { moderateIntention, ModerationUnavailable } from '../server/moderation.ts';
 
 async function setup(t, options = {}) {
   let now = 1790200000000;
-  const store = await createTestStore(t);
+  const store = await createStore({ sqlitePath: options.sqlitePath || ':memory:' });
   const handler = createApi({ getStore: async () => store, clock: () => now, moderate: options.moderate || (async () => true),
     getUser: async req => {
       if (!req.headers.get('authorization')) return null;
@@ -20,6 +19,7 @@ async function setup(t, options = {}) {
     },
   });
   const origin = 'http://night-line.test';
+  t.after(() => store.close());
   function visitor(initialCookie = '') {
     let cookie = initialCookie;
     return {
@@ -243,7 +243,7 @@ test('rider names are authenticated and moderated separately without extending a
   const later = await owner.request({ action: 'rider-name', name: 'Morning reader' }, auth);
   assert.equal(later.body.me.intention, null);
   assert.equal(later.body.me.intentionExpiresAt, null);
-  assert.equal(Number((await store.query('SELECT intention_expires_at FROM road_profiles WHERE clerk_user_id = $1', ['clerk-alice']))[0].intention_expires_at), deadline);
+  assert.equal((await store.query('SELECT intention_expires_at FROM road_profiles WHERE clerk_user_id = $1', ['clerk-alice']))[0].intention_expires_at, deadline);
   assert.deepEqual(checked.at(-1), { name: 'Morning reader', intention: 'Enjoy a quiet journey.' });
 });
 
@@ -260,10 +260,10 @@ test('SQLite retains total mileage when the server storage is reopened', async (
   const directory = await mkdtemp(join(tmpdir(), 'night-drive-test-'));
   const sqlitePath = join(directory, 'miles.sqlite');
   try {
-    let store = await createStore({ databaseUrl: null, sqlitePath });
+    let store = await createStore({ sqlitePath });
     await store.query('INSERT INTO road_profiles (id, name, total_metres, created_at, last_seen, last_mileage_at) VALUES ($1, $2, $3, $4, $4, $4)', ['driver', 'Guest', 3218.688, 100]);
     await store.close();
-    store = await createStore({ databaseUrl: null, sqlitePath });
+    store = await createStore({ sqlitePath });
     assert.equal((await store.query('SELECT total_metres FROM road_profiles WHERE id = $1', ['driver']))[0].total_metres, 3218.688);
     await store.close();
   } finally { await rm(directory, { recursive: true, force: true }); }
@@ -292,7 +292,7 @@ test('upgrading an older database preserves lifetime mileage and safely starts j
     `);
     legacy.close();
     const migrationStart = Date.now();
-    store = await createStore({ databaseUrl: null, sqlitePath });
+    store = await createStore({ sqlitePath });
     assert.equal((await store.query('SELECT total_metres FROM road_profiles'))[0].total_metres, 16093.44);
     const deadline = (await store.query('SELECT intention_expires_at FROM road_profiles'))[0].intention_expires_at;
     assert.ok(deadline >= migrationStart + 12 * 3600000 && deadline <= Date.now() + 12 * 3600000);
@@ -301,7 +301,7 @@ test('upgrading an older database preserves lifetime mileage and safely starts j
     assert.equal(trip.credited_metres, 0, 'old untrusted reports must never become credited journey miles');
     await store.query('UPDATE journeys SET credited_metres = $1', [123]);
     await store.close();
-    store = await createStore({ databaseUrl: null, sqlitePath });
+    store = await createStore({ sqlitePath });
     assert.equal((await store.query('SELECT credited_metres FROM journeys'))[0].credited_metres, 123);
     assert.equal((await store.query('SELECT intention_expires_at FROM road_profiles'))[0].intention_expires_at, deadline, 'reopening the database must not renew an old intention');
   } finally {

@@ -49,8 +49,6 @@ export default function NightLine() {
   });
   const room = useRoom(drive);
   const authAction = useAsyncAction();
-  const [authFeedback, setAuthFeedback] = useState(false);
-  const lastAuthSignUp = useRef(false);
   useEffect(() => {
     settings.current = { mode, seat, windowOpen: windowState === "open" };
     radio?.setWindowOpen(windowState === "open");
@@ -90,7 +88,7 @@ export default function NightLine() {
       sound?.dispose();
     };
   }, [drive, diagnostics]);
-  // Continue intention setup once the account has synced, without remounting the cabin.
+  // Resume an intention after Clerk returns from a full-page social sign-in.
   useEffect(() => {
     if (
       started &&
@@ -119,13 +117,11 @@ export default function NightLine() {
   const openIntention = () =>
     room.me?.signedIn ? setDialog("intention") : requireAccount();
   function authenticate(signUp: boolean) {
-    if (authAction.busy) return;
-    lastAuthSignUp.current = signUp;
-    setAuthFeedback(true);
     setDialog(null);
     void authAction.run(
       (signal) => openAuth(signUp, { signal }),
-      () => setAuthFeedback(false),
+      undefined,
+      () => setDialog("account"),
     );
   }
   function closeDialog() {
@@ -296,29 +292,8 @@ export default function NightLine() {
         onClose={closeDialog}
         onRequireAccount={requireAccount}
         onAuthenticate={authenticate}
+        authError={authAction.error}
       />
-      {authFeedback && (
-        <div className="auth-feedback">
-          <p role="status">
-            {authAction.busy
-              ? "Opening sign-in. Your journey continues…"
-              : authAction.error}
-          </p>
-          {!authAction.busy && (
-            <>
-              <button type="button" onClick={() => authenticate(lastAuthSignUp.current)}>
-                Try again
-              </button>
-              <button type="button" onClick={() => {
-                setAuthFeedback(false);
-                savePreference("pendingIntention", "0");
-              }}>
-                Keep traveling
-              </button>
-            </>
-          )}
-        </div>
-      )}
       <AboutPanel open={aboutOpen} onClose={() => setAboutOpen(false)} />
       {started && devKit === "on" && (
         <DevKit probe={diagnostics} onClose={() => setDevKit("off")} />
