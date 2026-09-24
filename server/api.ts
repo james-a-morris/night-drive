@@ -1,3 +1,5 @@
+import { readGarden, updateGarden, transferGarden } from "./tree-garden.ts";
+import { TREE_GROWTH_HOURS } from "../src/tree-varieties.ts";
 import type { Store, ProfileRow, JourneyRow, RankingRow } from "./types.ts";
 import type { RiderProfile, RoomView } from "../src/types.ts";
 import { requestError } from "../src/types.ts";
@@ -266,6 +268,7 @@ async function identify(
             "UPDATE guest_sessions SET driver_id = $1 WHERE driver_id = $2",
             [account.id, guest.id],
           );
+          await transferGarden(query, guest.id, account.id);
           await query("DELETE FROM road_profiles WHERE id = $1", [guest.id]);
           [account] = await query<ProfileRow>(
             "SELECT * FROM road_profiles WHERE id = $1",
@@ -332,6 +335,12 @@ async function roomView(
       currentJourneyId: mine?.journey_id ?? null,
       currentMiles: mine ? Number(mine.credited_metres) / METRES_PER_MILE : 0,
     },
+    garden: await store.transaction(async (query, lock) => {
+      await query(`SELECT id FROM road_profiles WHERE id = $1${lock}`, [
+        driver.id,
+      ]);
+      return readGarden(query, driver.id, now);
+    }),
     leaderboard: rows
       .filter((row) => Number(row.rank) <= 10)
       .map((row) => ({
@@ -432,6 +441,36 @@ async function recordMiles(
   });
 }
 
+async function treeAction(
+  { store, driver, body, now }: ActionContext,
+  harvest: boolean,
+) {
+  if (
+    Object.keys(body).some(
+      (key) => !["action", "treeId", "seconds"].includes(key),
+    ) ||
+    typeof body.treeId !== "string" ||
+    body.treeId.length > 64 ||
+    typeof body.seconds !== "number" ||
+    !Number.isFinite(body.seconds) ||
+    body.seconds < 0 ||
+    body.seconds > Math.max(...TREE_GROWTH_HOURS) * 3600
+  )
+    throw new ApiError(400, "Invalid tree update.");
+  return {
+    garden: await updateGarden(
+      store,
+      driver.id,
+      body.treeId,
+      body.seconds,
+      harvest,
+      now,
+    ),
+    owner: driver.id,
+    serverTime: now,
+  };
+}
+
 function requireAccount({ driver, userId }: ActionContext) {
   if (!userId || driver.clerk_user_id !== userId)
     throw new ApiError(
@@ -466,6 +505,12 @@ export function createApi({
     return clock();
   }
   const actions: Record<string, (context: ActionContext) => Promise<object>> = {
+    async "tree-save"(context) {
+      return treeAction(context, false);
+    },
+    async "tree-harvest"(context) {
+      return treeAction(context, true);
+    },
     async start({ store, driver, body, userId, now }) {
       if (Object.keys(body).length !== 1)
         throw new ApiError(400, "Unexpected journey fields.");

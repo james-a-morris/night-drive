@@ -4,7 +4,14 @@ import type { JourneyDialog } from "../src/types.ts";
 import type { NightRadio } from "../src/radio.ts";
 import type { mountScene, SceneSettings } from "../src/main.ts";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useSyncExternalStore } from "react";
+import { createTreeGarden } from "../src/tree-garden.ts";
+import {
+  TREE_VARIETIES,
+  treeDuration,
+  treeTimeRemaining,
+  gardenComplete,
+} from "../src/tree-varieties.ts";
 import { createDiagnostics } from "../src/diagnostics.ts";
 import { createDrive } from "../src/drive.ts";
 import { pineEnvironment, type PineWeather } from "../src/pine-weather.ts";
@@ -25,6 +32,14 @@ import { usePreference } from "./use-preference.ts";
 import { useAsyncAction } from "./use-async-action.ts";
 
 export default function NightLine() {
+  const [garden] = useState(createTreeGarden);
+  const [gardenView, setGardenView] = useState(false);
+  const treeState = useSyncExternalStore(
+    garden.subscribe,
+    garden.getSnapshot,
+    garden.getSnapshot,
+  );
+  const treeLabel = useRef<HTMLDivElement | null>(null);
   const canvas = useRef<HTMLCanvasElement | null>(null);
   const [drive] = useState(createDrive);
   const [pineWeather, setPineWeather] = useState<PineWeather>("rain");
@@ -47,12 +62,27 @@ export default function NightLine() {
     seat: "left",
     windowOpen: false,
   });
-  const room = useRoom(drive);
+  const room = useRoom(drive, garden);
+  useEffect(() => {
+    if (
+      !treeState.transfer ||
+      window.matchMedia("(prefers-reduced-motion: reduce)").matches
+    )
+      return;
+    setGardenView(true);
+    const timeout = setTimeout(() => setGardenView(false), 5000);
+    return () => clearTimeout(timeout);
+  }, [treeState.transfer]);
   const authAction = useAsyncAction();
   useEffect(() => {
-    settings.current = { mode, seat, windowOpen: windowState === "open" };
+    settings.current = {
+      mode,
+      seat,
+      windowOpen: windowState === "open",
+      gardenView,
+    };
     radio?.setWindowOpen(windowState === "open");
-  }, [mode, seat, windowState, radio]);
+  }, [mode, seat, windowState, gardenView, radio]);
   useEffect(() => {
     const controller = new AbortController();
     let scene: ReturnType<typeof mountScene> | undefined,
@@ -66,6 +96,8 @@ export default function NightLine() {
         sound.setWindowOpen(settings.current.windowOpen);
         scene = mountScene(canvas.current!, {
           drive,
+          garden,
+          treeLabel: treeLabel.current!,
           radio: sound,
           diagnostics,
           getSettings: () => settings.current,
@@ -87,7 +119,7 @@ export default function NightLine() {
       scene?.dispose();
       sound?.dispose();
     };
-  }, [drive, diagnostics]);
+  }, [drive, diagnostics, garden]);
   // Resume an intention after Clerk returns from a full-page social sign-in.
   useEffect(() => {
     if (
@@ -148,6 +180,84 @@ export default function NightLine() {
         inert={!started}
         data-ready={ready ? "true" : undefined}
       />
+      <div
+        ref={treeLabel}
+        className="tree-care"
+        style={{ visibility: "hidden" }}
+        {...journeyProps}
+      >
+        {treeState.garden && (
+          <>
+            <span className="tree-name">
+              {gardenView
+                ? "Your little garden"
+                : gardenComplete(treeState.garden)
+                  ? "Your garden is complete"
+                  : TREE_VARIETIES[treeState.garden.variety].name}
+            </span>
+            {!gardenView &&
+              !gardenComplete(treeState.garden) &&
+              (treeState.garden.seconds >=
+              treeDuration(treeState.garden.variety) ? (
+                <button
+                  type="button"
+                  onClick={() => void garden.reset()}
+                  disabled={treeState.busy}
+                  title="Move this plant to the other table and grow a new one"
+                >
+                  <svg
+                    width="12"
+                    height="12"
+                    viewBox="0 0 16 16"
+                    fill="none"
+                    aria-hidden="true"
+                  >
+                    <path
+                      d="M3 6a5 5 0 1 1 0 5M3 2v4h4"
+                      stroke="currentColor"
+                      strokeWidth="1.3"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    />
+                  </svg>{" "}
+                  {treeState.busy ? "Saving…" : "Grow another"}
+                </button>
+              ) : (
+                <span className="tree-time">
+                  {treeTimeRemaining(
+                    treeDuration(treeState.garden.variety) -
+                      treeState.garden.seconds,
+                  )}{" "}
+                  to grow
+                </span>
+              ))}
+            {treeState.garden.collection.length > 0 && (
+              <span className="tree-count">
+                {treeState.garden.collection.length} in your garden ·{" "}
+                {
+                  new Set(
+                    treeState.garden.collection.map((tree) => tree.variety),
+                  ).size
+                }
+                /50 varieties
+              </span>
+            )}
+            {treeState.garden.collection.length > 0 && (
+              <button
+                className="tree-view"
+                type="button"
+                aria-pressed={gardenView}
+                onClick={() => setGardenView((value) => !value)}
+              >
+                {gardenView ? "Back to my seat" : "View garden"}
+              </button>
+            )}
+          </>
+        )}
+        <span className="tree-error" role="status">
+          {treeState.error}
+        </span>
+      </div>
       <header className="topbar">
         <button
           className="brand"
@@ -231,7 +341,11 @@ export default function NightLine() {
         </button>
       </section>
       <div className="journey-controls" {...journeyProps}>
-        {started && stationStatus && <p className="station-status" role="status">{stationStatus}</p>}
+        {started && stationStatus && (
+          <p className="station-status" role="status">
+            {stationStatus}
+          </p>
+        )}
         <JourneyMeter room={room} unit={unit} onIntention={openIntention} />
         <FocusTimer />
       </div>
@@ -281,9 +395,23 @@ export default function NightLine() {
           <RadioPlayer radio={radio} />
         </div>
         <div className="dash-route">
-          <span id="route-name">{(route === "forest" ? pineEnvironment(pineWeather) : ENVIRONMENTS[route]).name}</span>
+          <span id="route-name">
+            {
+              (route === "forest"
+                ? pineEnvironment(pineWeather)
+                : ENVIRONMENTS[route]
+              ).name
+            }
+          </span>
           <i aria-hidden="true">·</i>
-          <span id="route-weather">{(route === "forest" ? pineEnvironment(pineWeather) : ENVIRONMENTS[route]).weather}</span>
+          <span id="route-weather">
+            {
+              (route === "forest"
+                ? pineEnvironment(pineWeather)
+                : ENVIRONMENTS[route]
+              ).weather
+            }
+          </span>
         </div>
       </section>
       <JourneyDialogs

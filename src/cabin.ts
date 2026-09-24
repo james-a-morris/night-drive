@@ -1,3 +1,4 @@
+import type { TreeGardenController } from "./tree-garden.ts";
 import { blendEnvironment } from "./environments.ts";
 import { radialTexture } from "./textures.ts";
 import type { Lifecycle } from "./lifecycle.ts";
@@ -10,7 +11,7 @@ import { createWindowRain } from "./window-rain.ts";
 import { createPottedTree } from "./potted-tree.ts";
 import { mergeStaticMeshes } from "./static-meshes.ts";
 
-export function createStudyCabin(scope: Lifecycle) {
+export function createStudyCabin(scope: Lifecycle, garden: TreeGardenController) {
   const rig = new THREE.Group();
   rig.name = "train-study-cabin";
   const nook = new THREE.Group();
@@ -456,33 +457,11 @@ export function createStudyCabin(scope: Lifecycle) {
   plant.position.set(-0.65, 1.077, -0.55);
   keepsakes.add(plant);
   plant.scale.setScalar(0.74);
-  const pot = material(0xb17957);
-  mesh(
-    new THREE.CylinderGeometry(0.1, 0.072, 0.15, 32),
-    pot,
-    [0, 0.078, 0],
-    plant,
-  );
-  mesh(
-    new THREE.TorusGeometry(0.097, 0.008, 8, 32),
-    pot,
-    [0, 0.155, 0],
-    plant,
-  ).rotation.x = Math.PI / 2;
-  const soil = mesh(
-    new THREE.CircleGeometry(0.09, 32),
-    walnut,
-    [0, 0.157, 0],
-    plant,
-  );
-  soil.rotation.x = -Math.PI / 2;
-  const tree = createPottedTree(scope);
-  plant.add(tree.object);
-
   const spareTable = new THREE.Group();
   nook.add(spareTable);
   softBox([1.8, 0.095, 1.1], [0, 1.38, -0.35], dash, spareTable, 0.04);
   softBox([0.14, 0.7, 0.16], [0, 1.0, -0.4], walnut, spareTable);
+  const tree = createPottedTree(scope, plant, spareTable, nook, garden);
   const light = new THREE.PointLight(0xffd6a6, 3.2, 5);
   light.position.set(0, 3.03, 0.4);
   nook.add(light);
@@ -573,13 +552,13 @@ export function createCabinView({
   });
   return {
     update(dt: number, weather: EnvironmentWeights, forest?: Environment) {
-      const { seat, windowOpen } = getSettings();
+      const { seat, windowOpen, gardenView } = getSettings();
       const side = seat === "left" ? 1 : -1;
       const portrait = innerWidth / innerHeight < 0.85;
       gaze.x += (pointer.x - gaze.x) * (1 - Math.exp(-dt * 2));
       gaze.y += (pointer.y - gaze.y) * (1 - Math.exp(-dt * 2));
-      look.yaw += (drag.yaw - look.yaw) * (1 - Math.exp(-dt * 4));
-      look.pitch += (drag.pitch - look.pitch) * (1 - Math.exp(-dt * 4));
+      look.yaw += ((gardenView ? -side * 0.98 : drag.yaw) - look.yaw) * (motion.matches ? 1 : 1 - Math.exp(-dt * 3));
+      look.pitch += ((gardenView ? -0.13 : drag.pitch) - look.pitch) * (motion.matches ? 1 : 1 - Math.exp(-dt * 3));
       nook.position.x = 0;
       nook.rotation.y = 0;
       // Keep the desk square to the carriage and its outer edge inside the wall.

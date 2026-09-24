@@ -1,24 +1,35 @@
 # Nature assets
 
-The miniature on the table uses `CommonTree_1.fbx` from
-[Quaternius: Ultimate Nature Pack](https://quaternius.com/packs/ultimatenature.html),
-released under CC0. The original file was downloaded from the creator's
+## Collectible desk garden
+
+`src/tree-model.ts` generates fifty original miniatures from the catalog in
+`src/tree-varieties.ts`: ten silhouettes with five named variations each,
+including willows, palms, flowering trees, flowers, succulents, cacti, ferns,
+mushrooms and spiral topiary.
+Geometry is baked into at most five meshes per specimen. No model download is needed.
+The whole pot travels to the spare table; its position follows either seat.
+The table fits fifty specimens, with the full collection retained in the database.
+
+The first three plants take 30 minutes each and the fourth takes 1.5 hours.
+Later durations vary, and all fifty total exactly 1,000 hours. The collection
+stops growing when all fifty varieties are collected. Only visible time aboard
+counts. Reduced motion disables sway and completes transfers immediately.
+
+`tree_gardens` stores the current specimen, variety and elapsed growth;
+`collected_trees` stores each completed specimen with its owner and collection
+time. Saves run every 15 seconds and when hiding/leaving the page. Reset is a
+transaction: only a mature current plant can be collected, and retrying an old
+specimen ID returns the current state without duplicating it. Offline growth
+can lose unacknowledged time; the server caps catch-up at 90 seconds per save.
+Guest collections transfer on sign-in; the active plant with more accrued growth time is retained
+when both profiles already have one. Signing out starts a fresh guest garden.
+The obsolete `night-line:tree-age` browser preference is no longer used.
+
+The previous `public/assets/potted-tree.glb` remains as a legacy asset, but is
+not loaded by the desk garden. It was converted from `CommonTree_1.fbx` in
+[Quaternius: Ultimate Nature Pack](https://quaternius.com/packs/ultimatenature.html)
+(CC0), from the creator's
 [FBX folder](https://drive.google.com/drive/folders/1uoIaSvBzm8SrC7g-feRK6ewzHVUGApE0).
-
-`public/assets/potted-tree.glb` is a self-contained, approximately 207 KiB
-conversion made with Three.js FBXLoader and GLTFExporter. It retains the model's
-geometry, separates the two connected foliage crowns for growth, uses matte
-brown and sage materials, and places the trunk's base at the origin. Its mature
-height is 0.58 scene units before the cabin's plant scale. No textures or external
-asset services are needed at runtime.
-
-The tree grows over 25 minutes spent aboard in a visible tab. The trunk extends
-and the two crowns fill out at different rates; the terracotta pot stays fixed.
-Growth is saved in this browser under `night-line:tree-age`, every 30 seconds and
-on hiding or leaving the page. It resumes across visits, stops at its mature size,
-and never credits time while the page is closed or hidden. Reduced motion stops
-sway while retaining slow growth. If the GLB fails to load, a small procedural
-sapling remains in the pot.
 
 ## Original landscape foliage
 

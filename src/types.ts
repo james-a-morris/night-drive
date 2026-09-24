@@ -1,3 +1,4 @@
+import type { TreeGarden } from "./tree-varieties.ts";
 export type DistanceUnit = "mi" | "km";
 export type Seat = "left" | "right";
 export type JourneyDialog = "account" | "intention" | "rider-name" | null;
@@ -22,6 +23,7 @@ export interface Leader extends Intention {
   live: boolean;
 }
 export interface RoomView {
+  garden: TreeGarden;
   me: RiderProfile;
   leaderboard: Leader[];
   activeCount: number;
@@ -47,6 +49,7 @@ export type ProfileAction =
   | { action: "clear-intention" };
 export type RoomAction =
   | ProfileAction
+  | { action: "tree-save" | "tree-harvest"; treeId: string; seconds: number }
   | { action: "start" }
   | { action: "mileage"; journeyId: string; sequence: number; metres: number };
 export interface RoomSnapshot {

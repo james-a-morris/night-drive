@@ -1,131 +1,162 @@
+import { treeDuration, gardenComplete } from "./tree-varieties.ts";
 import * as THREE from "./three.ts";
-import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
 import type { Lifecycle } from "./lifecycle.ts";
 import { reducedMotion } from "./motion.ts";
-import { PREFERENCES, readPreference, savePreference } from "./prefs.ts";
-import { createTreeGrowth, treeShape } from "./tree-growth.ts";
+import { treeShape } from "./tree-growth.ts";
+import { createTreeModel, disposeTree } from "./tree-model.ts";
+import type { TreeGardenController } from "./tree-garden.ts";
 
-export function createPottedTree(scope: Lifecycle) {
-  const object = new THREE.Group();
-  object.name = "growing-tree";
-  // The soil is the fixed pivot. Growth and sway never move the pot itself.
-  object.position.y = 0.157;
-  object.rotation.y = -0.6;
-  const crown = new THREE.Group();
-  crown.name = "tree-growth";
-  object.add(crown);
-  const growth = createTreeGrowth(readPreference("treeAge"));
-  const motion = reducedMotion();
-  let canopies: THREE.Object3D[] = [];
-  let savedAt = 0;
-  let breeze = 0;
-  let lastFrame: number | null = null;
-
-  // A small sapling also keeps the pot planted if the model cannot load.
-  const sapling = new THREE.Group();
-  sapling.name = "tree-sapling";
-  crown.add(sapling);
-  const stem = new THREE.Mesh(
-    new THREE.CylinderGeometry(0.007, 0.012, 0.42, 7),
-    new THREE.MeshStandardMaterial({ color: 0x89664b, roughness: 0.92 }),
-  );
-  stem.position.y = 0.21;
-  sapling.add(stem);
-  const leafGeometry = new THREE.SphereGeometry(1, 6, 4);
-  const leafMaterial = new THREE.MeshStandardMaterial({
-    color: 0x829a64,
-    roughness: 0.92,
-    flatShading: true,
-  });
-  for (let i = 0; i < 5; i++) {
-    const leaf = new THREE.Mesh(leafGeometry, leafMaterial);
-    const angle = i * 2.4;
-    leaf.position.set(
-      Math.cos(angle) * 0.035,
-      0.24 + i * 0.045,
-      Math.sin(angle) * 0.035,
-    );
-    leaf.rotation.set(0.25, -angle, i % 2 ? 0.5 : -0.5);
-    leaf.scale.set(0.085, 0.02, 0.035);
-    sapling.add(leaf);
-  }
-
-  function shape() {
-    const pose = treeShape(growth.seconds);
-    crown.scale.set(pose.width, pose.height, pose.width);
-    canopies.forEach((part, index) => {
-      part.scale.setScalar(index === 0 ? pose.lowerCrown : pose.upperCrown);
-    });
-  }
-  shape();
-
-  void scope
-    .task(async () => {
-      const response = await fetch("/assets/potted-tree.glb", {
-        signal: scope.signal,
-      });
-      if (!response.ok) throw new Error(`Tree asset: ${response.status}`);
-      const asset = await new GLTFLoader().parseAsync(await response.arrayBuffer(), "");
-      if (scope.signal.aborted) {
-        // The scene may already have been disposed while the GLB was parsing.
-        asset.scene.traverse((part) => {
-          if (!(part instanceof THREE.Mesh)) return;
-          part.geometry.dispose();
-          const materials = Array.isArray(part.material)
-            ? part.material
-            : [part.material];
-          for (const material of materials) material.dispose();
-        });
-        return;
-      }
-      canopies = [];
-      asset.scene.traverse((part) => {
-        if (part.userData.canopy) canopies.push(part);
-      });
-      canopies.sort((a, b) => a.position.y - b.position.y);
-      crown.add(asset.scene);
-      sapling.visible = false;
-      shape();
-    })
-    .catch((error: unknown) => console.warn("Could not load the miniature tree", error));
-
-  function save() {
-    // Another tab may have a more mature tree; never overwrite it with a younger one.
-    growth.resume(readPreference("treeAge"));
-    savePreference("treeAge", growth.seconds);
-  }
-  scope.on(window, "storage", (event) => {
-    if (event instanceof StorageEvent && event.key === PREFERENCES.treeAge.key) {
-      growth.resume(readPreference("treeAge"));
-      shape();
-    }
-  });
-  scope.on(document, "visibilitychange", () => {
-    growth.update(performance.now(), false);
-    lastFrame = null;
-    if (document.hidden) save();
-  });
-  scope.on(window, "pagehide", save);
-  scope.defer(save);
-
+export function collectionPose(index: number, count: number) {
+  const columns = Math.min(10, Math.max(4, Math.ceil(Math.sqrt(count * 1.8))));
+  const rows = Math.ceil(count / columns);
+  const scale = Math.min(0.64, 1.55 / (columns * 0.5), 0.87 / (rows * 0.5));
   return {
-    object,
-    update(now: number, aboard: boolean) {
-      if (scope.signal.aborted) return;
-      const active = aboard && !document.hidden;
-      growth.update(now, active);
-      if (active && now - savedAt >= 30000) {
-        save();
-        savedAt = now;
+    x: ((index % columns) - (columns - 1) / 2) * (1.55 / columns),
+    y: 1.428,
+    z: -0.76 + (Math.floor(index / columns) + 0.5) * (0.87 / Math.max(2, rows)),
+    scale,
+  };
+}
+export function createPottedTree(
+  scope: Lifecycle,
+  plant: THREE.Group,
+  spareTable: THREE.Group,
+  nook: THREE.Group,
+  garden: TreeGardenController,
+) {
+  const motion = reducedMotion();
+  let active = createTreeModel(0);
+  active.object.name = "growing-tree";
+  plant.add(active.object);
+  let currentId = "";
+  let transferSerial = 0;
+  const collected = new Map<string, THREE.Group>();
+  let flight: {
+    object: THREE.Group;
+    id: string;
+    elapsed: number;
+    from: THREE.Vector3;
+    scale: number;
+  } | null = null;
+  let last: number | null = null;
+  let sprout = 1;
+  function reconcile() {
+    const state = garden.getSnapshot();
+    if (!state.garden) return;
+    const data = state.garden;
+    if (data.id !== currentId) {
+      if (
+        state.transfer &&
+        state.transfer.serial !== transferSerial &&
+        currentId === state.transfer.id
+      ) {
+        transferSerial = state.transfer.serial;
+        plant.updateWorldMatrix(true, true);
+        nook.updateWorldMatrix(true, false);
+        const from = nook.worldToLocal(
+          active.object.getWorldPosition(new THREE.Vector3()),
+        );
+        if (flight) {
+          disposeTree(flight.object);
+          flight = null;
+        }
+        nook.attach(active.object);
+        flight = {
+          object: active.object,
+          id: currentId,
+          elapsed: 0,
+          from,
+          scale: active.object.scale.x,
+        };
+        sprout = 0;
+      } else {
+        disposeTree(active.object);
+        if (flight) {
+          disposeTree(flight.object);
+          flight = null;
+        }
       }
-      const dt = lastFrame === null
+      active = createTreeModel(data.variety);
+      active.object.name = "growing-tree";
+      plant.add(active.object);
+      currentId = data.id;
+    }
+    active.object.visible = !gardenComplete(data);
+    // All specimens remain in the database. Display the latest fifty on the table.
+    const visible = data.collection.slice(-50);
+    const ids = new Set(visible.map((tree) => tree.id));
+    for (const [id, object] of collected)
+      if (!ids.has(id)) {
+        disposeTree(object);
+        collected.delete(id);
+      }
+    for (const [index, tree] of visible.entries()) {
+      if (flight?.id === tree.id) continue;
+      let object = collected.get(tree.id);
+      if (!object) {
+        object = createTreeModel(tree.variety).object;
+        spareTable.add(object);
+        collected.set(tree.id, object);
+      }
+      const pose = collectionPose(index, visible.length);
+      object.position.set(pose.x, pose.y, pose.z);
+      object.scale.setScalar(pose.scale);
+    }
+  }
+  scope.on(document, "visibilitychange", () => {
+    garden.update(performance.now(), false);
+    last = null;
+  });
+  scope.defer(() => garden.update(performance.now(), false));
+  scope.defer(garden.subscribe(reconcile));
+  reconcile();
+  const target = new THREE.Vector3();
+  return {
+    update(now: number, aboard: boolean) {
+      const dt = last === null ? 0 : Math.max(0, (now - last) / 1000);
+      last = now;
+      garden.update(now, aboard && !document.hidden);
+      const pose = treeShape(
+        garden.seconds,
+        treeDuration(garden.getSnapshot().garden?.variety ?? 0),
+      );
+      active.crown.scale.set(pose.width, pose.height, pose.width);
+      active.crown.rotation.z = motion.matches
         ? 0
-        : Math.max(0, Math.min((now - lastFrame) / 1000, 0.05));
-      lastFrame = now;
-      if (active && !motion.matches) breeze += dt;
-      crown.rotation.z = motion.matches ? 0 : Math.sin(breeze * 1.2) * 0.012;
-      crown.rotation.x = motion.matches ? 0 : Math.sin(breeze * 0.8 + 0.4) * 0.007;
-      shape();
+        : Math.sin(now * 0.0012) * 0.012;
+      if (flight) {
+        flight.elapsed += dt;
+        const t = motion.matches ? 1 : Math.min(1, flight.elapsed / 1.8);
+        const ease = t * t * (3 - 2 * t);
+        const visible = garden.getSnapshot().garden!.collection.slice(-50);
+        const index = visible.findIndex((tree) => tree.id === flight!.id);
+        const destination = collectionPose(Math.max(0, index), visible.length);
+        spareTable.updateWorldMatrix(true, false);
+        nook.worldToLocal(
+          spareTable.localToWorld(
+            target.set(destination.x, destination.y, destination.z),
+          ),
+        );
+        flight.object.position.lerpVectors(flight.from, target, ease);
+        flight.object.position.y += Math.sin(t * Math.PI) * 0.55;
+        flight.object.scale.setScalar(
+          THREE.MathUtils.lerp(flight.scale, destination.scale, ease),
+        );
+        flight.object.rotation.y = Math.sin(t * Math.PI) * 0.6;
+        if (t === 1) {
+          spareTable.add(flight.object);
+          flight.object.position.set(
+            destination.x,
+            destination.y,
+            destination.z,
+          );
+          collected.set(flight.id, flight.object);
+          flight = null;
+          reconcile();
+        }
+      }
+      sprout = motion.matches ? 1 : Math.min(1, sprout + dt * 1.5);
+      active.object.scale.setScalar(sprout * sprout * (3 - 2 * sprout));
     },
   };
 }
