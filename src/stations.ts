@@ -1,0 +1,200 @@
+import * as THREE from "./three.ts";
+import { mergeGeometries } from "three/addons/utils/BufferGeometryUtils.js";
+import { roadFrame, roadPoint } from "./drive.ts";
+import { stationAvailable, stationsNear, type StationStop } from "./station-route.ts";
+import { environmentWeights, type SceneryMode } from "./environments.ts";
+import type { Lifecycle } from "./lifecycle.ts";
+import { stationClockHands } from "./station-clock.ts";
+
+export function createStations(world: THREE.Group, scope: Lifecycle) {
+  const root = new THREE.Group(); root.name = "wayside-station"; world.add(root);
+  let current = "";
+  let clockMinute = -1;
+  let updateClock: ((now: Date) => void) | undefined;
+  function clear() {
+    const resources = new Set<{ dispose(): void }>();
+    root.traverse(object => {
+      if (!(object instanceof THREE.Mesh)) return;
+      resources.add(object.geometry);
+      for (const material of Array.isArray(object.material) ? object.material : [object.material]) {
+        resources.add(material);
+        for (const value of Object.values(material)) if (value instanceof THREE.Texture) resources.add(value);
+      }
+    });
+    resources.forEach(resource => resource.dispose()); root.clear(); updateClock = undefined;
+  }
+  scope.defer(clear);
+  function build(stop: StationStop, mode: SceneryMode) {
+    clear(); root.userData.station = stop;
+    const solid: THREE.BufferGeometry[] = [], glowing: THREE.BufferGeometry[] = [];
+    const snow = environmentWeights(stop.at, mode).alpine > 0.5;
+    const roof = snow ? 0xcbd6d2 : 0x485e58, wood = 0x7b7057, cream = 0xc0b799;
+    function paint(geometry: THREE.BufferGeometry, hex: number, bucket = solid) {
+      const color = new THREE.Color(hex), colors = new Float32Array(geometry.attributes.position.count * 3);
+      for (let i = 0; i < colors.length; i += 3) colors.set([color.r, color.g, color.b], i);
+      geometry.deleteAttribute("uv"); geometry.setAttribute("color", new THREE.BufferAttribute(colors, 3)); bucket.push(geometry);
+    }
+    function box(at: number, lateral: number, y: number, width: number, height: number, depth: number, color: number, bucket = solid) {
+      const geometry = new THREE.BoxGeometry(width, height, depth).toNonIndexed();
+      const point = roadPoint(at, lateral);
+      geometry.rotateY(roadFrame(at).heading); geometry.translate(point.x, y, point.z); paint(geometry, color, bucket);
+    }
+    function gable(at: number, lateral: number, base: number, width: number, rise: number, depth: number) {
+      const shape = new THREE.Shape(); shape.moveTo(-width / 2, 0); shape.lineTo(width / 2, 0); shape.lineTo(0, rise); shape.closePath();
+      const geometry = new THREE.ExtrudeGeometry(shape, { depth, bevelEnabled: false, steps: 1 });
+      geometry.translate(0, base, -depth / 2);
+      const point = roadPoint(at, lateral); geometry.rotateY(roadFrame(at).heading); geometry.translate(point.x, 0, point.z);
+      paint(geometry, roof);
+    }
+    // Curved deck sections follow the railway. All fixed detail is merged into
+    // two meshes, with eight simple signs and clocks; there are no extra lights or shaders.
+    for (const side of [-1, 1]) {
+      for (let offset = -30; offset < 96; offset += 3) {
+        const a = stop.at + offset, b = a + 3;
+        const innerA = roadPoint(a, side * 3.5), outerA = roadPoint(a, side * 16.5);
+        const innerB = roadPoint(b, side * 3.5), outerB = roadPoint(b, side * 16.5);
+        const positions = [innerA.x,.8,innerA.z, outerA.x,.8,outerA.z, innerB.x,.8,innerB.z,
+          outerA.x,.8,outerA.z, outerB.x,.8,outerB.z, innerB.x,.8,innerB.z,
+          innerA.x,0,innerA.z,innerA.x,.8,innerA.z,innerB.x,0,innerB.z,
+          innerA.x,.8,innerA.z,innerB.x,.8,innerB.z,innerB.x,0,innerB.z];
+        const deck = new THREE.BufferGeometry(); deck.setAttribute("position", new THREE.Float32BufferAttribute(positions, 3)); deck.computeVertexNormals(); paint(deck, 0x777b6d);
+        const edgeA=roadPoint(a,side*3.75), edgeB=roadPoint(b,side*3.75);
+        const edge=new THREE.BufferGeometry();
+        edge.setAttribute("position",new THREE.Float32BufferAttribute([
+          innerA.x,.825,innerA.z,edgeA.x,.825,edgeA.z,innerB.x,.825,innerB.z,
+          edgeA.x,.825,edgeA.z,edgeB.x,.825,edgeB.z,innerB.x,.825,innerB.z,
+        ],3));edge.computeVertexNormals();paint(edge,cream);
+      }
+      // One continuous curved canopy, with shared seams at every cross-section.
+      // Rigid roof boxes left triangular gaps when viewed along the platform.
+      const canopy: number[] = [];
+      const profile = [[4.1, 3.8], [6.4, 4.3], [8.7, 3.8]];
+      for(let offset=-14;offset<35;offset+=1)for(let panel=0;panel<2;panel++) {
+        const corners = [[offset,panel],[offset,panel+1],[offset+1,panel],[offset+1,panel+1]].map(([along,cross])=>{
+          const p=roadPoint(stop.at+along,side*profile[cross][0]);return [p.x,profile[cross][1],p.z];
+        });
+        for(const index of [0,1,2,1,3,2])canopy.push(...corners[index]);
+      }
+      const canopyGeometry=new THREE.BufferGeometry();canopyGeometry.setAttribute("position",new THREE.Float32BufferAttribute(canopy,3));canopyGeometry.computeVertexNormals();paint(canopyGeometry,roof);
+      for (const offset of [-8, 4, 16, 28]) {
+        const at = stop.at + offset;
+        box(at - 5.5, side * 7.7, 2.3, .2, 3, .2, wood);
+        box(at - 5.5, side * 4.9, 2.3, .2, 3, .2, wood);
+        box(at, side * 6.7, 3.65, .18, .09, 1.1, 0xffd797, glowing);
+      }
+      for (const offset of [-4, 18, 52]) {
+        const at = stop.at + offset;
+        box(at, side * 7, 1.23, .65, .12, 2.6, wood);
+        box(at, side * 7.3, 1.6, .09, .65, 2.6, wood);
+        for (const leg of [-.9, .9]) box(at + leg, side * 7, 1, .46, .4, .12, 0x46564d);
+      }
+    }
+    // Brick booking hall beside the boarding window, with a second hall on
+    // the inland platform. Pitched roofs, cream quoins and tall sash windows.
+    const sides = environmentWeights(stop.at, mode).coast > .5 ? [1] : [-1, 1];
+    for (const side of sides) {
+      const at = stop.at + 15;
+      const frame = roadFrame(at), origin = roadPoint(at, side * 12.1);
+      function hall(partAt: number, lateral: number, y: number, width: number, height: number, depth: number, color: number, bucket = solid) {
+        const geometry = new THREE.BoxGeometry(width, height, depth).toNonIndexed();
+        const x = lateral - side * 12.1, z = -(partAt - at);
+        geometry.rotateY(frame.heading);
+        geometry.translate(origin.x + Math.cos(frame.heading) * x + Math.sin(frame.heading) * z,
+          y, origin.z - Math.sin(frame.heading) * x + Math.cos(frame.heading) * z);
+        paint(geometry, color, bucket);
+      }
+
+      hall(at, side * 12.1, .45, 7.6, .9, 18.8, 0x657267);
+      hall(at, side * 12.1, 2.55, 7, 3.5, 18, 0x916f5b);
+      gable(at, side * 12.1, 4.3, 8, 1.9, 19.1);
+      hall(at, side * 8.58, 4.17, .13, .28, 18.2, cream);
+      // Stone courses imply brickwork without texture samples or tiny bricks.
+      for (const y of [1, 2, 3, 4]) hall(at, side * 8.57, y, .1, .08, 18, 0xa48f75);
+      for (const end of [-8.75, 8.75]) hall(at + end, side * 8.53, 2.55, .2, 3.5, .36, cream);
+      hall(at, side * 8.5, 2, .16, 2.4, 1.5, 0x354f46);
+      hall(at, side * 8.38, 3.28, .07, .4, 1.5, 0xd7ceab);
+      for (const offset of [-6, -3.5, 3.5, 6]) {
+        hall(at + offset, side * 8.48, 2.45, .12, 1.95, 1.5, cream);
+        hall(at + offset, side * 8.36, 2.45, .06, 1.65, 1.21, 0xe7c889, glowing);
+        hall(at + offset, side * 8.3, 2.45, .08, .065, 1.23, wood);
+        hall(at + offset, side * 8.3, 2.45, .08, 1.67, .065, wood);
+      }
+      hall(at - 5, side * 12.2, 5.5, .85, 2.2, .85, 0x866653);
+      hall(at - 5, side * 12.2, 6.64, 1.1, .18, 1.1, cream);
+    }
+    // Lamps, a parcel trolley and a few trunks make the platform feel in use.
+    for (const side of [-1, 1]) for (const offset of [-23, 43, 70]) {
+      box(stop.at + offset, side * 7.5, 2.5, .12, 3.4, .12, 0x40574b);
+      box(stop.at + offset, side * 7.5, 4.2, .46, .16, .46, roof);
+      box(stop.at + offset, side * 7.5, 3.95, .3, .4, .3, 0xf4d7a0, glowing);
+    }
+    box(stop.at - 4, -7.5, 1.15, .85, .14, 1.9, wood);
+    for (const offset of [-4.5, -3.6]) {
+      box(stop.at + offset, -7.5, 1.52, .62, .64, .65, 0x80664c);
+      box(stop.at + offset, -7.5, 1.52, .65, .67, .06, cream);
+    }
+    const canvas = document.createElement("canvas"); canvas.width = 512; canvas.height = 256;
+    const ctx = canvas.getContext("2d")!; ctx.fillStyle = "#30493f"; ctx.fillRect(0,0,512,256);
+    ctx.strokeStyle = "#b8b998"; ctx.lineWidth = 3; ctx.strokeRect(5,5,502,86);
+    ctx.fillStyle = "#eee8ce"; ctx.textAlign = "center"; ctx.textBaseline = "middle";
+    ctx.font = "500 32px Georgia"; ctx.fillText(stop.name.toUpperCase(),256,49,460);
+    for (const [number, x] of [[1, 72], [2, 204]]) {
+      ctx.strokeRect(x - 48, 119, 96, 96); ctx.font = "bold 64px Georgia"; ctx.fillText(String(number), x, 173);
+    }
+    const texture = new THREE.CanvasTexture(canvas); texture.colorSpace = THREE.SRGBColorSpace;
+    updateClock = (now) => {
+      ctx.fillStyle = "#ece7ce"; ctx.beginPath(); ctx.arc(390,174,60,0,Math.PI*2); ctx.fill();
+      ctx.strokeStyle = "#354e43"; ctx.lineWidth = 4;
+      for (let tick=0;tick<12;tick++) {const a=tick*Math.PI/6;ctx.beginPath();ctx.moveTo(390+Math.sin(a)*49,174-Math.cos(a)*49);ctx.lineTo(390+Math.sin(a)*55,174-Math.cos(a)*55);ctx.stroke();}
+      const hands = stationClockHands(now);
+      for (const [angle, length] of [[hands.hour, 31], [hands.minute, 44]]) {
+        ctx.beginPath(); ctx.moveTo(390,174);
+        ctx.lineTo(390+Math.sin(angle)*length,174-Math.cos(angle)*length);ctx.stroke();
+      }
+      texture.needsUpdate = true;
+    };
+    clockMinute = -1;
+    function signGeometry(width: number, height: number, x: number, y: number, w: number, h: number, round = false) {
+      const geometry = round ? new THREE.CircleGeometry(width / 2, 24) : new THREE.PlaneGeometry(width, height), uv=geometry.attributes.uv;
+      for(let i=0;i<uv.count;i++)uv.setXY(i,(x+uv.getX(i)*w)/512,1-(y+(1-uv.getY(i))*h)/256);
+      return geometry;
+    }
+    const signMaterial = new THREE.MeshBasicMaterial({ map: texture, side: THREE.DoubleSide });
+    for (const side of [-1, 1]) for (const offset of [-8, 24]) {
+      const at = stop.at + offset, point = roadPoint(at, side * 7.9);
+      const sign = new THREE.Mesh(signGeometry(3.7, .7, 0, 0, 512, 96), signMaterial);
+      sign.name = "station-nameboard"; sign.position.set(point.x, 2.4, point.z);
+      sign.rotation.y = roadFrame(at).heading - side * Math.PI / 2; root.add(sign);
+      for (const leg of [-1.5, 1.5]) box(at + leg, side * 7.9, 1.6, .1, 1.6, .1, wood);
+    }
+    for (const side of [-1, 1]) {
+      for (const [at, y, geometry] of [
+        [stop.at + 6, 3.1, signGeometry(.72, .72, side === -1 ? 24 : 156, 119, 96, 96)],
+        [stop.at + 1, 3.0, signGeometry(.88, .88, 328, 112, 124, 124, true)],
+      ] as const) {
+        const point = roadPoint(at, side * 4.95), sign=new THREE.Mesh(geometry, signMaterial);
+        sign.position.set(point.x,y,point.z);sign.rotation.y=roadFrame(at).heading-side*Math.PI/2;root.add(sign);
+        if(y === 3.0) {
+          const rim=new THREE.RingGeometry(.44,.49,24).toNonIndexed();rim.rotateY(sign.rotation.y);rim.translate(point.x,y,point.z);paint(rim,cream);
+        }
+        box(at, side * 4.95,3.55,.06,.5,.06,wood);
+      }
+    }
+    for (const [parts, material, name] of [
+      [solid, new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 1, side: THREE.DoubleSide }), "station-platforms-and-shelters"],
+      [glowing, new THREE.MeshBasicMaterial({ vertexColors: true }), "station-lamps-and-windows"],
+    ] as const) {
+      const mesh = new THREE.Mesh(mergeGeometries(parts)!, material); mesh.name = name;
+      parts.forEach(part => part.dispose()); root.add(mesh);
+    }
+  }
+  return { root, update(progress: number, mode: SceneryMode) {
+    const stop = stationsNear(progress).find(candidate => Math.abs(candidate.at - progress) < 360 && stationAvailable(candidate.at, mode));
+    root.visible = !!stop;
+    if (!stop) return;
+    const key = `${stop.index}:${mode}`;
+    if (key !== current) { current = key; build(stop, mode); }
+    const now = Date.now(), minute = Math.floor(now / 60000);
+    if (minute !== clockMinute) { clockMinute = minute; updateClock?.(new Date(now)); }
+  }};
+}

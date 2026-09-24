@@ -1,0 +1,56 @@
+/* Focus timer: beneath the journey widget, in the same quiet palette as the radio. */
+.focus-timer { padding:10px 12px 12px; color:#e3dfcc; font-family:var(--font-ui); transition:border-color .6s,box-shadow .6s; }
+.focus-timer.is-complete { border-color:#e5cf9f8c; box-shadow:var(--card-shadow),0 0 0 3px #e5cf9f1a; }
+.timer-header { display:flex; align-items:center; justify-content:space-between; gap:8px; min-height:20px; }
+.timer-status { display:flex; align-items:center; gap:6px; min-width:0; margin:0; color:#a5b499; font:var(--text-label) var(--font-ui); letter-spacing:.07em; white-space:nowrap; }
+.timer-status>i { width:3px; height:3px; flex:none; border-radius:50%; background:#87977e; }
+.is-running .timer-status>i { background:#bbcb97; box-shadow:0 0 6px #bbcb9766; }
+.is-running:not([data-phase=focus]) .timer-status>i { background:#e2b48f; box-shadow:0 0 6px #e2b48f66; }
+#timer-phase { overflow:hidden; text-overflow:ellipsis; }
+.timer-rounds { display:flex; gap:3px; margin-left:2px; }
+.timer-rounds b { width:5px; height:5px; border:1px solid #a5b49980; border-radius:50%; }
+.timer-rounds .is-done { border-color:#bbcb97; background:#bbcb97; }
+.timer-rounds .is-current { border-color:#e3dfcc; }
+.timer-mode { display:flex; align-items:center; gap:4px; flex:none; margin:-4px -6px -4px 0; padding:4px 6px; border:0; border-radius:4px; background:none; color:#c2c9af; font:var(--text-label) var(--font-ui); letter-spacing:.07em; cursor:pointer; }
+.timer-mode:hover,.timer-mode[aria-expanded=true] { color:#ffe1b0; background:#fff3d310; }
+.timer-mode svg { width:12px; height:12px; stroke:currentColor; stroke-width:1.4; stroke-linecap:round; stroke-linejoin:round; transition:transform .2s; }
+.timer-mode[aria-expanded=true] svg { transform:rotate(180deg); }
+.timer-row { display:flex; align-items:center; justify-content:space-between; gap:10px; margin-top:4px; }
+.timer-time { color:#c9ccb6; font:400 var(--text-title)/1.2 var(--font-ui); letter-spacing:-.02em; font-variant-numeric:tabular-nums; transition:color .3s; }
+.is-running .timer-time { color:#efe9d6; }
+.is-running:not([data-phase=focus]) .timer-time { color:#f0d6ba; }
+.timer-controls { display:flex; align-items:center; flex:none; gap:2px; }
+.timer-controls button { display:grid; place-items:center; width:28px; height:32px; padding:0; border:0; border-radius:6px; background:none; color:#c2c9af; cursor:pointer; }
+.timer-controls #timer-toggle { width:32px; background:#bec8a9; color:#2e4335; }
+.timer-controls button:hover:not(:disabled) { background:#ffffff12; }
+.timer-controls #timer-toggle:hover { background:#d1d8bd; }
+.timer-controls button:disabled { opacity:.3; cursor:default; }
+#timer-reset svg { stroke:currentColor; stroke-width:1.5; stroke-linecap:round; stroke-linejoin:round; }
+#timer-toggle .pause-icon,.is-running #timer-toggle .play-icon { display:none; }
+.is-running #timer-toggle .pause-icon { display:block; }
+.focus-timer button:focus-visible { outline:1px solid #d7bd8f; outline-offset:2px; }
+#timer-progress { appearance:none; display:block; width:100%; height:2px; margin-top:9px; border:0; border-radius:2px; overflow:hidden; background:#c4c3aa22; accent-color:#b6c39a; }
+#timer-progress::-webkit-progress-bar { background:#c4c3aa22; }
+#timer-progress::-webkit-progress-value { background:#b6c39a; }
+#timer-progress::-moz-progress-bar { background:#b6c39a; }
+.focus-timer:not([data-phase=focus]) #timer-progress { accent-color:#dcae8a; }
+.focus-timer:not([data-phase=focus]) #timer-progress::-webkit-progress-value { background:#dcae8a; }
+.focus-timer:not([data-phase=focus]) #timer-progress::-moz-progress-bar { background:#dcae8a; }
+.timer-announcement { position:absolute; width:1px; height:1px; overflow:hidden; clip-path:inset(50%); white-space:nowrap; }
+.timer-menu { position:absolute; z-index:2; left:0; right:0; bottom:calc(100% + 8px); padding:6px; border:1px solid #bcc6a932; border-radius:10px; background:#21352ffa; backdrop-filter:blur(22px); box-shadow:0 16px 55px #0000003d; }
+.timer-menu-heading { margin:10px 10px 8px; color:#aebd9b; font:var(--text-label) var(--font-ui); letter-spacing:.17em; }
+.timer-option { display:flex; align-items:center; gap:12px; width:100%; padding:9px 10px; border:1px solid transparent; border-radius:7px; background:none; color:#e3dfcc; text-align:left; cursor:pointer; }
+.timer-option>span { flex:1; min-width:0; }
+.timer-option strong { display:block; font:500 var(--text-body)/1.4 var(--font-ui); }
+.timer-option small { display:block; margin-top:2px; color:#a5b499; font:var(--text-label)/1.4 var(--font-ui); }
+.timer-option:hover,.timer-option:focus-visible { border-color:#e9d9b51f; background:#fff3d30d; outline:none; }
+.timer-option[aria-checked=true] { border-color:#c3c7a633; background:#c3c7a614; }
+.timer-check { width:16px; height:16px; flex:none; fill:none; stroke:#c3c7a6; stroke-width:1.4; stroke-linecap:round; stroke-linejoin:round; opacity:0; }
+.timer-option[aria-checked=true] .timer-check { opacity:1; }
+@media(max-width:650px) {
+  .timer-menu { top:calc(100% + 8px); bottom:auto; }
+  .timer-controls button { width:30px; height:36px; }.timer-controls #timer-toggle { width:34px; }
+}
+@media(prefers-reduced-motion:reduce) {
+  .focus-timer,.timer-mode svg,.timer-time { transition:none; }
+}

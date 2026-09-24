@@ -1,0 +1,30 @@
+/* A quiet arrival; the controls wait until the listener settles in. */
+.welcome-shade { position:fixed; z-index:4; inset:0; pointer-events:none; background:linear-gradient(90deg,#0d1a19a6,#0d1a1924 52%,transparent 78%); opacity:0; transition:opacity .9s ease; }
+.is-welcoming .welcome-shade { opacity:1; }
+.welcome { position:fixed; z-index:12; top:44%; left:7vw; width:min(440px,calc(100vw - 48px)); color:#ede5d3; opacity:0; visibility:hidden; transform:translateY(calc(-50% - 8px)); transition:opacity .45s ease,transform .6s ease,visibility 0s linear .6s; text-shadow:0 2px 24px #07121066; }
+.is-welcoming .welcome { opacity:1; visibility:visible; transform:translateY(-50%); transition:none; }
+.welcome h1 { font:400 var(--text-display)/1.12 var(--font-ui); letter-spacing:-.04em; }
+.welcome p { margin:19px 0 26px; color:#dbdfd0ba; font:400 var(--text-body)/1.8 var(--font-ui); }
+.welcome-start { display:flex; align-items:center; justify-content:space-between; gap:24px; width:184px; min-height:48px; padding:12px 18px; border:1px solid #d1d7ba66; border-radius:8px; background:#2a3b30ba; backdrop-filter:blur(12px); color:#e4e4cd; font:400 var(--text-body) var(--font-ui); cursor:pointer; transition:background .2s,border-color .2s; }
+.welcome-start:hover:not(:disabled) { background:#384b3be6; border-color:#d1d7baa6; }
+.welcome-start:focus-visible { outline:2px solid #e7d6af; outline-offset:5px; }
+.welcome-start:disabled { cursor:wait; }
+.welcome-start svg { flex:none; }
+.journey-load-error { position:fixed; z-index:30; left:24px; right:24px; bottom:24px; margin:0; padding:14px 18px; border:1px solid #d1d7ba66; border-radius:8px; background:#21352f; color:#ede5d3; font:var(--text-body)/1.8 var(--font-ui); }
+.journey-load-error a { text-underline-offset:3px; }
+[data-journey-tile] { --reveal-delay:.3s; opacity:1; visibility:visible; transform:translateY(0); transition:opacity .7s ease var(--reveal-delay),transform .85s cubic-bezier(.2,.7,.2,1) var(--reveal-delay),visibility 0s linear var(--reveal-delay),border-color .6s,box-shadow .6s; }
+.topbar [data-journey-tile] { --reveal-delay:.2s; }
+.study-intention-row[data-journey-tile] { --reveal-delay:.4s; }
+.focus-timer[data-journey-tile] { --reveal-delay:.48s; }
+.radio-widget[data-journey-tile] { --reveal-delay:.56s; }
+.is-welcoming [data-journey-tile] { opacity:0; visibility:hidden; transform:translateY(10px); transition:none; }
+@media(max-width:650px) {
+  .welcome { left:24px; top:43%; }
+  .welcome-shade { background:linear-gradient(90deg,#0d1a1999,#0d1a1940 70%,transparent); }
+}
+@media(max-height:500px) { .welcome { top:53%; }.welcome p { margin:14px 0 20px; } }
+@media(prefers-reduced-motion:reduce) {
+  .welcome,.welcome-shade,[data-journey-tile] { transition:none; }
+  .welcome { transform:translateY(-50%); }
+  .is-welcoming [data-journey-tile] { transform:none; }
+}
