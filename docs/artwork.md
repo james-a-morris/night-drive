@@ -6,9 +6,15 @@ as textures for its Three.js table and wooden trim. The cabin and landscape
 remain real 3D geometry; the artwork is not a background image.
 
 The Night Rail wordmark uses a locally hosted Latin glyph subset of Cormorant
-Garamond Light Italic by Christian Thalmann. It is distributed under the SIL
+Garamond Light Italic by Christian Thalmann, subset for all letters in "Night Rail".
+The same font and brand component are used in the app and social preview. It is distributed under the SIL
 Open Font License; see [the included license](cormorant-license.txt). The window
 and moon emblem is drawn directly in SVG.
+
+The social preview byline uses a local Inter Regular subset covering "Lo-fi +
+coffee. Let’s ride together." It is distributed under the SIL Open Font License;
+see [the included license](inter-license.txt). Update the subset when changing
+the byline to include any new characters.
 
 ## Generation prompt
 

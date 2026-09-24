@@ -1,6 +1,6 @@
 # Wildlife models
 
-The deer, stag, fox, and wolf are from **Quaternius — Ultimate Animated Animal
+The deer, stag, fox, and wolf are from **Quaternius: Ultimate Animated Animal
 Pack**, released under [CC0 1.0 Universal](https://creativecommons.org/publicdomain/zero/1.0/).
 
 - Creator and original pack: https://quaternius.com/packs/ultimateanimatedanimals.html

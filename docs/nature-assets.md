@@ -1,7 +1,7 @@
 # Nature assets
 
 The miniature on the table uses `CommonTree_1.fbx` from
-[Quaternius — Ultimate Nature Pack](https://quaternius.com/packs/ultimatenature.html),
+[Quaternius: Ultimate Nature Pack](https://quaternius.com/packs/ultimatenature.html),
 released under CC0. The original file was downloaded from the creator's
 [FBX folder](https://drive.google.com/drive/folders/1uoIaSvBzm8SrC7g-feRK6ewzHVUGApE0).
 

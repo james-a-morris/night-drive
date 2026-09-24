@@ -105,7 +105,7 @@ function Board({
           <span id="your-rank">
             {room.me?.rank && room.me.currentJourneyId === room.journey
               ? `#${room.me.rank}`
-              : "—"}
+              : "N/A"}
           </span>
           <span id="your-name">{room.me?.name || "Guest"}</span>
           <strong id="your-miles">

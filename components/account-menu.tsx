@@ -308,7 +308,7 @@ export default function AccountMenu({
               <dd id="account-total-distance">
                 {room.me
                   ? `${formatDistance(room.totalMiles, unit)} ${unit.toUpperCase()}`
-                  : "—"}
+                  : "N/A"}
               </dd>
             </dl>
           </div>
