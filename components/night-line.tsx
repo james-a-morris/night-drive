@@ -61,6 +61,9 @@ export default function NightLine() {
     mode: "auto",
     seat: "left",
     windowOpen: false,
+    distanceUnit: "mi",
+    journey: null,
+    currentMiles: 0,
   });
   const room = useRoom(drive, garden);
   useEffect(() => {
@@ -80,9 +83,22 @@ export default function NightLine() {
       seat,
       windowOpen: windowState === "open",
       gardenView,
+      distanceUnit: unit,
+      journey: room.journey,
+      currentMiles: room.currentMiles,
     };
+  }, [
+    mode,
+    seat,
+    windowState,
+    gardenView,
+    unit,
+    room.journey,
+    room.currentMiles,
+  ]);
+  useEffect(() => {
     radio?.setWindowOpen(windowState === "open");
-  }, [mode, seat, windowState, gardenView, radio]);
+  }, [radio, windowState]);
   useEffect(() => {
     const controller = new AbortController();
     let scene: ReturnType<typeof mountScene> | undefined,
@@ -183,6 +199,7 @@ export default function NightLine() {
       <div
         ref={treeLabel}
         className="tree-care"
+        data-garden-view={gardenView}
         style={{ visibility: "hidden" }}
         {...journeyProps}
       >

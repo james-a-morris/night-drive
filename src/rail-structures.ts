@@ -1,5 +1,6 @@
 import * as THREE from "./three.ts";
 import { createTunnelDinosaurs, DINOSAUR_SITES } from "./tunnel-dinosaur.ts";
+import { createTunnelGraffiti } from "./tunnel-graffiti.ts";
 import { roadFrame, roadPoint, SEGMENT_LENGTH } from "./drive.ts";
 import {
   environmentWeights,
@@ -137,6 +138,7 @@ export function createRailStructures(world: THREE.Group) {
   root.name = "tunnel-and-viaduct";
   world.add(root);
   const dinosaurs = createTunnelDinosaurs(world);
+  const graffiti = createTunnelGraffiti(world);
   const materials = {
     lining: new THREE.MeshBasicMaterial({
       vertexColors: true,
@@ -427,6 +429,7 @@ export function createRailStructures(world: THREE.Group) {
     root,
     update(progress: number, mode: SceneryMode) {
       dinosaurs.update(progress, mode);
+      graffiti.update(progress, mode);
       const cell = Math.floor(progress / SEGMENT_LENGTH);
       if (cell !== previousCell || mode !== previousMode) {
         rebuild(progress, mode);
