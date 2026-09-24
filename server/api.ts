@@ -21,6 +21,7 @@ import { createHash, randomBytes, randomUUID } from "node:crypto";
 import { createStore } from "./store.ts";
 import { moderateIntention, ModerationUnavailable } from "./moderation.ts";
 import { authenticatedUser, requestOrigin } from "./auth.ts";
+import { errorDiagnostic } from "./errors.ts";
 
 const COOKIE = "night_drive_guest";
 const METRES_PER_MILE = 1609.344;
@@ -150,7 +151,6 @@ async function readBody(req: Request): Promise<Body> {
 
 function checkOrigin(req: Request, configuredOrigin?: string) {
   const origin = req.headers.get("origin");
-  const host = new URL(requestOrigin(req)).host;
   try {
     const parsed = new URL(origin || "");
     if (
@@ -158,10 +158,11 @@ function checkOrigin(req: Request, configuredOrigin?: string) {
       req.headers.get("sec-fetch-site") === "cross-site"
     )
       throw new Error();
+    // APP_ORIGIN is an additional trusted origin. It must not reject requests
+    // from the actual deployment (for example, its www domain or a preview).
     if (
-      configuredOrigin
-        ? parsed.origin !== new URL(configuredOrigin).origin
-        : parsed.host !== host
+      parsed.origin !== new URL(requestOrigin(req)).origin &&
+      (!configuredOrigin || parsed.origin !== new URL(configuredOrigin).origin)
     )
       throw new Error();
   } catch {
@@ -549,6 +550,7 @@ export function createApi({
     });
     const send = (status: number, data: object) =>
       Response.json(data, { status, headers });
+    let stage = "request";
     try {
       if (!["GET", "POST"].includes(request.method)) {
         headers.set("Allow", "GET, POST");
@@ -557,11 +559,16 @@ export function createApi({
       if (request.method === "POST") checkOrigin(request, origin);
       const body = request.method === "POST" ? await readBody(request) : null;
       const now = clock();
+      stage = "authentication";
       const userId = await getUser(request);
+      stage = "database initialization";
       const store = await getStore();
+      stage = "rider identification";
       const driver = await identify(request, headers, store, now, userId);
+      stage = "room read";
       if (request.method === "GET")
         return send(200, await roomView(store, driver, userId, now));
+      stage = "request rate limit";
       await rateLimit(store, `requests:${driver.id}`, 120, 60000, now);
       if (
         !body ||
@@ -569,6 +576,7 @@ export function createApi({
         !Object.hasOwn(actions, body.action)
       )
         throw new ApiError(400, "Unknown action.");
+      stage = body.action;
       const result = await actions[body.action]({
         request,
         store,
@@ -591,7 +599,7 @@ export function createApi({
           error:
             "We could not check that just now. Please try again in a moment.",
         });
-      console.error("Night Rail API error:", requestError(error).name);
+      console.error("Night Rail API error:", { stage, ...errorDiagnostic(error) });
       return send(503, {
         error:
           "The shared carriage is temporarily unavailable. Please try again shortly.",

@@ -41,7 +41,7 @@ Open <http://localhost:5173>. If `.env.local` already exists, keep its values. G
 
 Next.js loads `.env.local` automatically. To choose another port, run `PORT=3000 pnpm dev`. For a local production run, use `pnpm build` followed by `pnpm start` (also on port 5173 unless `PORT` is set).
 
-Development stores shared mileage in `.data/night-drive.sqlite`. Keep that file to preserve totals across server restarts. `SQLITE_PATH` can override the location. A guest's anonymous, HttpOnly cookie links this browser to its saved mileage; clearing cookies loses access to that guest profile. An account preserves access across browsers.
+Set `DATABASE_URL` in `.env.local` to use Neon/PostgreSQL in development. The app uses the `pg` driver and creates its own tables; the tutorial's `comments` table is not needed. Without `DATABASE_URL`, development stores shared mileage in `.data/night-drive.sqlite`. Keep that file to preserve totals across server restarts. `SQLITE_PATH` can override the location. A guest's anonymous, HttpOnly cookie links this browser to its saved mileage; clearing cookies loses access to that guest profile. An account preserves access across browsers.
 
 Three.js and its model loaders are installed dependencies bundled by Next.js. Fonts and Clerk's browser SDK load from their CDNs. Only `public/` assets and Next's compiled client code are publicly served; environment files, server source, and the database stay private.
 
@@ -60,7 +60,9 @@ Configure these server environment variables before deployment:
 - `DATABASE_URL`: a persistent PostgreSQL connection URL, preferably pooled. Required on Vercel; the application creates its tables on first connection. For providers that require TLS, use their supplied connection URL and SSL settings.
 - `CLERK_PUBLISHABLE_KEY` and `CLERK_SECRET_KEY`: keys for the same Clerk instance. Use Clerk's production instance and configure its domain for a public production launch.
 - `OPENROUTER_API_KEY`: the server-only key used for intention moderation.
-- `APP_ORIGIN`: the public application origin, such as `https://night-line.example.com`. Leave unset for development or previews that use their request origin.
+- `APP_ORIGIN`: an optional additional trusted origin, such as `https://nightrail.app`. Same-origin requests to the current deployment (including its `www` domain and previews) are also accepted. Authentication and secure cookies use the actual request origin.
+
+A 403 response saying “Open Night Rail to update your journey” comes from origin validation, before any database access. A 503 saying “The shared carriage is temporarily unavailable” has a separate cause: inspect the server's `Night Rail API error` log for the stage and database/network code. `DATABASE_URL_MISSING` means the variable is absent in that Vercel deployment environment; set it and redeploy. Database credentials and rider data are omitted from these logs.
 
 For self-hosting, run `pnpm build` and `pnpm start` with PostgreSQL or a durable SQLite volume. Never expose the project directory with a general-purpose static file server.
 
@@ -71,6 +73,8 @@ pnpm typecheck
 pnpm test
 pnpm build
 ```
+
+To run the API tests against PostgreSQL, set `TEST_DATABASE_URL` to a direct connection URL for a test database and run `node --test test/api.test.js test/http.test.js`. Each test creates and removes its own schema, so the test role needs schema-creation permission. Without this variable, the tests use in-memory SQLite and ignore the application's `DATABASE_URL`.
 
 Tests cover focus timer phases, route continuity, varied terrain, radio selection and fallback, persistent guest mileage, live presence, cumulative report retries, speed limits, ownership, concurrent account linking, origin checks, moderation failures, rider-name updates, intention expiry and migration, and the account gate. HTTP checks exercise native Web Request/Response handlers, including bounded streaming bodies. Lifecycle checks cover cleanup and cancellation on unmount. Reports save every 10 seconds and on page exit; a sudden disconnection can lose unacknowledged miles. The server caps mileage by elapsed time and maximum travel speed, including across multiple tabs. This is a casual leaderboard, not proof of study time. Legacy database names and browser storage keys remain compatible with earlier versions.
 

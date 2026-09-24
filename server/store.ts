@@ -2,6 +2,7 @@ import type { Pool, PoolClient } from "pg";
 import type { Query, Store, SqlValue } from "./types.ts";
 import { mkdir } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
+import { errorDiagnostic } from "./errors.ts";
 
 const schema = `
   CREATE TABLE IF NOT EXISTS road_profiles (
@@ -50,17 +51,29 @@ export async function createStore({
       max: 4,
       connectionTimeoutMillis: 8000,
     });
-    await pool.query(schema);
-    await pool.query(
-      "ALTER TABLE journeys ADD COLUMN IF NOT EXISTS credited_metres DOUBLE PRECISION NOT NULL DEFAULT 0",
-    );
-    await pool.query(
-      "ALTER TABLE road_profiles ADD COLUMN IF NOT EXISTS intention_expires_at BIGINT",
-    );
-    await pool.query(
-      "UPDATE road_profiles SET intention_expires_at = $1 WHERE intention IS NOT NULL AND intention_expires_at IS NULL",
-      [legacyIntentionExpiry],
-    );
+    // Neon can disconnect idle clients when its compute suspends. Handle the
+    // pool event so the next request can reconnect instead of crashing Node.
+    pool.on("error", (error) => {
+      console.error("Night Rail database pool error:", errorDiagnostic(error));
+    });
+    try {
+      await pool.query(schema);
+      await pool.query(
+        "ALTER TABLE journeys ADD COLUMN IF NOT EXISTS credited_metres DOUBLE PRECISION NOT NULL DEFAULT 0",
+      );
+      await pool.query(
+        "ALTER TABLE road_profiles ADD COLUMN IF NOT EXISTS intention_expires_at BIGINT",
+      );
+      await pool.query(
+        "UPDATE road_profiles SET intention_expires_at = $1 WHERE intention IS NOT NULL AND intention_expires_at IS NULL",
+        [legacyIntentionExpiry],
+      );
+    } catch (error) {
+      // The API retries initialization on the next request. Release this failed
+      // pool first so repeated failures cannot exhaust database connections.
+      await pool.end();
+      throw error;
+    }
     const queryWith =
       (client: Pool | PoolClient): Query =>
       async <T extends object>(sql: string, values: SqlValue[] = []) =>
@@ -84,7 +97,10 @@ export async function createStore({
       close: () => pool.end(),
     };
   }
-  if (process.env.VERCEL) throw new Error("DATABASE_URL is required on Vercel");
+  if (process.env.VERCEL)
+    throw Object.assign(new Error("DATABASE_URL is required on Vercel"), {
+      code: "DATABASE_URL_MISSING",
+    });
   const { DatabaseSync } = await import("node:sqlite");
   // This is a runtime data directory, never a dependency to bundle for deployment.
   if (sqlitePath !== ":memory:")
