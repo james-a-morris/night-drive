@@ -1,6 +1,7 @@
 import type { NightRadio, NowPlaying } from "../src/radio.ts";
 import { useEffect, useState } from "react";
 import Waveform from "./waveform.tsx";
+import { DEFAULT_AUDIO_MIX, type AudioMix } from "../src/audio-mix.ts";
 
 const timeLabel = (seconds: number) =>
   `${Math.floor(seconds / 60)}:${String(Math.floor(seconds % 60)).padStart(2, "0")}`;
@@ -27,8 +28,11 @@ const idle: NowPlaying = {
 
 export default function RadioPlayer({ radio }: { radio: NightRadio | null }) {
   const [track, setTrack] = useState(idle);
+  const [mixerOpen, setMixerOpen] = useState(false);
+  const [mix, setMix] = useState<AudioMix>(DEFAULT_AUDIO_MIX);
   useEffect(() => {
     if (!radio) return;
+    setMix(radio.mix);
     const update = () => setTrack(radio.nowPlaying());
     update();
     const interval = setInterval(update, 250);
@@ -176,6 +180,50 @@ export default function RadioPlayer({ radio }: { radio: NightRadio | null }) {
                 ? "CONNECTING"
                 : "LO-FI"}
         </small>
+      </div>
+      <div className="radio-mixer-toggle-row">
+        <button
+          id="audio-mixer-toggle"
+          className="radio-mixer-toggle"
+          type="button"
+          aria-expanded={mixerOpen}
+          aria-controls="audio-mixer"
+          disabled={!radio}
+          onClick={() => setMixerOpen(!mixerOpen)}
+        >
+          <svg width={14} height={14} viewBox="0 0 16 16" fill="none" aria-hidden="true">
+            <path d="M3 2v3m0 4v5m5-12v7m0 4v1m5-12v1m0 4v7M1 5h4v4H1zm5 4h4v4H6zm5-6h4v4h-4z" />
+          </svg>
+          Sound mix
+          <span aria-hidden="true">{mixerOpen ? "−" : "+"}</span>
+        </button>
+      </div>
+      <div id="audio-mixer" className="radio-mixer" hidden={!mixerOpen} role="group" aria-label="Sound mix">
+        {([
+          ["master", "Volume"],
+          ["music", "Lo-fi"],
+          ["ambience", "Ambience"],
+        ] as const).map(([channel, label]) => (
+          <div className="radio-mixer-channel" key={channel}>
+            <label htmlFor={`audio-${channel}`}>{label}</label>
+            <input
+              id={`audio-${channel}`}
+              type="range"
+              min={0}
+              max={100}
+              step={1}
+              value={Math.round(mix[channel] * 100)}
+              aria-valuetext={`${Math.round(mix[channel] * 100)} percent`}
+              disabled={!radio}
+              onChange={(event) => {
+                const next = { ...mix, [channel]: Number(event.target.value) / 100 };
+                setMix(next);
+                radio?.setMix(next);
+              }}
+            />
+            <output htmlFor={`audio-${channel}`}>{Math.round(mix[channel] * 100)}%</output>
+          </div>
+        ))}
       </div>
     </div>
   );

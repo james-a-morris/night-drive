@@ -1,6 +1,8 @@
 import type { DistanceUnit, Seat } from "./types.ts";
+import { DEFAULT_AUDIO_MIX, validAudioMix, type AudioMix } from "./audio-mix.ts";
 
 interface PreferenceValues {
+  audioMix: AudioMix;
   seat: Seat;
   window: "open" | "closed";
   distanceUnit: DistanceUnit;
@@ -21,6 +23,12 @@ type Preference<T> = {
 export const PREFERENCES: {
   [K in PreferenceName]: Preference<PreferenceValues[K]>;
 } = {
+  audioMix: {
+    key: "night-rail:audio-mix",
+    fallback: DEFAULT_AUDIO_MIX,
+    json: true,
+    valid: validAudioMix,
+  },
   seat: {
     key: "night-train:seat",
     fallback: "left",

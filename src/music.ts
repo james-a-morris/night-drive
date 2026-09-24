@@ -6,6 +6,7 @@ import { createThunder } from "./thunder-audio.ts";
 import { createTrainAmbience } from "./train-audio.ts";
 import { createConductorWhir } from "./conductor-whir.ts";
 import { playDepartureChime } from "./departure-chime.ts";
+import { DEFAULT_AUDIO_MIX, type AudioMix } from "./audio-mix.ts";
 
 const frequency = (note: number) => 440 * 2 ** ((note - 69) / 12);
 
@@ -24,6 +25,9 @@ export class LocalSoundscape {
   context!: AudioContext;
   master!: GainNode;
   musicGain!: GainNode;
+  musicVolume!: GainNode;
+  ambienceVolume!: GainNode;
+  mix: AudioMix = { ...DEFAULT_AUDIO_MIX };
   keysFilter!: BiquadFilterNode;
   echo!: DelayNode;
   noise!: AudioBuffer;
@@ -64,9 +68,15 @@ export class LocalSoundscape {
     compressor.threshold.value = -18;
     compressor.ratio.value = 3;
     this.master.connect(compressor).connect(audio.destination);
+    this.musicVolume = audio.createGain();
+    this.musicVolume.gain.value = this.mix.music;
+    this.musicVolume.connect(this.master);
+    this.ambienceVolume = audio.createGain();
+    this.ambienceVolume.gain.value = this.mix.ambience;
+    this.ambienceVolume.connect(this.master);
     // Music fades between pieces; the weather and train continue underneath it.
     this.musicGain = audio.createGain();
-    this.musicGain.connect(this.master);
+    this.musicGain.connect(this.musicVolume);
     this.keysFilter = audio.createBiquadFilter();
     this.keysFilter.type = "lowpass";
     this.keysFilter.connect(this.musicGain);
@@ -102,7 +112,7 @@ export class LocalSoundscape {
       .connect(this.weatherGain)
       .connect(this.windowFilter)
       .connect(this.outsideGain)
-      .connect(this.master);
+      .connect(this.ambienceVolume);
     wind.start();
     // Broad surf swells share the outside sound path, so closing the window
     // muffles the ocean while the radio and carriage keep their own volume.
@@ -129,9 +139,9 @@ export class LocalSoundscape {
       .connect(this.windowFilter);
     surf.start(0.3);
     tide.start();
-    this.trainAmbience = createTrainAmbience(audio, this.master);
+    this.trainAmbience = createTrainAmbience(audio, this.ambienceVolume);
     this.trainAmbience.setSpeed(this.trainSpeed);
-    this.conductorWhir = createConductorWhir(audio, this.master);
+    this.conductorWhir = createConductorWhir(audio, this.ambienceVolume);
     this.thunder = createThunder(audio, this.windowFilter);
     audio.addEventListener("statechange", () =>
       this.onChange(this.enabled && audio.state === "running"),
@@ -170,7 +180,7 @@ export class LocalSoundscape {
       clearInterval(this.timer);
       if (this.context) {
         this.master.gain.setTargetAtTime(
-          enabled ? 0.7 : 0,
+          enabled ? 0.7 * this.mix.master : 0,
           this.context.currentTime,
           0.06,
         );
@@ -209,6 +219,15 @@ export class LocalSoundscape {
     if (strike && this.context?.state === "running") this.thunder?.play();
   }
 
+  setMix(mix: AudioMix) {
+    this.mix = { ...mix };
+    if (!this.context) return;
+    const now = this.context.currentTime;
+    this.master.gain.setTargetAtTime(this.enabled ? 0.7 * mix.master : 0, now, 0.04);
+    this.musicVolume.gain.setTargetAtTime(mix.music, now, 0.04);
+    this.ambienceVolume.gain.setTargetAtTime(mix.ambience, now, 0.04);
+  }
+
   setConductorWhir(level: number) {
     this.conductorWhir?.setLevel(level);
   }
@@ -218,7 +237,7 @@ export class LocalSoundscape {
     this.trainAmbience?.setSpeed(speed);
   }
   playDepartureDing() {
-    if (this.enabled && this.context) playDepartureChime(this.context, this.master, this.voices);
+    if (this.enabled && this.context) playDepartureChime(this.context, this.ambienceVolume, this.voices);
   }
 
   setWeather(weights: EnvironmentWeights, stormRain = 0, forest?: Environment) {

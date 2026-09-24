@@ -2,6 +2,7 @@ import type { Room } from "./use-room.ts";
 import type { JourneyDialog, ProfileAction } from "../src/types.ts";
 import { useState } from "react";
 import Dialog from "./dialog.tsx";
+import Popover from "./popover.tsx";
 import { useAsyncAction } from "./use-async-action.ts";
 import { activeIntention } from "./use-room.ts";
 
@@ -99,31 +100,68 @@ function IntentionDialog({
           id="intention-input"
           name="intention"
           aria-labelledby="intention-title"
-          aria-describedby="intention-sharing"
-          rows={3}
+          aria-describedby="intention-count intention-sharing"
+          rows={2}
           minLength={5}
-          maxLength={160}
+          maxLength={60}
           required
-          placeholder="Read a chapter. Finish an idea. Clear my head…"
+          placeholder="Read a chapter. Clear my head…"
           value={intention}
           onChange={(event) => setIntention(event.target.value)}
           disabled={action.busy}
         />
+        <p className="intention-count" id="intention-count">
+          {intention.length} / 60 characters
+        </p>
         <div className="intention-duration">
-          <label htmlFor="intention-duration">Keep it for</label>
-          <select
-            id="intention-duration"
-            name="expiresInHours"
-            value={hours}
-            onChange={(event) => setHours(event.target.value)}
-            disabled={action.busy}
-          >
-            {[1, 3, 6, 12, 24].map((value) => (
-              <option key={value} value={value}>
-                {value} {value === 1 ? "hour" : "hours"}
-              </option>
-            ))}
-          </select>
+          <label id="intention-duration-label" htmlFor="intention-duration">Keep it for</label>
+          <input type="hidden" name="expiresInHours" value={hours} />
+          <Popover role="listbox">
+            {({ triggerProps, panelProps, close }) => (
+              <div className="intention-duration-picker">
+                <button
+                  {...triggerProps}
+                  id="intention-duration"
+                  className="intention-duration-trigger"
+                  type="button"
+                  aria-labelledby="intention-duration-label intention-duration-value"
+                  aria-controls="intention-duration-options"
+                  disabled={action.busy}
+                >
+                  <span id="intention-duration-value">{hours} {hours === "1" ? "hour" : "hours"}</span>
+                  <svg viewBox="0 0 16 16" fill="none" aria-hidden="true">
+                    <path d="m4 6 4 4 4-4" />
+                  </svg>
+                </button>
+                <div
+                  {...panelProps}
+                  id="intention-duration-options"
+                  className="intention-duration-options"
+                  role="listbox"
+                  aria-labelledby="intention-duration-label"
+                >
+                  {[1, 3, 6, 12, 24].map((value) => (
+                    <button
+                      key={value}
+                      type="button"
+                      role="option"
+                      aria-selected={hours === String(value)}
+                      tabIndex={-1}
+                      onClick={() => {
+                        setHours(String(value));
+                        close(true);
+                      }}
+                    >
+                      {value} {value === 1 ? "hour" : "hours"}
+                      <svg viewBox="0 0 16 16" fill="none" aria-hidden="true">
+                        <path d="m3 8 3 3 7-7" />
+                      </svg>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+          </Popover>
         </div>
         <p className="field-note" id="intention-sharing">
           Shared with your fellow riders until it expires.
@@ -146,7 +184,7 @@ function IntentionDialog({
             className="study-primary"
             id="intention-submit"
             type="submit"
-            disabled={action.busy}
+            disabled={action.busy || intention.length > 60}
           >
             {action.busy ? "Saving…" : "Save intention"}
           </button>

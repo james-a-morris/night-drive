@@ -103,6 +103,7 @@ function setup(t, { load = async () => stations } = {}) {
   const audio = new FakeAudio();
   const local = {
     enabled: false, musicEnabled: false,
+    setMix(mix) { this.mix = { ...mix }; },
     setEnabled(enabled) { this.enabled = enabled; return Promise.resolve(); },
     setMusicEnabled(enabled) { this.musicEnabled = enabled; },
     dispose() { this.enabled = false; this.disposed = true; },
@@ -116,6 +117,27 @@ function setup(t, { load = async () => stations } = {}) {
   t.after(() => radio.setEnabled(false));
   return { radio, audio, local, clicks, changes };
 }
+
+test('the mixer scales streams and preserves independent channels through pause and fallback', async t => {
+  const { radio, audio, local } = setup(t);
+  await radio.loading;
+  radio.setMix({ master: 0.8, music: 0.25, ambience: 0.6 });
+  assert.equal(audio.volume, 0.2);
+  assert.deepEqual(local.mix, { master: 0.8, music: 0.25, ambience: 0.6 });
+  await radio.setEnabled(true);
+  radio.useLocal(radio.request);
+  assert.equal(local.musicEnabled, true);
+  assert.equal(local.mix.music, 0.25);
+  await radio.setEnabled(false);
+  radio.setMix({ master: 0.8, music: 0, ambience: 1 });
+  assert.equal(audio.volume, 0);
+  assert.equal(local.enabled, false, 'adjusting volume must not resume playback');
+  await radio.setEnabled(true);
+  assert.equal(local.mix.music, 0);
+  assert.equal(local.mix.ambience, 1);
+  radio.setMix({ master: NaN, music: 2, ambience: -1 });
+  assert.deepEqual(radio.mix, { master: 0.8, music: 0, ambience: 1 });
+});
 
 test('unmount releases stream and local audio, and late connections cannot restart playback', async t => {
   const { radio, audio, local, changes } = setup(t);
