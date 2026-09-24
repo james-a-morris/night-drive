@@ -32,6 +32,7 @@ import { stationClearing } from "./station-route.ts";
 import { settlementClearing } from "./settlement-layout.ts";
 import { createFirFairyLights } from "./fir-fairy-lights.ts";
 import { createTumbleweeds } from "./tumbleweeds.ts";
+import { createTunnelLighting } from "./tunnel-lighting.ts";
 
 interface Decoration {
   object: THREE.Group;
@@ -779,7 +780,7 @@ export function createScenery(scene: THREE.Scene, scope: Lifecycle) {
   const landmarks = createLandmarks(world, scope);
   const coast = createCoast(world, scope);
   const structures = createRailStructures(world);
-  let enclosure = 0;
+  const lighting = createTunnelLighting();
   let previousMode: SceneryMode | undefined;
   const weights = environmentWeights(0);
   const targetColor = new THREE.Color();
@@ -788,14 +789,11 @@ export function createScenery(scene: THREE.Scene, scope: Lifecycle) {
     movement: number,
     dt: number,
     mode: SceneryMode,
-    forest: Environment = ENVIRONMENTS.forest,
   ) {
-    const starry = forest === NIGHT_PINES;
     const frame = roadFrame(progress);
     world.position.set(-frame.x, 0, progress);
     const modeChanged = mode !== previousMode;
-    const underground = structures.update(progress, mode);
-    enclosure += (underground - enclosure) * (1 - Math.exp(-dt * 2));
+    structures.update(progress, mode);
     nature.update(progress, dt, mode);
     tumbleweeds.update(progress, dt, mode);
     settlements.update(progress, mode, modeChanged);
@@ -816,6 +814,18 @@ export function createScenery(scene: THREE.Scene, scope: Lifecycle) {
       weights[name] += (target[name] - weights[name]) * ease;
     coast.update(progress, dt, mode, weights, modeChanged);
     blendColor(horizonMaterial.color, weights, "ground");
+    return weights;
+  }
+
+  function updateLighting(
+    progress: number,
+    eye: THREE.Vector3,
+    dt: number,
+    mode: SceneryMode,
+    forest: Environment = ENVIRONMENTS.forest,
+  ) {
+    const starry = forest === NIGHT_PINES;
+    const { weights, enclosure } = lighting.update(progress, eye.x, eye.z, dt, mode);
     blendColor(skyMaterial.uniforms.top.value, weights, "sky", starry);
     blendColor(skyMaterial.uniforms.horizon.value, weights, "horizon", starry);
     blendColor(scene.fog!.color, weights, "fog", starry).lerp(
@@ -850,11 +860,11 @@ export function createScenery(scene: THREE.Scene, scope: Lifecycle) {
       coastSunPosition,
       weights.coast,
     );
-    return weights;
   }
 
   return {
     update,
+    updateLighting,
     world,
     segments,
     weather,

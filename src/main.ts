@@ -72,6 +72,7 @@ export function mountScene(
     // The rainy window draws a second pass, so total the whole frame by hand.
     renderer.info.autoReset = false;
     const scenery = createScenery(scene, scope);
+    const lightingEye = new THREE.Vector3();
     const train = createTrain(scenery.world, scope);
     const stormClock = createStormClock();
     const pineWeather = createPineWeather();
@@ -146,12 +147,13 @@ export function mountScene(
         movement,
         dt,
         getSettings().mode,
-        forest,
       );
       cabin.tree.update(now, drive.started);
       // Update the world transform before the camera and shelter use it.
       scenery.world.updateMatrixWorld(true);
       view.update(dt, weights, forest);
+      scenery.world.worldToLocal(lightingEye.copy(camera.position));
+      scenery.updateLighting(drive.progress, lightingEye, dt, getSettings().mode, forest);
       conductor.update(now);
       const mode = getSettings().mode;
       const storm = stormClock.update(
