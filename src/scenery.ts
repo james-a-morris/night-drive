@@ -697,9 +697,9 @@ export function createScenery(scene: THREE.Scene, scope: Lifecycle) {
     horizonMaterial,
   );
   ground.rotation.x = -Math.PI / 2;
-  // The distant fill sits below sea level; it must not cover water in the
-  // next region before an automatic journey reaches the coastline.
-  ground.position.y = SEA_LEVEL - 10;
+  // Keep the distant fill below both the coastal sea and the bridge river,
+  // including upcoming regions during an automatic journey.
+  ground.position.y = -42;
   scene.add(ground);
   const hemisphere = new THREE.HemisphereLight(0xa2b5c7, 0x26342f, 1.6);
   const moonlight = new THREE.DirectionalLight(0xb6cfde, 1.8);

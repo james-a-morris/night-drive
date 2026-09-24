@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { Group } from "three";
-import { createRailStructures } from "../src/rail-structures.ts";
+import { Group, Raycaster, Vector3 } from "three";
+import { createRailStructures, bridgeDeckAt } from "../src/rail-structures.ts";
 import { CRUISING_SPEED, roadFrame, roadPoint } from "../src/drive.ts";
 import {
   insideTunnel,
@@ -105,5 +105,44 @@ test("dark galleries have no lamps or guide lights, with quiet details between l
         (object) => object.isPointLight && object.intensity > 0,
       ),
     );
+  }
+});
+
+
+test("bridge railings finish with solid terminal posts on both banks and survive recycling", () => {
+  const transitions = [];
+  for (let s = 0; s < ROUTE_LENGTH; s += 3) {
+    if (bridgeDeckAt(s, 'auto') !== bridgeDeckAt(s - 3, 'auto')) transitions.push(s);
+  }
+  assert.equal(transitions.length, 2, 'one bridge entry and exit per route');
+  const structures = createRailStructures(new Group());
+  for (const end of transitions) for (const progress of [end - 80, end + 24, end + 110]) {
+    structures.update(progress, 'auto');
+    structures.root.updateMatrixWorld(true);
+    const stone = structures.root.getObjectByName('rail-structure-stone');
+    for (const side of [-1, 1]) {
+      const p = roadPoint(end, side * 5.9);
+      const hit = new Raycaster(new Vector3(p.x, 3, p.z), new Vector3(0, -1, 0)).intersectObject(stone)[0];
+      assert.ok(hit && Math.abs(hit.point.y - 1.75) < 0.001, 'closed masonry end post beneath the cap');
+    }
+  }
+});
+
+test("bridge details share existing meshes and every tinted vertex has a color", () => {
+  const structures = createRailStructures(new Group());
+  structures.update(5400, 'bridge');
+  assert.equal(structures.root.children.length, 5);
+  for (const name of ['stone', 'iron']) {
+    const geometry = structures.root.getObjectByName(`rail-structure-${name}`).geometry;
+    assert.equal(geometry.attributes.color.count, geometry.attributes.position.count);
+    const colors = new Set();
+    for(let i=0;i<geometry.attributes.color.count;i++) colors.add([geometry.attributes.color.getX(i),geometry.attributes.color.getY(i),geometry.attributes.color.getZ(i)].join(','));
+    assert.ok(colors.size >= 3, 'different materials remain legible in the same batch');
+  }
+  for (let s = 0; s < 2000; s += 83) {
+    for (const side of [-1, 1]) {
+      const point = roadPoint(s, side * 5.5);
+      assert.ok(terrainHeight(point.x, point.z, 'bridge') < -33, 'valley stays below the girders at the deck edge');
+    }
   }
 });
