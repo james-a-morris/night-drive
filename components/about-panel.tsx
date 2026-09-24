@@ -66,7 +66,7 @@ export default function AboutPanel({
             href="https://x.com/BlockChainJimbo"
             target="_blank"
             rel="noopener noreferrer"
-            aria-label="Visit @BlockChainJimbo on X / Twitter (opens in a new tab)"
+            aria-label="Visit Jamie on X / Twitter (opens in a new tab)"
           >
             <img
               src="/assets/blockchainjimbo.png"
@@ -76,7 +76,7 @@ export default function AboutPanel({
               decoding="async"
             />
             <span className="about-creator-copy">
-              <strong>@BlockChainJimbo</strong>
+              <strong>Jamie</strong>
               <span className="about-creator-invite">X / Twitter</span>
             </span>
             <svg

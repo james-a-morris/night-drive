@@ -1,6 +1,7 @@
 /* Night Rail: keep the controls at the edges and the windows open. */
 @font-face { font-family:'Night Rail Wordmark'; font-style:italic; font-weight:300; font-display:swap; src:url('/assets/night-line-wordmark.ttf') format('truetype'); }
 .topbar { z-index:20; }
+.topbar nav { gap:10px; }
 .brand { display:grid; grid-template-columns:22px auto; column-gap:8px; align-items:center; flex:none; padding:0; border:0; background:none; color:#e6d8bc; letter-spacing:inherit; cursor:pointer; text-align:left; font-weight:400; }
 .brand:hover { color:#ffebc7; }
 .brand-emblem { grid-column:1; grid-row:1; width:22px; height:27px; opacity:.8; }
