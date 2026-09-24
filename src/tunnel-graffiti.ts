@@ -30,6 +30,8 @@ const WALL = 7.8;
 const SLOT = 24;
 const PASSAGE_CHANCE = 0.55;
 const SLOT_CHANCE = 0.14;
+const PAINT_SCALE = 1.5;
+const MAX_PAINT_WIDTH = 4.2 * PAINT_SCALE;
 
 export interface GraffitiPlacement {
   station: number;
@@ -78,14 +80,18 @@ export function graffitiPlacements(
       const position = offset % 384;
       if (position > 166 && position < 244) continue;
       const phrase = Math.floor(roll(3) * GRAFFITI_PHRASES.length);
+      const height = (phrase === 1 ? 0.36 + roll(6) * 0.1 : 0.42 + roll(6) * 0.14) * PAINT_SCALE;
+      const tilt = (roll(8) - 0.5) * 0.16;
+      const tiltRise = MAX_PAINT_WIDTH * Math.abs(tilt) / 2;
       placements.push({
         station: span.start + offset,
         side: roll(4) < 0.5 ? -1 : 1,
         phrase,
         tint: Math.floor(roll(5) * TINTS.length),
-        height: phrase === 1 ? 0.36 + roll(6) * 0.1 : 0.42 + roll(6) * 0.14,
-        base: 1.4 + roll(7) * 0.75,
-        tilt: (roll(8) - 0.5) * 0.16,
+        height,
+        // Keep the larger lettering clear of the cable and lamp brackets.
+        base: Math.max(1.4 + tiltRise, Math.min(1.4 + roll(7) * 0.75, 2.85 - height - tiltRise)),
+        tilt,
       });
     }
   }
@@ -217,7 +223,7 @@ export function createTunnelGraffiti(world: THREE.Group) {
     for (const tag of tags) {
       const layer = layers[tag.phrase];
       const buffer = buffers[tag.phrase];
-      const width = Math.min(4.2, tag.height * layer.aspect);
+      const width = Math.min(MAX_PAINT_WIDTH, tag.height * layer.aspect);
       const columns = 8;
       const tint = TINTS[tag.tint];
       const vertex = (column: number, row: number) => {

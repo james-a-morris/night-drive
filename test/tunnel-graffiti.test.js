@@ -40,7 +40,7 @@ test("graffiti appears now and then inside the tunnel, using every phrase, and i
           tag.base >= 1.4 && tag.base + tag.height <= 2.85,
           "between the cable and the lamps",
         );
-        assert.ok(tag.height <= 0.56, "not massive");
+        assert.ok(tag.height >= 0.54 && tag.height <= 0.84, "larger lettering stays within the wall band");
       }
     }
     assert.equal(phrases.size, GRAFFITI_PHRASES.length);
