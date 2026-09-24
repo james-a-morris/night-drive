@@ -4,7 +4,10 @@ import type { Environment, SceneryMode } from "./environments.ts";
 import { ENVIRONMENTS, WILDLIFE_FAMILIES } from "./environments.ts";
 import { reducedMotion } from "./motion.ts";
 import { recycleStation } from "./recycle.ts";
-import { radialTexture } from "./textures.ts";
+import { createBuilding } from "./settlements.ts";
+import { createChimneySmoke } from "./chimney-smoke.ts";
+import { sampleBuildingGround } from "./settlement-layout.ts";
+import { cottageSite } from "./cottage-layout.ts";
 type XYZ = [number, number, number];
 interface Site {
   group: THREE.Group;
@@ -12,6 +15,7 @@ interface Site {
   index: number;
   station: number;
   items: Landmark[];
+  suitable: boolean;
 }
 import * as THREE from "./three.ts";
 import { roadFrame, roadPoint } from "./drive.ts";
@@ -32,14 +36,8 @@ export function createLandmarks(world: THREE.Group, scope: Lifecycle) {
     color: THREE.ColorRepresentation,
     extra: THREE.MeshStandardMaterialParameters = {},
   ) => new THREE.MeshStandardMaterial({ color, roughness: 0.9, ...extra });
-  const wood = mat(0x675442),
-    roof = mat(0x4b5654),
-    plaster = mat(0xb29b7b),
-    stone = mat(0x6c7166);
-  const dark = mat(0x343c36),
-    cream = mat(0xd2c1a0),
-    snow = mat(0xdbded4);
-  const lamp = mat(0xf6d799, { emissive: 0xeeb764, emissiveIntensity: 1.1 });
+  const wood = mat(0x675442);
+  const dark = mat(0x343c36), cream = mat(0xd2c1a0);
   const leaf = mat(0x58765a, { side: THREE.DoubleSide });
   const unitBox = new THREE.BoxGeometry(1, 1, 1),
     sphere = new THREE.SphereGeometry(1, 10, 8);
@@ -91,73 +89,49 @@ export function createLandmarks(world: THREE.Group, scope: Lifecycle) {
     );
     return mesh;
   }
-  function fence(group: THREE.Group) {
+  function fence(group: THREE.Group): Landmark {
     for (let z = -8; z <= 8; z += 3.2)
       box(group, wood, [0, 0.65, z], [0.1, 1.3, 0.11]);
     for (const y of [0.42, 0.92]) box(group, wood, [0, y, 0], [0.07, 0.09, 17]);
     mergeStaticMeshes(group, [...group.children], scope);
-  }
-  const smokeTexture = radialTexture(32, [
-    [0, "rgba(215,211,190,.26)"],
-    [1, "rgba(215,211,190,0)"],
-  ]);
-  function cottage(): Landmark {
-    const group = new THREE.Group();
-    group.name = "lamplit-cottage";
-    box(group, stone, [0, 0.24, 0], [7.4, 0.5, 5.4]);
-    box(group, plaster, [0, 1.8, 0], [7, 3.1, 5]);
-    for (const side of [-1, 1]) {
-      const panel = box(group, roof, [side * 1.86, 3.67, 0], [4.25, 0.18, 6.1]);
-      panel.rotation.z = -side * 0.4;
-      box(group, wood, [side * 3.3, 1.8, 0], [0.18, 3.5, 5.1]);
-    }
-    box(group, wood, [0, 1.26, 2.54], [1.05, 2.1, 0.12]);
-    for (const x of [-2.1, 2.1])
-      for (const side of [-1, 1]) {
-        box(group, wood, [x, 1.95, side * 2.54], [1.4, 1.3, 0.13]);
-        box(group, lamp, [x, 1.95, side * 2.62], [1.16, 1.08, 0.025]);
-        box(group, wood, [x, 1.95, side * 2.64], [0.06, 1.09, 0.03]);
-        box(group, wood, [x, 1.95, side * 2.64], [1.17, 0.06, 0.03]);
-      }
-    box(group, stone, [1.9, 4.4, -0.8], [0.7, 2.2, 0.7]);
-    const cap = new THREE.Group();
-    cap.name = "snow-on-roof";
-    group.add(cap);
-    for (const side of [-1, 1]) {
-      const panel = box(cap, snow, [side * 1.86, 3.8, 0], [4.28, 0.12, 6.15]);
-      panel.rotation.z = -side * 0.4;
-    }
-    const smoke = new THREE.Group();
-    smoke.position.set(1.9, 5.6, -0.8);
-    group.add(smoke);
-    const puffs = Array.from(
-      { length: 7 },
-      () =>
-        new THREE.Sprite(
-          new THREE.SpriteMaterial({
-            map: smokeTexture,
-            transparent: true,
-            opacity: 0.5,
-            depthWrite: false,
-          }),
-        ),
-    );
-    smoke.add(...puffs);
-    mergeStaticMeshes(group, [...group.children], scope);
-    mergeStaticMeshes(cap, [...cap.children], scope);
+    const meshes = group.children as THREE.Mesh[];
+    const originals = meshes.map(mesh => mesh.geometry.attributes.position.array.slice());
     return {
       object: group,
-      setEnvironment(environment) {
-        cap.visible = environment.snowRoof;
-      },
-      update(_dt, elapsed) {
-        puffs.forEach((puff, i) => {
-          const age = (elapsed * 0.05 + i / 7) % 1;
-          puff.position.set(age * 1.7, age * 6, Math.sin(age * 3) * 0.4);
-          puff.scale.setScalar(0.8 + age * 2.1);
-          puff.material.opacity = Math.sin(age * Math.PI) * 0.55;
+      fitGround(groundAt) {
+        const c = Math.cos(group.rotation.y), s = Math.sin(group.rotation.y);
+        meshes.forEach((mesh, index) => {
+          const positions = mesh.geometry.attributes.position;
+          for (let i = 0; i < positions.count; i++) {
+            const x = positions.getX(i), z = positions.getZ(i);
+            positions.setY(i, originals[index][i * 3 + 1] + groundAt(
+              group.position.x + c * x + s * z, group.position.z + c * z - s * x,
+            ) - group.position.y);
+          }
+          positions.needsUpdate = true;
+          mesh.geometry.computeVertexNormals();
+          mesh.geometry.computeBoundingSphere();
         });
       },
+    };
+  }
+  function cottage(): Landmark {
+    const building = createBuilding("cabin");
+    const { group, snowcap, footing } = building;
+    group.name = "lamplit-cottage";
+    const smoke = createChimneySmoke();
+    smoke.mesh.position.copy(building.chimney!);
+    group.add(smoke.mesh);
+    return {
+      object: group,
+      fitGround(groundAt) {
+        const { high, low } = sampleBuildingGround("cabin", groundAt);
+        group.position.y = high;
+        footing.scale.y = high - low + 0.6;
+        footing.position.y = 0.3 - footing.scale.y / 2;
+      },
+      setEnvironment(environment) { snowcap.visible = environment.snowRoof; },
+      update(_dt, elapsed) { smoke.update(elapsed, snowcap.visible); },
     };
   }
   function windmill(): Landmark {
@@ -345,15 +319,14 @@ export function createLandmarks(world: THREE.Group, scope: Lifecycle) {
         }
       }
       const rails = new THREE.Group();
-      fence(rails);
-      groundedAt({ object: rails }, 5.5, -2);
+      groundedAt(fence(rails), 5.5, -2);
     } else if (kind === 1) {
       groundedAt(cottage(), 0, 0);
       groundedAt(windmill(), -7, -4);
       const rails = new THREE.Group();
-      fence(rails);
+      const railsItem = fence(rails);
       rails.rotation.y = Math.PI / 2;
-      groundedAt({ object: rails }, 0, 7);
+      groundedAt(railsItem, 0, 7);
       for (let i = 0; i < 3; i++) {
         const log = shape(
           group,
@@ -377,7 +350,7 @@ export function createLandmarks(world: THREE.Group, scope: Lifecycle) {
       box(marker, cream, [0, 1.7, 0], [0.62, 0.32, 0.1]);
       groundedAt({ object: marker }, 5, 8);
     }
-    sites.push({ group, kind, index, station: 96 + index * 86, items });
+    sites.push({ group, kind, index, station: 96 + index * 86, items, suitable: true });
   }
   function place(site: Site, mode: SceneryMode) {
     const environment =
@@ -385,17 +358,21 @@ export function createLandmarks(world: THREE.Group, scope: Lifecycle) {
     const side =
       environment.landSide ??
       (Math.floor(site.station / 86) % 2 === 1 ? -1 : 1);
-    const point = roadPoint(
+    const cottage = site.kind === 1 ? cottageSite(site.station, mode) : null;
+    site.suitable = site.kind !== 1 || cottage !== null;
+    if (!site.suitable) return;
+    const point = cottage ?? roadPoint(
       site.station,
       side * (site.kind === 1 ? 31 : site.kind === 2 ? 14 : 15),
     );
     const frame = roadFrame(site.station);
     site.group.position.set(point.x, 0, point.z);
-    site.group.rotation.y = frame.heading;
+    const yaw = cottage?.yaw ?? frame.heading;
+    site.group.rotation.y = yaw;
     const groundAt: GroundAt = (x, z) =>
       terrainSurfaceHeight(
-        point.x + Math.cos(frame.heading) * x + Math.sin(frame.heading) * z,
-        point.z + Math.cos(frame.heading) * z - Math.sin(frame.heading) * x,
+        point.x + Math.cos(yaw) * x + Math.sin(yaw) * z,
+        point.z + Math.cos(yaw) * z - Math.sin(yaw) * x,
         mode,
       );
     for (const item of site.items) {
@@ -473,7 +450,7 @@ export function createLandmarks(world: THREE.Group, scope: Lifecycle) {
           sites.length * 86,
         );
         if (previous !== site.station || modeChanged) place(site, mode);
-        if (Math.abs(site.station - progress) > 340 || stationClearing(site.station, 0, mode)) {
+        if (!site.suitable || Math.abs(site.station - progress) > 340 || stationClearing(site.station, 0, mode)) {
           site.group.visible = false;
           continue;
         }

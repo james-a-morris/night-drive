@@ -1,3 +1,5 @@
+import { createChimneySmoke } from "./chimney-smoke.ts";
+import { reducedMotion } from "./motion.ts";
 import * as THREE from "./three.ts";
 import { mergeGeometries } from "three/addons/utils/BufferGeometryUtils.js";
 import { settlementLayout, SETTLEMENT_SPACING, buildingDimensions, type BuildingKind } from "./settlement-layout.ts";
@@ -37,6 +39,7 @@ export function createBuilding(kind: BuildingKind) {
   }
   const pitch = kind === "cabin" ? 0.65 : kind === "barn" ? 0.5 : 0.42;
   const rise = Math.tan(pitch) * width / 2;
+  const chimneyY = height + rise - 0.15;
   // Fill the triangular gables so the roof has a believable closed silhouette.
   const gable = new THREE.Shape();
   gable.moveTo(-width / 2, 0); gable.lineTo(width / 2, 0); gable.lineTo(0, rise); gable.closePath();
@@ -116,7 +119,6 @@ export function createBuilding(kind: BuildingKind) {
     box(0xc3a16a, 0.35, 1.35, front + 0.23, 0.09, 0.12, 0.08);
     box(wood, 0.94, 2.24, front + 0.24, 0.24, 0.42, 0.28);
     box(0xffdca1, 0.94, 2.24, front + 0.4, 0.15, 0.27, 0.08, 0, lights);
-    const chimneyY = height + rise * 0.6;
     box(0x827468, -width * 0.27, chimneyY, -1, 0.62, 2, 0.72);
     for (let y = chimneyY - 0.8; y < chimneyY + 1; y += 0.24)
       box(0x605e56, -width * 0.27, y, -1, 0.64, 0.035, 0.74);
@@ -145,7 +147,8 @@ export function createBuilding(kind: BuildingKind) {
   foundationParts.forEach(part => part.dispose());
   const footing = new THREE.Mesh(foundation, new THREE.MeshStandardMaterial({ color: 0x697166, roughness: 1 }));
   footing.name = "stone-foundation"; group.add(footing);
-  return { group, snowcap, footing, width, depth };
+  const chimney = kind === "barn" ? null : new THREE.Vector3(-width * 0.27, chimneyY + 1.12, -1);
+  return { group, snowcap, footing, width, depth, chimney };
 }
 
 export function createSettlements(world: THREE.Group) {
@@ -154,17 +157,26 @@ export function createSettlements(world: THREE.Group) {
   const villages = Array.from({ length: 4 }, (_, index) => {
     const group = new THREE.Group(); root.add(group);
     const buildings = settlementLayout(index, "forest").map(spec => {
-      const building = createBuilding(spec.kind); group.add(building.group); return building;
+      const building = createBuilding(spec.kind);
+      const smoke = building.chimney ? createChimneySmoke() : null;
+      if (smoke) { smoke.mesh.position.copy(building.chimney!); building.group.add(smoke.mesh); }
+      group.add(building.group); return { ...building, smoke };
     });
     return { group, buildings, cell: Number.NaN, index };
   });
-  function update(progress: number, mode: SceneryMode, modeChanged: boolean) {
+  let elapsed = 0;
+  function update(progress: number, mode: SceneryMode, modeChanged: boolean, dt = 0) {
+    if (typeof matchMedia === "undefined" || !reducedMotion().matches) elapsed += dt;
     const first = Math.floor((progress - 230) / SETTLEMENT_SPACING);
     for (const village of villages) {
       const cell = first + ((village.index - first % 4 + 4) % 4);
       const weights = environmentWeights(cell * SETTLEMENT_SPACING + 139, mode);
       village.group.visible = Math.abs(cell * SETTLEMENT_SPACING + 139 - progress) < 360 &&
         weights.tunnel < 0.15 && weights.bridge < 0.15;
+      for (const [i, building] of village.buildings.entries()) {
+        if (village.group.visible && building.group.visible)
+          building.smoke?.update(elapsed, building.snowcap.visible, village.index * 0.21 + i * 0.13);
+      }
       if (cell === village.cell && !modeChanged) continue;
       village.cell = cell;
       settlementLayout(cell, mode).forEach((spec, i) => {
@@ -175,6 +187,7 @@ export function createSettlements(world: THREE.Group) {
         footing.scale.y = spec.suitable ? spec.high - spec.low + 0.6 : 0.6;
         footing.position.y = 0.3 - footing.scale.y / 2;
         building.snowcap.visible = ENVIRONMENTS[dominantEnvironment(environmentWeights(spec.station, mode))].snowRoof;
+        building.smoke?.update(elapsed, building.snowcap.visible, village.index * 0.21 + i * 0.13);
       });
     }
   }

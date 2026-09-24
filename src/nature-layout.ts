@@ -1,3 +1,4 @@
+import { cottageSite } from "./cottage-layout.ts";
 import { environmentWeights, type SceneryMode } from "./environments.ts";
 import { roadFrame, roadPoint } from "./drive.ts";
 import { settlementClearing } from "./settlement-layout.ts";
@@ -54,8 +55,10 @@ export function natureClearing(
     const kind = ((i % 3) + 3) % 3;
     const coast = environmentWeights(at, mode).coast > 0.5;
     const side = coast ? 1 : Math.floor(at / 86) % 2 === 1 ? -1 : 1;
-    const origin = roadPoint(at, side * (kind === 1 ? 31 : kind === 2 ? 14 : 15));
-    const heading = roadFrame(at).heading;
+    const cottage = kind === 1 ? cottageSite(at, mode) : null;
+    if (kind === 1 && !cottage) continue;
+    const origin = cottage ?? roadPoint(at, side * (kind === 2 ? 14 : 15));
+    const heading = cottage?.yaw ?? roadFrame(at).heading;
     const dx = x - origin.x, dz = z - origin.z;
     const localX = Math.cos(heading) * dx - Math.sin(heading) * dz;
     const localZ = Math.sin(heading) * dx + Math.cos(heading) * dz;
