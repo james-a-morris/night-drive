@@ -1,3 +1,5 @@
+import type { TreeGardenController } from "./tree-garden.ts";
+import type { TreeGarden } from "./tree-varieties.ts";
 import type { Drive } from "./drive.ts";
 import type { Lifecycle } from "./lifecycle.ts";
 import {
@@ -20,6 +22,7 @@ export function createRoomClient(
   drive: Drive,
   scope: Lifecycle,
   publish: (room: RoomSnapshot) => void,
+  garden?: TreeGardenController,
 ) {
   let me: RiderProfile | null = null,
     board: RoomView | null = null,
@@ -92,6 +95,7 @@ export function createRoomClient(
         const data = await request<RoomView>();
         if (data.serverTime < lastServerTime) return;
         updateMe(data.me, data.serverTime);
+        if (data.garden) garden?.accept(data.garden, data.me.id);
         board = data;
         report("");
       })
@@ -167,6 +171,64 @@ export function createRoomClient(
     emit();
     void refresh();
   }
+  let treeSaving: Promise<void> | null = null;
+  async function saveTree(harvest = false) {
+    if (treeSaving) {
+      await treeSaving;
+      if (!harvest) return;
+    }
+    const tree = garden?.getSnapshot().garden;
+    if (!tree || !me) return;
+    const sent = { id: tree.id, seconds: garden!.seconds };
+    const task = (async () => {
+      const data = await request<{ garden: TreeGarden; owner: string }>({
+        action: harvest ? "tree-harvest" : "tree-save",
+        treeId: sent.id,
+        seconds: sent.seconds,
+      });
+      if (me?.id !== data.owner) return;
+      garden!.accept(data.garden, data.owner, sent, harvest);
+      if (harvest && data.garden.id === sent.id)
+        garden!.report("Your plant is still growing. A little longer aboard…");
+    })();
+    treeSaving = task;
+    try {
+      await task;
+    } finally {
+      if (treeSaving === task) treeSaving = null;
+    }
+  }
+  if (garden) scope.defer(garden.bind(() => saveTree(true)));
+  const saveTreeQuietly = () =>
+    void saveTree().catch(() =>
+      garden?.report("Reconnecting to save your garden…"),
+    );
+  scope.interval(saveTreeQuietly, 15000);
+  scope.on(document, "visibilitychange", () => {
+    if (document.hidden) saveTreeQuietly();
+  });
+  function flushTree() {
+    const tree = garden?.getSnapshot().garden;
+    if (!tree) return;
+    const body = JSON.stringify({
+      action: "tree-save",
+      treeId: tree.id,
+      seconds: garden!.seconds,
+    });
+    void authHeaders()
+      .then((headers) =>
+        fetch("/api/room", {
+          method: "POST",
+          credentials: "same-origin",
+          keepalive: true,
+          headers: { ...headers, "Content-Type": "application/json" },
+          body,
+        }),
+      )
+      .catch(() => {});
+  }
+  scope.on(window, "pagehide", flushTree);
+  scope.defer(flushTree);
   function flushJourney() {
     if (!journey) return;
     const body = JSON.stringify(mileageReport());
@@ -204,6 +266,7 @@ export function createRoomClient(
           const signedOut = wasSignedIn && !signedIn;
           wasSignedIn = signedIn;
           await saveMiles();
+          await saveTree().catch(() => {});
           await refresh();
           scope.signal.throwIfAborted();
           if (signedOut) {

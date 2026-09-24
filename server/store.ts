@@ -30,6 +30,20 @@ const schema = `
   );
   CREATE INDEX IF NOT EXISTS mileage_ranking ON road_profiles(total_metres);
   CREATE INDEX IF NOT EXISTS journey_owner_start ON journeys(driver_id, started_at DESC, id);
+  CREATE TABLE IF NOT EXISTS tree_gardens (
+    driver_id TEXT PRIMARY KEY REFERENCES road_profiles(id),
+    tree_id TEXT NOT NULL,
+    variety INTEGER NOT NULL,
+    seconds DOUBLE PRECISION NOT NULL DEFAULT 0,
+    updated_at BIGINT NOT NULL
+  );
+  CREATE TABLE IF NOT EXISTS collected_trees (
+    id TEXT PRIMARY KEY,
+    driver_id TEXT NOT NULL REFERENCES road_profiles(id),
+    variety INTEGER NOT NULL,
+    collected_at BIGINT NOT NULL
+  );
+  CREATE INDEX IF NOT EXISTS tree_collection_owner ON collected_trees(driver_id, collected_at);
   CREATE TABLE IF NOT EXISTS request_limits (
     key TEXT PRIMARY KEY,
     window_start BIGINT NOT NULL,

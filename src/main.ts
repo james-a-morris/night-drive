@@ -1,3 +1,4 @@
+import type { TreeGardenController } from "./tree-garden.ts";
 import type { DiagnosticsProbe } from "./diagnostics.ts";
 import type { Drive } from "./drive.ts";
 import type { NightRadio } from "./radio.ts";
@@ -7,6 +8,7 @@ export interface SceneSettings {
   mode: SceneryMode;
   seat: Seat;
   windowOpen: boolean;
+  gardenView?: boolean;
 }
 import * as THREE from "./three.ts";
 import { advanceDrive, roadFrame } from "./drive.ts";
@@ -33,6 +35,8 @@ export function mountScene(
     onStation,
     onPineWeather,
     onReady,
+    garden,
+    treeLabel,
   }: {
     drive: Drive;
     radio: NightRadio;
@@ -42,6 +46,8 @@ export function mountScene(
     onStation(status: string | null): void;
     onPineWeather(weather: PineWeather): void;
     onReady(): void;
+    garden: TreeGardenController;
+    treeLabel: HTMLElement;
   },
 ) {
   const scope = createLifecycle();
@@ -79,7 +85,7 @@ export function mountScene(
     let previousPineWeather: PineWeather | undefined;
     const lightning = createLightning(scene);
     scope.defer(() => radio.setStorm(false, false));
-    const cabin = createStudyCabin(scope);
+    const cabin = createStudyCabin(scope, garden);
     scenery.world.add(cabin.rig);
     scenery.weather.setShelter(cabin.rig);
     const view = createCabinView({ cabin, camera, canvas, getSettings, scope });
@@ -94,6 +100,7 @@ export function mountScene(
       onWhir: (level) => radio.setConductorWhir(level),
     });
 
+    const treePoint = new THREE.Vector3();
     function fitCabinView() {
       camera.fov = innerWidth / innerHeight < 0.85 ? 76 : 70;
       camera.aspect = innerWidth / innerHeight;
@@ -148,12 +155,24 @@ export function mountScene(
         dt,
         getSettings().mode,
       );
-      cabin.tree.update(now, drive.started);
       // Update the world transform before the camera and shelter use it.
       scenery.world.updateMatrixWorld(true);
       view.update(dt, weights, forest);
       scenery.world.worldToLocal(lightingEye.copy(camera.position));
       scenery.updateLighting(drive.progress, lightingEye, dt, getSettings().mode, forest);
+      cabin.tree.update(now, drive.started);
+      treePoint.set(0, 0.03, 0.12);
+      cabin.plant.localToWorld(treePoint).project(camera);
+      const labelX = (treePoint.x * 0.5 + 0.5) * innerWidth;
+      const labelY = (-treePoint.y * 0.5 + 0.5) * innerHeight;
+      const viewingGarden = getSettings().gardenView;
+      // Leave room for the radio card on phones and keep a hovered button still.
+      if (viewingGarden || !treeLabel.matches(":hover")) {
+        const bottomClearance = innerWidth <= 650 ? 280 : 90;
+        treeLabel.style.left = `${Math.round(viewingGarden ? innerWidth / 2 : Math.max(90, Math.min(innerWidth - 90, labelX)))}px`;
+        treeLabel.style.top = `${Math.round(viewingGarden ? innerHeight * 0.7 : Math.min(innerHeight - bottomClearance, labelY + 8))}px`;
+      }
+      treeLabel.style.visibility = drive.started && (viewingGarden || (Math.abs(treePoint.x) < 1.15 && treePoint.z < 1)) ? "visible" : "hidden";
       conductor.update(now);
       const mode = getSettings().mode;
       const storm = stormClock.update(

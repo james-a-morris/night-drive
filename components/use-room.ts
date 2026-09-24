@@ -1,3 +1,4 @@
+import type { TreeGardenController } from "../src/tree-garden.ts";
 import type { Drive } from "../src/drive.ts";
 import type {
   RoomSnapshot,
@@ -9,7 +10,7 @@ import { useEffect, useRef, useState } from "react";
 import { createLifecycle } from "../src/lifecycle.ts";
 import { createRoomClient, METRES_PER_MILE } from "../src/room-client.ts";
 
-export function useRoom(drive: Drive) {
+export function useRoom(drive: Drive, garden?: TreeGardenController) {
   const client = useRef<ReturnType<typeof createRoomClient> | null>(null);
   const [room, setRoom] = useState<RoomSnapshot>({
     me: null,
@@ -22,12 +23,12 @@ export function useRoom(drive: Drive) {
   });
   useEffect(() => {
     const scope = createLifecycle();
-    client.current = createRoomClient(drive, scope, setRoom);
+    client.current = createRoomClient(drive, scope, setRoom, garden);
     return () => {
       scope.dispose();
       client.current = null;
     };
-  }, [drive]);
+  }, [drive, garden]);
   return {
     ...room,
     startJourney: () => client.current?.startJourney(),
