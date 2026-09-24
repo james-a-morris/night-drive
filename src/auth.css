@@ -1,0 +1,93 @@
+/* The account menu belongs to Night Line; Clerk supplies its session data. */
+.account-control { position:relative; letter-spacing:normal; }
+.account-trigger { display:grid; place-items:center; width:38px; height:38px; padding:0; border:1px solid rgba(220,225,220,.2); border-radius:50%; background:linear-gradient(145deg,rgba(39,54,60,.85),rgba(17,29,36,.86)); color:#d7dcd4; cursor:pointer; box-shadow:inset 0 1px 0 rgba(255,255,255,.04),0 2px 10px rgba(0,0,0,.08); backdrop-filter:blur(16px); transition:border-color .2s,background .2s; }
+.account-trigger:hover,.account-trigger[aria-expanded="true"] { border-color:rgba(239,177,145,.5); background:linear-gradient(145deg,rgba(46,58,62,.95),rgba(25,36,41,.95)); }
+.account-trigger>svg { width:18px; height:18px; stroke:currentColor; stroke-width:1.4; stroke-linecap:round; stroke-linejoin:round; }
+.account-panel { position:absolute; z-index:2; right:0; top:calc(100% + 10px); width:260px; max-width:calc(100vw - 32px); padding:12px 8px 0; border:1px solid rgba(207,218,213,.17); border-radius:12px; background:linear-gradient(145deg,rgba(29,43,49,.97),rgba(12,25,33,.97)); box-shadow:0 18px 55px rgba(0,0,0,.32),inset 0 1px 0 rgba(255,255,255,.04); backdrop-filter:blur(24px); font-family:var(--font-ui); max-height:calc(100dvh - 90px); overflow-y:auto; scrollbar-width:thin; }
+.account-eyebrow { margin:0 8px 2px; color:#cba38c; font:var(--text-label) var(--font-ui); letter-spacing:.18em; }
+.account-identity { margin:0 0 6px; padding:6px 8px; }
+.account-identity strong { display:block; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; color:#f0eee5; font:500 var(--text-body) var(--font-ui); }
+.account-rider-name { display:flex; align-items:center; justify-content:space-between; gap:10px; width:100%; min-height:32px; border:1px solid transparent; border-radius:7px; background:none; text-align:left; cursor:pointer; transition:background .2s,border-color .2s; }
+.account-rider-name:hover,.account-rider-name:focus-visible { background:rgba(239,177,145,.06); border-color:rgba(239,177,145,.13); outline:none; }
+.account-rider-name[aria-disabled="true"] { opacity:.5; cursor:wait; }
+.account-rider-name>svg { width:16px; height:16px; flex:none; color:#cba38c; stroke:currentColor; stroke-width:1.35; stroke-linecap:round; stroke-linejoin:round; }
+.account-guest-identity>span { display:block; margin-top:2px; color:#91a0a4; font-size:var(--text-label); }
+.account-menu { padding:0 0 4px; }
+.account-settings { display:grid; grid-template-columns:64px minmax(0,1fr); align-items:center; gap:4px 6px; padding:8px 0; border-top:1px solid rgba(255,255,255,.08); }
+.cabin-options { grid-column:1/-1; display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:3px; margin:0 4px 4px; padding:3px; border:1px solid rgba(255,255,255,.08); border-radius:10px; background:rgba(3,12,18,.28); }
+.seat-options { grid-column:span 2; display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:3px; }
+.cabin-option { display:flex; flex-direction:column; align-items:center; justify-content:center; gap:5px; min-width:0; min-height:62px; padding:7px 3px; border:1px solid transparent; border-radius:6px; background:none; color:#b9c1bd; font:var(--text-label)/1.3 var(--font-ui); white-space:nowrap; cursor:pointer; transition:background .2s,border-color .2s,color .2s; }
+.cabin-option>svg { display:block; width:28px; height:28px; flex:none; }
+.cabin-option:hover { background:rgba(239,177,145,.06); border-color:rgba(239,177,145,.13); color:#eee3d4; }
+.cabin-option:focus-visible { outline:1px solid #efb191; outline-offset:-2px; }
+.cabin-option[aria-checked="true"] { color:#f3dccb; background:rgba(239,177,145,.13); border-color:rgba(239,177,145,.32); }
+.account-menu-item { display:flex; align-items:center; gap:10px; width:100%; min-height:34px; padding:6px 8px; text-align:left; border:1px solid transparent; border-radius:7px; background:transparent; color:#dce0d9; cursor:pointer; transition:background .2s,border-color .2s; }
+.account-menu-item:hover,.account-menu-item:focus-visible { background:rgba(239,177,145,.06); border-color:rgba(239,177,145,.13); outline:none; }
+.account-menu-item>svg { width:16px; height:16px; flex:none; color:#b8b6ac; stroke:currentColor; stroke-width:1.35; stroke-linecap:round; stroke-linejoin:round; }
+.account-menu-item strong { display:block; font-size:var(--text-body); font-weight:500; }
+.account-menu-item small { display:block; margin-top:2px; font-size:var(--text-label); color:#91a0a4; }
+.account-item-arrow { margin-left:auto; font-size:var(--text-body); font-weight:400; color:#d4a58a; }
+/* The dev kit switch spans the settings grid and carries its own state chip. */
+.dev-kit-toggle { grid-column:1/-1; margin:4px 4px 0; width:auto; }
+.account-item-state { flex:none; margin-left:auto; padding:3px 8px; border:1px solid rgba(255,255,255,.1); border-radius:20px; background:rgba(3,12,18,.28); color:#b9c1bd; font:var(--text-label) var(--font-ui); letter-spacing:.06em; }
+.dev-kit-toggle[aria-checked="true"] .account-item-state { border-color:rgba(239,177,145,.32); background:rgba(239,177,145,.13); color:#f3dccb; }
+.dev-kit-toggle[aria-checked="true"]>svg { color:#e4b394; }
+.account-menu-item[aria-disabled="true"] { opacity:.5; cursor:wait; }
+.account-panel .form-error { margin:3px 8px 8px; }
+.account-progress { display:flex; flex-wrap:wrap; align-items:baseline; justify-content:space-between; gap:4px 8px; margin:0; padding:9px 8px 10px; border-top:1px solid rgba(255,255,255,.07); color:#92a09f; font:400 var(--text-body) var(--font-ui); }
+.account-progress dd { margin:0; color:#efd1bd; font-variant-numeric:tabular-nums; white-space:nowrap; }
+/* Guests use the same menu for their seat, with sign-in choices. */
+.account-section-label { margin:0 0 0 8px; color:#91a0a4; font:var(--text-label) var(--font-ui); letter-spacing:.08em; }
+.distance-options { display:grid; grid-template-columns:1fr 1fr; gap:2px; margin:0 4px 0 0; padding:2px; border:1px solid rgba(255,255,255,.08); border-radius:8px; background:rgba(3,12,18,.28); }
+.distance-options button { display:flex; align-items:center; justify-content:center; gap:5px; min-height:30px; padding:0 6px; border:1px solid transparent; border-radius:5px; background:none; color:#b9c1bd; font:var(--text-body) var(--font-ui); cursor:pointer; transition:background .2s,border-color .2s,color .2s; }
+.distance-options button:hover,.distance-options button:focus-visible { background:rgba(239,177,145,.06); border-color:rgba(239,177,145,.13); outline:none; }
+.distance-options button[aria-checked="true"] { color:#f3dccb; background:rgba(239,177,145,.13); border-color:rgba(239,177,145,.32); }
+.account-actions { margin-top:0; padding-top:4px; border-top:1px solid rgba(255,255,255,.08); }
+
+/* Supported Clerk appearance classes keep every auth step in the app's theme. */
+.night-auth-backdrop { background:rgba(2,8,14,.66); backdrop-filter:blur(9px); }
+.night-auth-modal { max-width:calc(100vw - 32px); }
+.night-auth-root { width:100%; max-width:100%; font:var(--text-body)/1.6 var(--font-ui); }
+/* Keep provider defaults on our type scale; the roles below choose the sizes. */
+:where(.night-auth-root) * { font-size:inherit; }
+/* App-wide hero headings must not override headings in Clerk's CSS layer. */
+:where(.night-auth-root) :is(h1,h2,h3) { margin:0; font:500 var(--text-body)/1.35 var(--font-ui); letter-spacing:normal; }
+.night-auth-card-box { width:420px; max-width:100%; border:1px solid rgba(207,218,213,.17); border-radius:17px; background:linear-gradient(145deg,#1b2b32,#0c1921); box-shadow:0 30px 100px rgba(0,0,0,.45); }
+.night-auth-card { width:100%; min-width:0; gap:26px; padding:38px 34px 30px; background:transparent; box-shadow:none; border:0; }
+.cl-signIn-root .night-auth-card::before,.cl-signUp-root .night-auth-card::before { content:'NIGHT LINE / YOUR OWN LITTLE ESCAPE'; display:block; color:#cba38c; font:var(--text-label) var(--font-ui); letter-spacing:.16em; }
+.night-auth-close { top:15px; right:15px; padding:7px; color:#a4b1b3; }
+.night-auth-title { color:#efd1bd; font:400 var(--text-title)/1.13 var(--font-ui); letter-spacing:-.035em; }
+.night-auth-subtitle { margin-top:10px; color:#a4b1b3; font-size:var(--text-body); line-height:1.8; }
+.night-auth-label { color:#b5bfbe; font:var(--text-label)/1.5 var(--font-ui); letter-spacing:.09em; }
+.night-auth-input { min-height:43px; padding:11px 13px; color:#f0eee5; border:1px solid rgba(255,255,255,.16); border-radius:5px; background:#0d1921; box-shadow:none; font:var(--text-body)/1.6 var(--font-ui); }
+.night-auth-input:focus { border-color:#c68e73; box-shadow:0 0 0 2px rgba(239,177,145,.1); }
+.night-auth-primary { min-height:46px; background:#efb191; color:#101a20; border:1px solid #efb191; border-radius:5px; box-shadow:none; font:var(--text-label) var(--font-ui); letter-spacing:.13em; text-transform:uppercase; }
+.night-auth-primary:hover { background:#f4c5ac; border-color:#f4c5ac; }
+.night-auth-social { min-height:43px; border:1px solid rgba(255,255,255,.17); background:rgba(255,255,255,.025); box-shadow:none; font:var(--text-body) var(--font-ui); }
+.night-auth-social:hover { background:rgba(239,177,145,.07); border-color:rgba(239,177,145,.35); }
+.night-auth-footer { background:rgba(3,12,18,.2); border-top:1px solid rgba(255,255,255,.07); }
+.night-auth-footer-action { padding:17px 25px; }
+.cl-userProfile-root.night-auth-root { height:auto; min-height:0; }
+.cl-userProfile-root .night-auth-card-box { width:800px; height:min(580px,calc(100dvh - 64px)); min-height:0; }
+.night-account-navbar { flex-basis:205px; padding:32px 20px; background:rgba(3,12,18,.24); border-right:1px solid rgba(255,255,255,.08); }
+.night-account-navbar .cl-navbarMobileMenuButton { background:transparent; box-shadow:none; }
+.night-account-navbar :is(h1,h2) { color:#d2af98; font:var(--text-body)/1.4 var(--font-ui); letter-spacing:.08em; text-transform:uppercase; }
+.night-account-tab { min-height:39px; font:var(--text-label) var(--font-ui); letter-spacing:.05em; }
+.night-account-scroll { background:transparent; }
+.night-account-page { padding:30px; gap:25px; }
+.night-account-page .cl-headerTitle { font:400 var(--text-title)/1.15 var(--font-ui); letter-spacing:-.025em; }
+.night-account-section-title { color:#b5bfbe; font:var(--text-label)/1.7 var(--font-ui); letter-spacing:.07em; text-transform:uppercase; }
+.night-account-edit { font-size:var(--text-label); }
+.night-account-badge { color:#c5d0c6; background:rgba(162,188,161,.09); border:1px solid rgba(162,188,161,.15); font:var(--text-label)/1.4 var(--font-ui); }
+@media(max-width:650px) {
+  .account-trigger { width:36px; height:36px; }
+  .account-panel { top:calc(100% + 10px); }
+  .night-auth-card { padding:35px 24px 25px; }
+  .night-auth-title { font-size:var(--text-title); }
+  .cl-signIn-root .night-auth-card::before,.cl-signUp-root .night-auth-card::before { font-size:var(--text-label); letter-spacing:.11em; }
+  .night-account-navbar { flex-basis:auto; padding:18px; border-right:0; border-bottom:1px solid rgba(255,255,255,.08); }
+  .night-account-page { padding:24px 20px; }
+}
+@media(prefers-reduced-motion:reduce) {
+  .account-trigger,.account-rider-name,.account-menu-item,.cabin-option,.distance-options button { transition:none; }
+}

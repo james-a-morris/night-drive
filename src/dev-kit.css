@@ -1,0 +1,29 @@
+/* Dev kit: an instrument card in the same cabin materials as the other widgets.
+   It sits opposite the settings menu that opens it, and under every panel, so
+   toggling it never hides the control you are using. */
+.dev-kit {
+  position:fixed; z-index:12; top:92px; left:22px; width:240px; padding:12px 13px 13px;
+  border:1px solid #c8d0af2b; border-top-color:#e0e5c638; border-bottom-color:#b5c6a91c; border-radius:10px;
+  background:#21352fb0; color:#d9dfc4; font-family:var(--font-ui);
+  box-shadow:inset 0 1px 0 #f2ebcf0d,0 2px 4px #07120e14,0 8px 22px -8px #07120e55;
+  -webkit-backdrop-filter:blur(22px) saturate(.8); backdrop-filter:blur(22px) saturate(.8);
+}
+.dev-kit-header { display:flex; align-items:center; justify-content:space-between; gap:8px; }
+.dev-kit h2 { color:#ceb894; font:400 var(--text-label) var(--font-ui); letter-spacing:.17em; }
+.dev-kit-rate { display:flex; align-items:baseline; gap:6px; flex-wrap:wrap; margin:6px 0 0; }
+.dev-kit-rate strong { color:#f0d6ba; font:400 var(--text-title)/1.1 var(--font-ui); letter-spacing:-.03em; font-variant-numeric:tabular-nums; }
+.dev-kit[data-smooth] .dev-kit-rate strong { color:#d8e4b2; }
+.dev-kit-rate span { color:#a5b499; font-size:var(--text-label); letter-spacing:.14em; }
+.dev-kit-rate small { flex-basis:100%; color:#9baa92cc; font:var(--text-label)/1.5 var(--font-ui); font-variant-numeric:tabular-nums; }
+.dev-kit-spark { display:block; width:100%; height:30px; margin:8px 0 10px; overflow:visible; }
+.dev-kit-spark polyline { fill:none; stroke:#dcae8a; stroke-width:1; stroke-linejoin:round; vector-effect:non-scaling-stroke; }
+.dev-kit[data-smooth] .dev-kit-spark polyline { stroke:#b6c39a; }
+.dev-kit-readings { display:grid; gap:4px 12px; margin:0; }
+.dev-kit-reading { display:flex; align-items:baseline; justify-content:space-between; gap:10px; }
+.dev-kit-reading dt { color:#9baa92; font:var(--text-label) var(--font-ui); letter-spacing:.06em; }
+.dev-kit-reading dd { margin:0; color:#dfe2cb; font:var(--text-label) var(--font-ui); font-variant-numeric:tabular-nums; }
+/* Every phone corner already holds a control, so the dev kit takes the bottom
+   while it is open. It is opt-in, and the close button is always in reach. */
+@media(max-width:650px) {
+  .dev-kit { top:auto; inset:auto 12px 12px 12px; width:auto; }
+}

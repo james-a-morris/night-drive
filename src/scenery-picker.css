@@ -1,0 +1,74 @@
+.scenery-control { position:relative; display:flex; align-items:center; gap:12px; }
+.scenery-control [hidden] { display:none; }
+.scenery-label { color:rgba(240,238,229,.5); font:var(--text-label) var(--font-ui); letter-spacing:.16em; cursor:pointer; }
+.scenery-trigger { display:flex; align-items:center; gap:7px; min-height:38px; padding:5px 9px 5px 5px; border:1px solid rgba(220,225,220,.2); border-radius:24px; background:linear-gradient(145deg,rgba(39,54,60,.85),rgba(17,29,36,.86)); box-shadow:inset 0 1px 0 rgba(255,255,255,.04),0 2px 10px rgba(0,0,0,.08); backdrop-filter:blur(16px); color:#e9e4d9; cursor:pointer; transition:border-color .2s,background .2s,box-shadow .2s; }
+.scenery-trigger:hover,.scenery-trigger[aria-expanded="true"] { border-color:rgba(239,177,145,.5); background:linear-gradient(145deg,rgba(46,58,62,.95),rgba(25,36,41,.95)); box-shadow:inset 0 1px 0 rgba(255,255,255,.05),0 3px 16px rgba(0,0,0,.12); }
+.scenery-current-preview { width:26px; height:26px; flex:none; overflow:hidden; border-radius:50%; border:1px solid rgba(255,255,255,.12); }
+.scenery-art { display:block; width:100%; height:100%; overflow:hidden; }
+.scenery-chevron { width:13px; height:13px; color:#b5bcb8; transition:transform .25s; }
+.scenery-chevron path,.scenery-check path { stroke:currentColor; stroke-width:1.4; stroke-linecap:round; stroke-linejoin:round; }
+.scenery-trigger[aria-expanded="true"] .scenery-chevron { transform:rotate(180deg); color:#efb191; }
+.scenery-menu { position:absolute; top:calc(100% + 13px); right:0; width:316px; padding:8px; border:1px solid rgba(207,218,213,.17); border-radius:17px; background:linear-gradient(145deg,rgba(29,44,51,.97),rgba(12,24,31,.97)); box-shadow:0 20px 60px rgba(0,0,0,.32),inset 0 1px 0 rgba(255,255,255,.035); backdrop-filter:blur(28px); transform-origin:top right; animation:scenery-in .18s ease-out; }
+.scenery-menu-heading { margin:10px 10px 13px; color:#a8b3b4; font:var(--text-label) var(--font-ui); letter-spacing:.17em; }
+.scenery-options { display:grid; gap:4px; max-height:calc(100dvh - 155px); overflow-y:auto; outline:none; scrollbar-width:thin; }
+.scenery-option { display:flex; align-items:center; gap:12px; min-height:70px; padding:9px; border:1px solid transparent; border-radius:11px; cursor:pointer; transition:background .15s,border-color .15s; letter-spacing:normal; }
+.scenery-option[aria-selected="true"] { border-color:rgba(239,177,145,.26); background:rgba(224,166,130,.07); }
+.scenery-option.is-active { background:rgba(217,229,225,.07); border-color:rgba(217,229,225,.22); }
+.scenery-option[aria-selected="true"].is-active { border-color:rgba(239,177,145,.43); background:rgba(224,166,130,.1); }
+.scenery-preview { width:58px; height:46px; flex:none; border:1px solid rgba(255,255,255,.12); border-radius:7px; overflow:hidden; }
+.scenery-option-copy { display:flex; flex:1; min-width:0; flex-direction:column; gap:5px; }
+.scenery-option-name { display:flex; align-items:center; gap:8px; color:#eeeae0; font:500 var(--text-body) var(--font-ui); }
+.scenery-option-description { color:#99a7a9; font:var(--text-label)/1.4 var(--font-ui); }
+.scenery-auto { color:#dfb291; font:var(--text-label) var(--font-ui); letter-spacing:.07em; }
+.scenery-check { width:17px; height:17px; flex:none; color:#efb191; opacity:0; }
+.scenery-option[aria-selected="true"] .scenery-check { opacity:1; }
+.scenery-trigger:focus-visible { outline:2px solid #efb191; outline-offset:4px; }
+.scenery-options:focus-visible .is-active { outline:1px solid #efb191; outline-offset:-2px; }
+.scenery-sun-glow { transform-box:fill-box; transform-origin:center; animation:scenery-glow 6s ease-in-out infinite alternate; }
+.scenery-cloud { animation:scenery-cloud-drift 9s ease-in-out infinite alternate; }
+.scenery-rain path { animation:scenery-rainfall 2.8s linear infinite; }
+.scenery-snow circle { animation:scenery-snowfall 5.6s linear infinite; }
+.scenery-rain path:nth-child(1),.scenery-snow circle:nth-child(1) { animation-delay:-.8s; }
+.scenery-rain path:nth-child(2),.scenery-snow circle:nth-child(2) { animation-delay:-2.3s; }
+.scenery-rain path:nth-child(3),.scenery-snow circle:nth-child(3) { animation-delay:-4.1s; }
+.scenery-rain path:nth-child(4),.scenery-snow circle:nth-child(4) { animation-delay:-1.5s; }
+.scenery-rain path:nth-child(5),.scenery-snow circle:nth-child(5) { animation-delay:-3.4s; }
+.scenery-rain path:nth-child(6),.scenery-snow circle:nth-child(6) { animation-delay:-5s; }
+.scenery-wind path { animation:scenery-breeze 5s ease-in-out infinite; }
+.scenery-wind path:nth-child(2) { animation-delay:-3.3s; }
+.scenery-wind path:nth-child(3) { animation-delay:-1.7s; }
+@keyframes scenery-in { from { opacity:0; transform:translateY(-5px) scale(.98); } to { opacity:1; transform:none; } }
+@keyframes scenery-glow { from { opacity:.1; transform:scale(.95); } to { opacity:.22; transform:scale(1.15); } }
+@keyframes scenery-cloud-drift { from { transform:translateX(-2px); } to { transform:translateX(5px); } }
+@keyframes scenery-rainfall {
+  0% { opacity:0; transform:translate(8px,-20px); }
+  15%,80% { opacity:1; }
+  100% { opacity:0; transform:translate(-12px,28px); }
+}
+@keyframes scenery-snowfall {
+  0% { opacity:0; transform:translate(0,-16px); }
+  20% { opacity:1; }
+  50% { transform:translate(-2px,7px); }
+  80% { opacity:1; }
+  100% { opacity:0; transform:translate(3px,30px); }
+}
+@keyframes scenery-breeze {
+  0% { opacity:0; transform:translateX(-4px); }
+  40%,60% { opacity:.7; }
+  100% { opacity:0; transform:translateX(6px); }
+}
+@media(max-width:650px) {
+  .scenery-control { position:static; }
+  .scenery-label { display:none; }
+  .scenery-trigger { min-height:36px; gap:6px; padding:4px 8px 4px 4px; }
+  .scenery-menu { top:calc(100% - 10px); right:16px; width:min(316px,calc(100vw - 32px)); }
+}
+@media(prefers-reduced-motion:reduce) {
+  .scenery-menu,.scenery-control .scenery-art * { animation:none; }
+  .scenery-trigger,.scenery-chevron,.scenery-option { transition:none; }
+}
+.scenery-option { width:100%; border:0; background:none; text-align:left; font:inherit; }
+.scenery-option:focus { outline:none; background:#ffffff0a; }
+
+.scenery-art[data-starry="true"] .scenery-rain { display: none; }
+.scenery-art[data-starry="true"] > rect:first-child { fill: #111e36; }

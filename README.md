@@ -1,15 +1,83 @@
-# Night Drive
+# Night Line
 
-A peaceful, endless low-poly night drive built with Three.js. Drive with WASD or the arrow keys, and press Space to pause or resume cruising.
+A quiet train study space built with Next.js App Router, React, TypeScript, and Three.js. Settle into an observation carriage and travel through rainy forests, snowy mountain passes, desert dunes, and the Pacific coast with live lo-fi radio.
+
+- Choose a left or right window seat from the menu at the top right, looking forward past rows of empty chairs with windows on both sides. The train travels automatically, sways gently, and reveals leading carriages around bends. Drag to look around; arrow keys work when the canvas is focused. Release to return to your seat's resting view.
+- Open or close your window from the same menu. Its glass lowers in the scene, and closing it softens the outside weather without changing music volume. Seat and window preferences survive reloads. Signed-in travelers find these settings above **Manage account**; guests get the same menu with **Create an account** and **Sign in**.
+- In Rainy Pines, beads and wandering streams of water run down the window glass, softly refracting the passing scenery. The water follows the panes as they lower, fades with the rainy weather, and stays still with reduced motion enabled.
+- Woodland and coastal hills have layered trees with rounded sage canopies above simple, broad shrubs, wildflowers and grass along the railway bank. Small hamlets mix original cabins, barns, two-story houses and railway signal houses with warm windows. Planting leaves room around buildings, animals and ponds. Gentle wind bends the foliage; reduced motion keeps it still. The landscape flora and architecture are generated locally without model or texture downloads.
+- Each pine-forest visit randomly becomes **Rainy Pines** or **Nighttime Pines**, with one stable choice for the whole stretch. Rainy visits keep drizzle and occasional storms; clear visits bring a deep blue sky, a brighter star field, lighter fog, dry windows and quiet wind. The scenery label and preview match the chosen weather. This does not add another biome or change the route spacing.
+- Journeys begin at Willow Halt. After boarding, the train waits six seconds, sounds a soft departure bell and pulls away. Later stations follow an independent, irregular timetable rather than biome changes: gentle braking, a 22-second stop, then departure. Music and focus timers continue; parked trains earn no mileage. Platforms, booking halls, canopies, clocks and nameboards use ten meshes in total. Station clocks show the viewer’s browser-local time and refresh each minute. Station status only appears after entering the journey.
+- A miniature tree grows in the table's terracotta pot over 25 minutes aboard. Its branches and crowns gradually fill out, and growth resumes across visits in this browser. Time on the welcome screen or in a hidden tab does not count. Reduced motion stops its gentle sway. Asset details are in [docs/nature-assets.md](docs/nature-assets.md).
+- Every five minutes after settling in, a little vacuum conductor wanders down the aisle with gradual, damped turns and gentle bumps against the padded chairs. It passes your seat, pauses behind you for ten seconds, turns out of view, then heads back up the aisle. A navy cap with a checkerboard band rests on its body, a yellow Post-it says “tickets please,” and its small googly eyes only wobble after a chair bump. Hover to stop it for a slow spin; click or tap it for a soft “choo choo.” A ticket button rendered on your desk calls it early. With the scene focused, C calls it and Enter/Space sounds its whistle during a visit. Visits pause in background tabs; reduced motion places it in the aisle without wandering, wobbling or spinning.
+- A focus timer sits beneath **This Journey**. Choose **Pomodoro** (25 minutes of focus and a 5-minute break, with a 15-minute break after every fourth round), **52 / 17**, **Deep work** (90 / 20), or **Flow**, which counts up and rests for a fifth as long as you focused. Breaks start by themselves; the next focus waits for you. A soft chime marks each change, even in a background tab once you have interacted with the page, and the tab title shows the countdown while it runs. The timer keeps its place across reloads.
+- Compact controls stay in place as you switch seats: miles and the focus timer on the left, with your intention above a separate radio widget on the right. The small journey counter increases in 0.01 steps below 0.1 miles/kilometers, 0.1 steps from 0.1 to 1, then whole units from 1 onward; open the leaderboard or profile for precise distance. Changing timer and journey digits softly fade and drift into place, leaving their neighbors still; reduced-motion preferences use instant updates. There is no collapsing panel. On small screens, journey controls move above the view to avoid overlapping the player.
+- The interface uses one upright typeface and four shared sizes (10, 12, 24, and 48 px), defined in `src/style.css`. Forms, menus, the leaderboard and Clerk screens use the same scale. Only the wordmark has its own lettering.
+- Night Line opens with a simple welcome over the cabin. **Settle In** starts the train, mileage tracking, music, and ambience, then gently fades in the journey, timer, intention, and radio tiles. Soft rolling wheels, carriage vibration, and a muted wheel rhythm continue beneath the music and weather, even with the window closed. Hidden controls stay out of keyboard navigation until entry; reduced-motion preferences skip the transition. The radio button pauses or resumes the whole audio mix.
+- **Night Line Radio** plays live stations with the `lofi` tag from [Radio Browser](https://www.radio-browser.info/), using `stations/search?limit=10&tagList=lofi&hidebroken=true&order=clickcount&reverse=true`. The player shows the station name and live status; **Previous** and **Next** change stations in popularity order. Previous is disabled on the first station; Next wraps to the start after the last. It discovers API mirrors, selects browser-supported streams, and tries HTTP listings over HTTPS so stations such as Lofi 24/7 stay in the list. Failed or stalled streams are skipped. After three failed connections (or an unavailable directory), an original, locally synthesized mix keeps playing with the weather. **Tune In** retries live radio. Pausing releases the stream; resuming rejoins its live broadcast. No API key is needed. These are third-party broadcasts, so programming, ads, and availability depend on the station.
+- The small landscape circle and arrow open the scenery menu. Route names and descriptions stay in the menu, with the selected route also available in the button's accessible label and tooltip. Visit **Rainy Pines**, **Snowbound Pass**, **Amber Dunes**, or **Pacific Coast** immediately. **The Long Way** travels through all four automatically, blending the weather and lighting along the route.
+- **Pacific Coast** follows coastal bluffs with open water on the left and grassy hills on the right. The ocean has geometric swells, ripples, warm reflected light, and shoreline foam. Dolphins travel in small pods, whales surface farther out, and sharks, manta rays, and colorful fish swim below. Look for offshore sea stacks, gulls, and a small lighthouse. Soft surf joins the outside ambience and is muffled by the closed window. The water, animals, and landmarks stay attached to the landscape through turns and long journeys; reduced-motion mode holds the waves and swimming still. The animated ocean models load locally only when coastal water is nearby; their source and conversion are documented in [docs/wildlife-assets.md](docs/wildlife-assets.md).
+- Along the line, deer, stags, alpine wolves, and desert foxes wander, take short trots, look around, and pause to graze. Birds alternate lively wingbeats with gliding. Ocean animals vary their strokes and bank through turns, while dolphins occasionally leap above the water. Animation phases differ between neighbors, transitions blend smoothly, and reduced motion keeps them still. Look for lamplit cottages with chimney smoke, fences, quiet ponds, and slow desert windmills. Animated wildlife uses locally hosted [Quaternius models](docs/wildlife-assets.md). Wildlife and landmarks belong to the landscape and pass naturally as you travel. Rain and snow are excluded from the entire moving carriage, including the seats ahead, roof glass and open windows.
+- Travel as a guest. Total miles persist across visits in the same browser; **This Journey** opens a compact rider list ranked by each traveler's newest active journey. Shared intentions sit below each name, and your own journey appears once, with live distance. If you are outside the top ten, your journey stays visible below the list. Lifetime distance lives in your profile. A new journey starts at zero; trips disappear from the board after 90 seconds without a mileage update. The widget says how many other riders are here with you. Presence refreshes every 15 seconds independently of mileage saves, and immediately when the tab becomes visible or the connection returns. It counts new guests before their first mile, excludes yourself, deduplicates profiles across tabs, and expires after 90 seconds without a request.
+- The profile menu shows your all-time distance for both guests and signed-in travelers, updating as you travel. Choose **Miles** or **Kilometers** under **Distance**: the profile total, current journey, and leaderboard update together. The preference is saved in this browser and shared across its tabs; changing it leaves recorded distance and ranking intact.
+- Sign up or sign in with Clerk to share an intention and keep miles across devices. The compact intention editor contains your intention and a **Keep it for** choice: 1, 3, 6, 12, or 24 hours, defaulting to 12. The server sets the deadline after moderation and hides expired intentions from the owner and leaderboard; open pages also clear expired intentions without waiting for a refresh. Changing your rider name does not extend that deadline. Existing intentions receive a one-time 12-hour expiry when the database is upgraded. Guest miles transfer to the account once. Signing out starts a fresh guest profile and keeps the account's miles private to its owner.
+- The settings cog opens Night Line's account menu. Your public rider name sits at the top, with a pencil to edit it; private email and security details stay in **Manage account**. Guests find sign-in and sign-up choices alongside journey settings. Sign-in, sign-up, verification, and account settings open in themed Clerk overlays, keeping Clerk's recovery and security flows intact. The shared theme lives in `src/auth.ts` and `src/auth.css`; development-instance notices remain visible in Clerk's forms.
+- Names and intentions are checked on the server by **Jev (`typesafe/jev-1.13`) through OpenRouter** before appearing publicly. A rejected or unavailable check leaves the previous name, intention, and expiry unchanged.
+
+- A small waveform of softly rounded bars pulses gently in the radio's footer during playback, settling and dimming when paused or buffering. It follows playback state for both live stations and the local mix, without requiring access to stream audio. The waveform stays still with reduced motion enabled and stops drawing in background tabs.
 
 ## Run locally
 
-```bash
-npm run dev
+Requires Node.js 22.18 or newer and pnpm.
+
+```sh
+pnpm install
+cp .env.example .env.local
+# Fill in Clerk's development keys and OPENROUTER_API_KEY in .env.local.
+pnpm dev
 ```
 
-Then open <http://localhost:5173>. No install step is required; Three.js is loaded as an ES module from jsDelivr.
+Open <http://localhost:5173>. If `.env.local` already exists, keep its values. Guest travel and mileage work without authentication or moderation keys. Account access requires `CLERK_PUBLISHABLE_KEY` and `CLERK_SECRET_KEY`; saving intentions also requires `OPENROUTER_API_KEY`.
+
+Next.js loads `.env.local` automatically. To choose another port, run `PORT=3000 pnpm dev`. For a local production run, use `pnpm build` followed by `pnpm start` (also on port 5173 unless `PORT` is set).
+
+Development stores shared mileage in `.data/night-drive.sqlite`. Keep that file to preserve totals across server restarts. `SQLITE_PATH` can override the location. A guest's anonymous, HttpOnly cookie links this browser to its saved mileage; clearing cookies loses access to that guest profile. An account preserves access across browsers.
+
+Three.js and its model loaders are installed dependencies bundled by Next.js. Fonts and Clerk's browser SDK load from their CDNs. Only `public/` assets and Next's compiled client code are publicly served; environment files, server source, and the database stay private.
+
+`app/layout.tsx` owns global styles and metadata; `app/page.tsx` renders the React interface in `components/night-line.tsx`. Client effects initialize the Three.js scene, audio, and room synchronization, with cleanup for listeners, polling, animation frames, WebGL resources, and audio on unmount or Fast Refresh. The shared logo and your About message live in `components/brand.tsx` and `components/about-panel.tsx`.
+
+`app/api/room/route.ts` and `app/api/config/route.ts` are dynamic Node.js route handlers. They use native Web Request/Response handlers, with authentication, streaming body limits, origin checks, and persistence in `server/`. The database connection survives development module reloads.
+
+The cabin, scenery, seats, table, plant and train are rendered as 3D geometry. Painted wood textures sample `public/assets/train-cabin.png`; the generated artwork and its prompt are documented in [docs/artwork.md](docs/artwork.md).
 
 ## Deploy
 
-Import this repository into Vercel. The included build script creates `dist`, or the project can be served directly as a static site.
+Import the repository into Vercel with the **Next.js** framework preset. `vercel.json` selects Next.js, which builds the page and API routes together. Leave the output directory at the framework default; remove any old `dist` override in the project's Vercel settings. The application requires server functions for shared mileage and accounts, so do not use a static export.
+
+Configure these server environment variables before deployment:
+
+- `DATABASE_URL`: a persistent PostgreSQL connection URL, preferably pooled. Required on Vercel; the application creates its tables on first connection. For providers that require TLS, use their supplied connection URL and SSL settings.
+- `CLERK_PUBLISHABLE_KEY` and `CLERK_SECRET_KEY`: keys for the same Clerk instance. Use Clerk's production instance and configure its domain for a public production launch.
+- `OPENROUTER_API_KEY`: the server-only key used for intention moderation.
+- `APP_ORIGIN`: the public application origin, such as `https://night-line.example.com`. Leave unset for development or previews that use their request origin.
+
+For self-hosting, run `pnpm build` and `pnpm start` with PostgreSQL or a durable SQLite volume. Never expose the project directory with a general-purpose static file server.
+
+## Verification
+
+```sh
+pnpm typecheck
+pnpm test
+pnpm build
+```
+
+Tests cover focus timer phases, route continuity, varied terrain, radio selection and fallback, persistent guest mileage, live presence, cumulative report retries, speed limits, ownership, concurrent account linking, origin checks, moderation failures, rider-name updates, intention expiry and migration, and the account gate. HTTP checks exercise native Web Request/Response handlers, including bounded streaming bodies. Lifecycle checks cover cleanup and cancellation on unmount. Reports save every 10 seconds and on page exit; a sudden disconnection can lose unacknowledged miles. The server caps mileage by elapsed time and maximum travel speed, including across multiple tabs. This is a casual leaderboard, not proof of study time. Legacy database names and browser storage keys remain compatible with earlier versions.
+
+## Code structure
+
+`components/` owns interface state and rendering: welcome, shared popovers and dialogs, timer, account, radio and journey controls. `src/main.ts` mounts only the Three.js scene and returns its disposer. `src/room-client.ts` handles network synchronization and mileage accounting; `components/use-room.ts` connects its snapshots to React. `src/prefs.ts` owns compatible browser storage keys.
+
+`src/environments.ts` defines landscape names, weather, sound, vegetation and landmark settings. Carriages and scenery share world coordinates. Landmarks expose typed placement and animation methods, and asynchronous wildlife uses the scene's cancellation signal. Live stream playback (`NightRadio`) and synthesized Web Audio (`LocalSoundscape`) have separate resource lifetimes.
+
+All application, API and scene code is TypeScript with strict checking. Node's native TypeScript support runs the existing JavaScript test harnesses against those modules.
