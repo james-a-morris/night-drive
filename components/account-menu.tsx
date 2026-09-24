@@ -200,7 +200,6 @@ export default function AccountMenu({
                   </svg>
                   <span>
                     <strong>Dev kit</strong>
-                    <small>Frame rate, memory &amp; draw calls</small>
                   </span>
                   <span className="account-item-state" aria-hidden="true">
                     {devKit ? "On" : "Off"}

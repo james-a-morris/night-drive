@@ -3,18 +3,22 @@ import type { DiagnosticsProbe } from "./diagnostics.ts";
 import type { Drive } from "./drive.ts";
 import type { NightRadio } from "./radio.ts";
 import type { EnvironmentName, SceneryMode } from "./environments.ts";
-import type { Seat } from "./types.ts";
+import type { DistanceUnit, Seat } from "./types.ts";
 export interface SceneSettings {
   mode: SceneryMode;
   seat: Seat;
   windowOpen: boolean;
   gardenView?: boolean;
+  distanceUnit: DistanceUnit;
+  journey: string | null;
+  currentMiles: number;
 }
 import * as THREE from "./three.ts";
 import { advanceDrive, roadFrame } from "./drive.ts";
 import { createScenery } from "./scenery.ts";
 import { createStudyCabin, createCabinView } from "./cabin.ts";
 import { createTrain } from "./train.ts";
+import { createMileMarkers } from "./mile-markers.ts";
 import { dominantEnvironment } from "./environments.ts";
 import { createLifecycle } from "./lifecycle.ts";
 import { reducedMotion } from "./motion.ts";
@@ -80,6 +84,7 @@ export function mountScene(
     const scenery = createScenery(scene, scope);
     const lightingEye = new THREE.Vector3();
     const train = createTrain(scenery.world, scope);
+    const mileMarkers = createMileMarkers(scenery.world);
     const stormClock = createStormClock();
     const pineWeather = createPineWeather();
     let previousPineWeather: PineWeather | undefined;
@@ -101,6 +106,24 @@ export function mountScene(
     });
 
     const treePoint = new THREE.Vector3();
+    const treePointer = new THREE.Vector2();
+    const treeRay = new THREE.Raycaster();
+    let pointerOverScene = false;
+    scope.on(canvas, "pointermove", (event) => {
+      pointerOverScene = event.pointerType !== "touch";
+      const bounds = canvas.getBoundingClientRect();
+      treePointer.set(
+        ((event.clientX - bounds.left) / bounds.width) * 2 - 1,
+        1 - ((event.clientY - bounds.top) / bounds.height) * 2,
+      );
+    });
+    const clearPlantHover = () => {
+      pointerOverScene = false;
+      treeLabel.classList.remove("is-plant-hovered");
+    };
+    scope.on(canvas, "pointerleave", clearPlantHover);
+    scope.on(window, "blur", clearPlantHover);
+    scope.defer(clearPlantHover);
     function fitCabinView() {
       camera.fov = innerWidth / innerHeight < 0.85 ? 76 : 70;
       camera.aspect = innerWidth / innerHeight;
@@ -155,6 +178,14 @@ export function mountScene(
         dt,
         getSettings().mode,
       );
+      const { journey, currentMiles, distanceUnit, seat } = getSettings();
+      mileMarkers.update(
+        drive.progress,
+        drive.started ? journey : null,
+        currentMiles,
+        distanceUnit,
+        seat,
+      );
       // Update the world transform before the camera and shelter use it.
       scenery.world.updateMatrixWorld(true);
       view.update(dt, weights, forest);
@@ -166,6 +197,14 @@ export function mountScene(
       const labelX = (treePoint.x * 0.5 + 0.5) * innerWidth;
       const labelY = (-treePoint.y * 0.5 + 0.5) * innerHeight;
       const viewingGarden = getSettings().gardenView;
+      let hoveringPlant = false;
+      if (pointerOverScene && !viewingGarden && drive.started) {
+        cabin.plant.updateWorldMatrix(true, true);
+        treeRay.setFromCamera(treePointer, camera);
+        hoveringPlant = cabin.plant.children.some(plant => plant.visible) &&
+          treeRay.intersectObject(cabin.plant, true).length > 0;
+      }
+      treeLabel.classList.toggle("is-plant-hovered", hoveringPlant);
       // Leave room for the radio card on phones and keep a hovered button still.
       if (viewingGarden || !treeLabel.matches(":hover")) {
         const bottomClearance = innerWidth <= 650 ? 280 : 90;
