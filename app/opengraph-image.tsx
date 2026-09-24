@@ -8,7 +8,7 @@ export const size = { width: 1200, height: 630 };
 export const contentType = "image/png";
 
 const [wordmark, byline] = await Promise.all([
-  readFile(join(process.cwd(), "public/assets/night-line-wordmark.ttf")),
+  readFile(join(process.cwd(), "public/assets/night-rail-wordmark.ttf")),
   readFile(join(process.cwd(), "public/assets/social-byline.ttf")),
 ]);
 

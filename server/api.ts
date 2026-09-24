@@ -105,10 +105,10 @@ function validateIntention(body: Body, driver: ProfileRow) {
     .replace(/\s+/g, " ");
   if (
     intention.length < 5 ||
-    intention.length > 160 ||
+    intention.length > 60 ||
     /[\p{Cc}\p{Cf}]/u.test(intention)
   )
-    throw new ApiError(400, "Write an intention of 5–160 characters.");
+    throw new ApiError(400, "Write an intention of 5–60 characters.");
   const expiresInHours =
     body.expiresInHours === undefined ? 12 : body.expiresInHours;
   if (

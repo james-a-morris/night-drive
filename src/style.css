@@ -140,8 +140,24 @@ strong,b { font-weight:500; }
 .study-dialog textarea { min-height:90px; max-height:180px; }
 .study-dialog input { height:38px; }
 .study-dialog .field-note { margin:10px 0 0; color:#a8b69c; font:var(--text-label)/1.5 var(--font-ui); }
-.intention-duration { display:flex; align-items:center; justify-content:space-between; gap:12px; margin-top:12px; color:#b7c4a7; font-size:var(--text-body); }
-.intention-duration select { min-height:32px; padding:4px 8px; border:1px solid #b8c6a929; border-radius:6px; background:#1c3027; color:#dbe0cb; font:var(--text-body) var(--font-ui); cursor:pointer; }
+#intention-dialog { padding:18px; }
+#intention-dialog .study-dialog-header { margin-bottom:12px; }
+#intention-dialog textarea { min-height:0; height:70px; resize:none; }
+.intention-count { margin:5px 0 0; color:#a8b69c; text-align:right; font:var(--text-label)/1.5 var(--font-ui); font-variant-numeric:tabular-nums; }
+.intention-duration { display:flex; align-items:center; justify-content:space-between; gap:12px; margin-top:8px; color:#b7c4a7; font-size:var(--text-body); }
+.intention-duration-picker { position:relative; }
+.intention-duration-trigger { display:flex; align-items:center; justify-content:space-between; gap:14px; min-width:104px; min-height:34px; padding:6px 10px; border:1px solid #b8c6a933; border-radius:7px; background:#1c3027; color:#dbe0cb; font:var(--text-body) var(--font-ui); cursor:pointer; }
+.intention-duration-trigger:hover,.intention-duration-trigger[aria-expanded="true"] { border-color:#b8c6a966; background:#2c4235; }
+.intention-duration-picker svg { width:14px; height:14px; flex:none; stroke:currentColor; stroke-width:1.5; stroke-linecap:round; stroke-linejoin:round; }
+.intention-duration-trigger[aria-expanded="true"] svg { transform:rotate(180deg); }
+.intention-duration-options { position:absolute; z-index:2; right:0; bottom:0; width:132px; padding:4px; border:1px solid #b8c6a93d; border-radius:9px; background:#243b2e; box-shadow:0 8px 24px #07110c66; }
+.intention-duration-options button { display:flex; align-items:center; justify-content:space-between; width:100%; min-height:30px; padding:5px 8px; border:0; border-radius:5px; background:transparent; color:#dbe0cb; text-align:left; font:var(--text-body) var(--font-ui); cursor:pointer; }
+.intention-duration-options button[aria-selected="true"] { background:#bec8a91a; color:#e7d2af; }
+.intention-duration-options button:is(:hover,:focus-visible) { background:#bec8a92b; }
+.intention-duration-options button svg { opacity:0; }
+.intention-duration-options button[aria-selected="true"] svg { opacity:1; }
+.intention-duration-picker button:focus-visible { outline:2px solid #bdc8a9; outline-offset:2px; }
+#intention-dialog .study-dialog-actions { margin-top:14px; }
 .study-dialog-actions { display:flex; align-items:center; justify-content:flex-end; gap:12px; margin-top:18px; }
 .study-dialog-actions button { min-height:34px; padding:0 13px; border:1px solid transparent; border-radius:6px; font:var(--text-body) var(--font-ui); cursor:pointer; }
 .study-primary { background:#bec8a9; color:#2e4335; }

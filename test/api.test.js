@@ -163,6 +163,20 @@ test('only authenticated, approved intentions are saved; failures preserve the p
   assert.equal((await guest.request({ action: 'clear-intention' }, { user: 'alice' })).body.me.intention, null);
 });
 
+test('intentions accept 60 characters and reject longer updates without losing the saved intention', async t => {
+  const { visitor } = await setup(t);
+  const owner = visitor();
+  const auth = { user: 'alice' };
+  const intention = 'a'.repeat(60);
+  const saved = await owner.request({ action: 'intention', intention }, auth);
+  assert.equal(saved.status, 200);
+  assert.equal(saved.body.me.intention, intention);
+  const rejected = await owner.request({ action: 'intention', intention: intention + 'b' }, auth);
+  assert.equal(rejected.status, 400);
+  assert.equal(rejected.body.error, 'Write an intention of 5–60 characters.');
+  assert.equal((await owner.request(null, auth)).body.me.intention, intention);
+});
+
 test('intentions expire after twelve hours for their owner and other riders without losing mileage', async t => {
   const { visitor, advance } = await setup(t);
   const owner = visitor(), viewer = visitor();

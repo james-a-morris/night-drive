@@ -1,5 +1,5 @@
 /* Night Rail: keep the controls at the edges and the windows open. */
-@font-face { font-family:'Night Rail Wordmark'; font-style:italic; font-weight:300; font-display:swap; src:url('/assets/night-line-wordmark.ttf') format('truetype'); }
+@font-face { font-family:'Night Rail Wordmark'; font-style:italic; font-weight:300; font-display:swap; src:url('/assets/night-rail-wordmark.ttf') format('truetype'); }
 .topbar { z-index:20; }
 .topbar nav { gap:10px; }
 .brand { display:grid; grid-template-columns:22px auto; column-gap:8px; align-items:center; flex:none; padding:0; border:0; background:none; color:#e6d8bc; letter-spacing:inherit; cursor:pointer; text-align:left; font-weight:400; }
@@ -61,6 +61,21 @@
 .cockpit #track-progress::-webkit-progress-bar { background:#c4c3aa22; }
 .cockpit #track-progress::-webkit-progress-value { background:#b6c39a; }
 .cockpit #track-progress::-moz-progress-bar { background:#b6c39a; }
+.radio-mixer-toggle-row { display:flex; justify-content:flex-end; margin-top:7px; }
+.radio-mixer-toggle { display:flex; align-items:center; gap:6px; padding:3px 0; border:0; background:none; color:#b7c4a7; font:var(--text-label) var(--font-ui); cursor:pointer; }
+.radio-mixer-toggle:hover,.radio-mixer-toggle[aria-expanded="true"] { color:#e7d2af; }
+.radio-mixer-toggle svg { stroke:currentColor; stroke-width:1; stroke-linecap:round; stroke-linejoin:round; }
+.radio-mixer-toggle>span { width:10px; text-align:center; }
+.radio-mixer { display:grid; gap:8px; margin-top:8px; padding-top:10px; border-top:1px solid #c8d0af24; }
+.radio-mixer-channel { display:grid; grid-template-columns:55px minmax(0,1fr) 32px; align-items:center; gap:9px; color:#b7c4a7; font:var(--text-label) var(--font-ui); }
+.radio-mixer-channel:first-child { margin-bottom:3px; color:#e3dfcc; }
+.radio-mixer-channel output { text-align:right; font-variant-numeric:tabular-nums; }
+.radio-mixer-channel input { appearance:none; width:100%; height:20px; margin:0; background:transparent; cursor:pointer; }
+.radio-mixer-channel input::-webkit-slider-runnable-track { height:3px; border-radius:3px; background:#b8c6a938; }
+.radio-mixer-channel input::-webkit-slider-thumb { appearance:none; width:11px; height:11px; margin-top:-4px; border:0; border-radius:50%; background:#cbd4b5; box-shadow:0 1px 4px #07110c66; }
+.radio-mixer-channel input::-moz-range-track { height:3px; border-radius:3px; background:#b8c6a938; }
+.radio-mixer-channel input::-moz-range-thumb { width:11px; height:11px; border:0; border-radius:50%; background:#cbd4b5; }
+.radio-mixer-channel input:focus-visible { outline:1px solid #d7bd8f; outline-offset:2px; border-radius:3px; }
 .journey-controls { position:fixed; z-index:10; bottom:22px; left:22px; width:280px; }
 .miles-widget { padding:9px 12px 11px; margin-bottom:8px; }
 .miles-button { display:flex; align-items:center; width:100%; gap:8px; padding:2px 0 8px; border:0; background:none; color:#ced6b9; font:var(--text-label) var(--font-ui); letter-spacing:.09em; cursor:pointer; }

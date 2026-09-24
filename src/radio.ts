@@ -3,6 +3,8 @@ import type { Station } from "./radio-browser.ts";
 import { requestError } from "./types.ts";
 import { LocalSoundscape } from "./music.ts";
 import { RadioDirectory } from "./radio-browser.ts";
+import { validAudioMix, type AudioMix } from "./audio-mix.ts";
+import { readPreference, savePreference } from "./prefs.ts";
 
 const CONNECTION_TIMEOUT = 12000;
 const MAX_FAILURES = 3;
@@ -35,6 +37,7 @@ interface RadioOptions {
   timeout?: number;
 }
 export class NightRadio {
+  mix: AudioMix;
   onChange: (enabled: boolean, error?: unknown) => void;
   audio: HTMLAudioElement;
   directory: RadioDirectory;
@@ -68,8 +71,10 @@ export class NightRadio {
     this.directory = directory;
     this.local = local || new LocalSoundscape(() => this.notify());
     this.local.setMusicEnabled(false);
+    this.mix = { ...readPreference("audioMix") };
+    this.local.setMix(this.mix);
     this.audio.preload = "none";
-    this.audio.volume = 0.5;
+    this.audio.volume = this.mix.master * this.mix.music;
     this.timeout = timeout;
     this.enabled = false;
     this.started = false;
@@ -103,6 +108,15 @@ export class NightRadio {
 
   notify(error: unknown = this.error) {
     this.onChange(this.enabled, error);
+  }
+
+  setMix(mix: AudioMix) {
+    if (!validAudioMix(mix)) return;
+    this.mix = { ...mix };
+    this.audio.volume = mix.master * mix.music;
+    this.local.setMix(mix);
+    savePreference("audioMix", this.mix);
+    this.notify();
   }
 
   async setEnabled(enabled: boolean) {
