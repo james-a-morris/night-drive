@@ -52,6 +52,54 @@ export function createConductorModel(parent: THREE.Group) {
     [0, 0.155, 0],
   );
   rim.rotation.x = Math.PI / 2;
+
+  // A little bumper sticker follows the rear shell, just above the gold rim.
+  const stickerCanvas = document.createElement("canvas");
+  stickerCanvas.width = 768;
+  stickerCanvas.height = 192;
+  const stickerInk = stickerCanvas.getContext("2d")!;
+  stickerInk.fillStyle = "#fff4d5";
+  stickerInk.beginPath();
+  stickerInk.roundRect(4, 4, 760, 184, 24);
+  stickerInk.fill();
+  stickerInk.strokeStyle = "#b89450";
+  stickerInk.lineWidth = 5;
+  stickerInk.beginPath();
+  stickerInk.roundRect(15, 15, 738, 162, 17);
+  stickerInk.stroke();
+  stickerInk.fillStyle = "#263d58";
+  stickerInk.font = "700 112px Arial, sans-serif";
+  stickerInk.textAlign = "center";
+  stickerInk.textBaseline = "middle";
+  stickerInk.fillText("choo choo", 384, 100);
+  const stickerTexture = new THREE.CanvasTexture(stickerCanvas);
+  stickerTexture.colorSpace = THREE.SRGBColorSpace;
+  stickerTexture.anisotropy = 8;
+  const stickerGeometry = new THREE.PlaneGeometry(0.24, 0.06, 24, 12);
+  const stickerVertices = stickerGeometry.attributes.position;
+  for (let i = 0; i < stickerVertices.count; i++) {
+    const x = -stickerVertices.getX(i);
+    const y = stickerVertices.getY(i) + 0.2;
+    // Project onto the cream ellipsoid, with a tiny clearance to avoid flicker.
+    const z = -0.37 * Math.sqrt(1 - (x / 0.37) ** 2 - ((y - 0.16) / 0.1) ** 2);
+    stickerVertices.setXYZ(i, x, y, z - 0.002);
+  }
+  stickerGeometry.computeVertexNormals();
+  const sticker = mesh(
+    stickerGeometry,
+    new THREE.MeshStandardMaterial({
+      map: stickerTexture,
+      emissiveMap: stickerTexture,
+      emissive: 0xffffff,
+      emissiveIntensity: 0.15,
+      roughness: 0.85,
+      transparent: true,
+      alphaTest: 0.1,
+    }),
+    [0, 0, 0],
+  );
+  sticker.name = "choo-choo-rear-sticker";
+
   mesh(
     new THREE.CylinderGeometry(0.044, 0.044, 0.025, 24),
     rubber,
