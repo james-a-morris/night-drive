@@ -61,14 +61,15 @@
 .cockpit #track-progress::-webkit-progress-bar { background:#c4c3aa22; }
 .cockpit #track-progress::-webkit-progress-value { background:#b6c39a; }
 .cockpit #track-progress::-moz-progress-bar { background:#b6c39a; }
-.radio-mixer-toggle-row { display:flex; justify-content:flex-end; margin-top:7px; }
-.radio-mixer-toggle { display:flex; align-items:center; gap:6px; padding:3px 0; border:0; background:none; color:#b7c4a7; font:var(--text-label) var(--font-ui); cursor:pointer; }
-.radio-mixer-toggle:hover,.radio-mixer-toggle[aria-expanded="true"] { color:#e7d2af; }
+.radio-mixer-toggle { display:grid; place-items:center; flex:none; width:24px; height:24px; margin:-4px 0; padding:0; border:0; border-radius:5px; background:none; color:#b7c4a7; cursor:pointer; }
+.radio-mixer-toggle:hover,.radio-mixer-toggle[aria-expanded="true"] { background:#bec8a91a; color:#e7d2af; }
 .radio-mixer-toggle svg { stroke:currentColor; stroke-width:1; stroke-linecap:round; stroke-linejoin:round; }
-.radio-mixer-toggle>span { width:10px; text-align:center; }
-.radio-mixer { display:grid; gap:8px; margin-top:8px; padding-top:10px; border-top:1px solid #c8d0af24; }
+.radio-mixer { position:absolute; z-index:2; left:0; right:0; bottom:calc(100% + 8px); display:grid; gap:8px; padding:12px; border:1px solid #bcc6a932; border-radius:10px; background:#21352ffa; backdrop-filter:blur(22px); box-shadow:0 16px 55px #0000003d; }
+.radio-mixer-heading { display:flex; align-items:center; justify-content:space-between; margin-bottom:4px; color:#aebd9b; font:var(--text-label) var(--font-ui); letter-spacing:.17em; text-transform:uppercase; }
+.radio-mixer-heading button { display:grid; place-items:center; width:24px; height:24px; margin:-4px; padding:0; border:0; border-radius:5px; background:none; color:#aebd9b; cursor:pointer; }
+.radio-mixer-heading button:hover { background:#bec8a91a; color:#e7d2af; }
 .radio-mixer-channel { display:grid; grid-template-columns:55px minmax(0,1fr) 32px; align-items:center; gap:9px; color:#b7c4a7; font:var(--text-label) var(--font-ui); }
-.radio-mixer-channel:first-child { margin-bottom:3px; color:#e3dfcc; }
+.radio-mixer-channel:has(#audio-master) { margin-bottom:3px; color:#e3dfcc; }
 .radio-mixer-channel output { text-align:right; font-variant-numeric:tabular-nums; }
 .radio-mixer-channel input { appearance:none; width:100%; height:20px; margin:0; background:transparent; cursor:pointer; }
 .radio-mixer-channel input::-webkit-slider-runnable-track { height:3px; border-radius:3px; background:#b8c6a938; }
