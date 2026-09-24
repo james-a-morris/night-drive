@@ -582,8 +582,8 @@ export function createCabinView({
       look.pitch += (drag.pitch - look.pitch) * (1 - Math.exp(-dt * 4));
       nook.position.x = 0;
       nook.rotation.y = 0;
-      desk.position.x = -side * 1.13;
-      desk.rotation.y = side * 0.16;
+      // Keep the desk square to the carriage and its outer edge inside the wall.
+      desk.position.x = -side * 1.0;
       // Bring the miniature into the narrow view, behind the ticket button.
       plant.position.x = portrait ? (seat === "left" ? 0.1 : -0.28) : -0.65;
       plant.position.z = portrait ? -0.78 : -0.55;
