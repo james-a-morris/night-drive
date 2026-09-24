@@ -1,8 +1,7 @@
 import * as THREE from "./three.ts";
 import { mergeGeometries } from "three/addons/utils/BufferGeometryUtils.js";
-import { settlementLayout, SETTLEMENT_SPACING, type BuildingKind } from "./settlement-layout.ts";
+import { settlementLayout, SETTLEMENT_SPACING, buildingDimensions, type BuildingKind } from "./settlement-layout.ts";
 import { dominantEnvironment, environmentWeights, ENVIRONMENTS, type SceneryMode } from "./environments.ts";
-import { terrainSurfaceHeight } from "./terrain.ts";
 
 // Original, softly coloured architecture. Every solid part is merged into a
 // single vertex-coloured mesh; windows and snow each get one additional draw.
@@ -10,10 +9,9 @@ export function createBuilding(kind: BuildingKind) {
   const group = new THREE.Group();
   group.name = `wayside-${kind}`;
   const solid: THREE.BufferGeometry[] = [], lights: THREE.BufferGeometry[] = [], snow: THREE.BufferGeometry[] = [];
-  const wood = 0x726451, trim = 0xb6aa8e, roof = 0x485859;
-  const width = kind === "barn" ? 8.4 : kind === "signal-house" ? 4.2 : 6.6;
-  const depth = kind === "barn" ? 7.2 : 5.6;
-  const height = kind === "house" ? 5.6 : kind === "signal-house" ? 5 : 3.2;
+  const wood = 0x655747, trim = 0xc6b99a, roof = 0x3f5053;
+  const shutter = kind === "house" ? 0x586c65 : 0x665c4b;
+  const { width, depth, height } = buildingDimensions(kind);
   const wall = kind === "barn" ? 0x805c50 : kind === "house" ? 0xb5a78c : kind === "signal-house" ? 0x71847b : 0x7e8066;
   function box(color: number, x: number, y: number, z: number, sx: number, sy: number, sz: number, rz = 0, bucket = solid) {
     const geometry = new THREE.BoxGeometry(sx, sy, sz).toNonIndexed();
@@ -28,8 +26,14 @@ export function createBuilding(kind: BuildingKind) {
   // Corners and siding catch the low light without needing noisy textures.
   for (const x of [-width / 2, width / 2]) for (const z of [-depth / 2, depth / 2])
     box(trim, x, height / 2 + 0.3, z, 0.15, height + 0.12, 0.15);
-  for (let y = 0.8; y < height; y += 0.65) {
-    for (const side of [-1, 1]) box(wood, 0, y, side * (depth / 2 + 0.025), width, 0.045, 0.06);
+  for (let y = 0.65; y < height + 0.3; y += 0.38) {
+    for (const side of [-1, 1]) box(wood, 0, y, side * (depth / 2 + 0.025), width, 0.035, 0.06);
+    for (const side of [-1, 1]) box(wood, side * (width / 2 + 0.025), y, 0, 0.06, 0.035, depth);
+  }
+  for (const side of [-1, 1]) {
+    box(trim, 0, 0.48, side * (depth / 2 + 0.04), width, 0.16, 0.12);
+    box(trim, side * (width / 2 + 0.04), height + 0.22, 0, 0.16, 0.18, depth + 0.15);
+    if (kind === "house") box(trim, 0, 3.2, side * (depth / 2 + 0.05), width, 0.16, 0.12);
   }
   const pitch = kind === "cabin" ? 0.65 : kind === "barn" ? 0.5 : 0.42;
   const rise = Math.tan(pitch) * width / 2;
@@ -42,16 +46,40 @@ export function createBuilding(kind: BuildingKind) {
   g.setAttribute("color", new THREE.Float32BufferAttribute(Array.from({ length: g.attributes.position.count }, () => [color.r, color.g, color.b]).flat(), 3));
   solid.push(g);
   for (const side of [-1, 1]) {
-    const x = side * width / 4, y = height + 0.3 + rise / 2;
-    const length = width / 2 / Math.cos(pitch) + 0.8;
+    const x = side * (width / 4 + 0.18), y = height + 0.3 + rise / 2 - Math.tan(pitch) * 0.18;
+    const length = (width / 2 + 0.36) / Math.cos(pitch);
     box(roof, x, y, 0, length, 0.22, depth + 1, -side * pitch);
+    // Pale fascia and subtle standing seams give the roof some thickness.
+    for (const end of [-1, 1])
+      box(trim, x, y - 0.035, end * (depth / 2 + 0.51), length, 0.16, 0.12, -side * pitch);
+    for (let z = -depth / 2; z <= depth / 2; z += 0.7)
+      box(0x536366, x, y + 0.12, z, length, 0.045, 0.035, -side * pitch);
     box(0xd4dbd4, x, y + 0.16, 0, length, 0.12, depth + 1, -side * pitch, snow);
   }
+  box(roof, 0, height + rise + 0.45, 0, 0.22, 0.15, depth + 1.15);
+  // A small louvered attic vent breaks up the blank gable.
+  for (const side of [-1, 1]) {
+    box(trim, 0, height + rise * 0.43 + 0.3, side * (depth / 2 + 0.07), 0.65, 0.65, 0.12);
+    for (let y = -0.2; y <= 0.21; y += 0.13)
+      box(wood, 0, height + rise * 0.43 + 0.3 + y, side * (depth / 2 + 0.15), 0.46, 0.055, 0.06);
+  }
   function window(x: number, y: number, z: number, sideWall = false) {
+    // Map the detail outwards on either wall, including the negative X side.
+    const outward = Math.sign(sideWall ? x : z);
+    function detail(color: number, u: number, v: number, out: number, w: number, h: number, d: number, bucket = solid) {
+      box(color, x + (sideWall ? outward * out : u), y + v,
+        z + (sideWall ? u : outward * out), sideWall ? d : w, h, sideWall ? w : d, 0, bucket);
+    }
+    detail(trim, 0, -0.73, 0.04, 1.38, 0.13, 0.3);
+    detail(trim, 0, 0.73, 0.02, 1.3, 0.12, 0.2);
+    if (kind === "cabin" || kind === "house") for (const edge of [-1, 1]) {
+      detail(shutter, edge * 0.78, 0, 0, 0.32, 1.3, 0.1);
+      for (const v of [-0.42, 0.42]) detail(wood, edge * 0.78, v, 0.07, 0.34, 0.08, 0.05);
+    }
     box(trim, x, y, z, sideWall ? 0.13 : 1.17, 1.35, sideWall ? 1.17 : 0.13);
-    box(0xffdca1, x, y, z + (sideWall ? 0 : Math.sign(z) * 0.075), sideWall ? 0.16 : 0.93, 1.09, sideWall ? 0.93 : 0.04, 0, lights);
-    box(wood, x, y, z + (sideWall ? 0 : Math.sign(z) * 0.11), sideWall ? 0.2 : 0.07, 1.12, sideWall ? 0.07 : 0.04);
-    box(wood, x, y, z + (sideWall ? 0 : Math.sign(z) * 0.11), sideWall ? 0.2 : 0.96, 0.07, sideWall ? 0.96 : 0.04);
+    detail(0xffdca1, 0, 0, 0.085, 0.93, 1.09, 0.04, lights);
+    detail(wood, 0, 0, 0.12, 0.07, 1.12, 0.04);
+    detail(wood, 0, 0, 0.12, 0.96, 0.07, 0.04);
   }
   for (const side of [-1, 1]) {
     for (const x of [-width * 0.28, width * 0.28]) window(x, 2, side * (depth / 2 + 0.08));
@@ -64,10 +92,36 @@ export function createBuilding(kind: BuildingKind) {
     for (const side of [-1, 1]) box(trim, side * 0.59, 1.3, depth / 2 + 0.18, 0.09, 2.15, 0.06, side * 0.54);
     box(0x414b42, 0, height + 0.65, depth / 2 + 0.03, 0.95, 0.8, 0.08);
   } else {
-    box(wood, 0, 0.25, depth / 2 + 0.85, width * 0.8, 0.3, 1.8);
-    box(roof, 0, 2.85, depth / 2 + 0.8, width * 0.85, 0.16, 2);
-    for (const x of [-width * 0.35, width * 0.35]) box(trim, x, 1.5, depth / 2 + 1.4, 0.13, 2.5, 0.13);
-    box(0x686661, -width * 0.27, height + rise * 0.6, -1, 0.62, 2, 0.72);
+    const front = depth / 2;
+    box(wood, 0, 0.25, front + 0.85, width * 0.8, 0.3, 1.8);
+    for (let x = -width * 0.38; x <= width * 0.38; x += 0.3)
+      box(0x958369, x, 0.409, front + 0.85, 0.025, 0.018, 1.75);
+    box(roof, 0, 2.96, front + 0.8, width * 0.85, 0.18, 2);
+    box(trim, 0, 2.86, front + 1.79, width * 0.86, 0.18, 0.12);
+    box(0xd4dbd4, 0, 3.1, front + 0.8, width * 0.85, 0.1, 2, 0, snow);
+    for (const x of [-width * 0.35, width * 0.35]) {
+      box(trim, x, 1.66, front + 1.4, 0.17, 2.6, 0.17);
+      box(wood, x, 0.7, front + 1.4, 0.23, 0.6, 0.23);
+      const railWidth = Math.abs(x) - 0.85;
+      for (const y of [0.62, 1.25]) box(trim, Math.sign(x) * (0.85 + railWidth / 2), y, front + 1.4, railWidth, 0.1, 0.12);
+      for (let u = 1; u < Math.abs(x); u += 0.38)
+        box(trim, Math.sign(x) * u, 0.92, front + 1.4, 0.055, 0.6, 0.055);
+    }
+    box(0x8e8878, 0, -0.375, front + 1.95, 1.65, 1.35, 0.45);
+    box(0x8e8878, 0, -0.48, front + 2.3, 1.85, 1.14, 0.3);
+    // Recessed door panels, casing, brass latch and a warm porch lantern.
+    for (const x of [-0.59, 0.59]) box(trim, x, 1.4, front + 0.17, 0.12, 2.18, 0.16);
+    box(trim, 0, 2.46, front + 0.17, 1.3, 0.14, 0.16);
+    for (const y of [0.88, 1.78]) box(0x617068, 0, y, front + 0.17, 0.74, 0.64, 0.05);
+    box(0xc3a16a, 0.35, 1.35, front + 0.23, 0.09, 0.12, 0.08);
+    box(wood, 0.94, 2.24, front + 0.24, 0.24, 0.42, 0.28);
+    box(0xffdca1, 0.94, 2.24, front + 0.4, 0.15, 0.27, 0.08, 0, lights);
+    const chimneyY = height + rise * 0.6;
+    box(0x827468, -width * 0.27, chimneyY, -1, 0.62, 2, 0.72);
+    for (let y = chimneyY - 0.8; y < chimneyY + 1; y += 0.24)
+      box(0x605e56, -width * 0.27, y, -1, 0.64, 0.035, 0.74);
+    box(0x999180, -width * 0.27, chimneyY + 1, -1, 0.84, 0.16, 0.94);
+    box(0x343c39, -width * 0.27, chimneyY + 1.09, -1, 0.45, 0.025, 0.54);
   }
   if (kind === "signal-house") {
     box(wood, width / 2 + 0.9, 3.2, 0, 0.13, 6.4, 0.13);
@@ -83,7 +137,13 @@ export function createBuilding(kind: BuildingKind) {
   mesh(lights, new THREE.MeshStandardMaterial({ color: 0xffdaa0, emissive: 0xffbf70, emissiveIntensity: 0.65, roughness: 1 }), "lamplit-windows");
   const snowcap = mesh(snow, new THREE.MeshStandardMaterial({ color: 0xd4dbd4, roughness: 1 }), "snow-on-roof");
   snowcap.visible = false;
-  const footing = new THREE.Mesh(new THREE.BoxGeometry(width + 0.5, 1, depth + 0.6), new THREE.MeshStandardMaterial({ color: 0x697166, roughness: 1 }));
+  const foundationParts = [new THREE.BoxGeometry(width + 0.5, 1, depth + 0.6)];
+  if (kind !== "barn") foundationParts.push(
+    new THREE.BoxGeometry(width * 0.8, 1, 1.8).translate(0, 0, depth / 2 + 0.85),
+  );
+  const foundation = mergeGeometries(foundationParts)!;
+  foundationParts.forEach(part => part.dispose());
+  const footing = new THREE.Mesh(foundation, new THREE.MeshStandardMaterial({ color: 0x697166, roughness: 1 }));
   footing.name = "stone-foundation"; group.add(footing);
   return { group, snowcap, footing, width, depth };
 }
@@ -109,12 +169,11 @@ export function createSettlements(world: THREE.Group) {
       village.cell = cell;
       settlementLayout(cell, mode).forEach((spec, i) => {
         const building = village.buildings[i];
-        const { group, footing, width, depth } = building;
-        const ground = (x: number, z: number) => terrainSurfaceHeight(spec.x + Math.cos(spec.yaw) * x + Math.sin(spec.yaw) * z, spec.z + Math.cos(spec.yaw) * z - Math.sin(spec.yaw) * x, mode);
-        const heights = [-width / 2, width / 2].flatMap(x => [-depth / 2, depth / 2].map(z => ground(x, z)));
-        const high = Math.max(...heights), low = Math.min(...heights);
-        group.position.set(spec.x, high, spec.z); group.rotation.y = spec.yaw;
-        footing.scale.y = high - low + 0.6; footing.position.y = 0.3 - footing.scale.y / 2;
+        const { group, footing } = building;
+        group.visible = spec.suitable;
+        group.position.set(spec.x, spec.high, spec.z); group.rotation.y = spec.yaw;
+        footing.scale.y = spec.suitable ? spec.high - spec.low + 0.6 : 0.6;
+        footing.position.y = 0.3 - footing.scale.y / 2;
         building.snowcap.visible = ENVIRONMENTS[dominantEnvironment(environmentWeights(spec.station, mode))].snowRoof;
       });
     }
