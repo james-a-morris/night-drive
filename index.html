@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#081119" />
+    <meta name="description" content="A peaceful endless night drive through a low-poly landscape." />
+    <title>Night Drive — an endless quiet road</title>
+    <link rel="stylesheet" href="/src/style.css" />
+  </head>
+  <body>
+    <div id="app">
+      <canvas id="world" aria-label="A low-poly nighttime driving landscape"></canvas>
+
+      <header class="topbar">
+        <a class="brand" href="#" aria-label="Night Drive home">
+          <span class="brand-mark"></span>
+          <span>NIGHT DRIVE</span>
+        </a>
+        <nav>
+          <button class="nav-button" id="sound-toggle" type="button" aria-label="Toggle ambient sound">
+            <span class="sound-bars" aria-hidden="true"><i></i><i></i><i></i><i></i></span>
+            <span id="sound-label">SOUND OFF</span>
+          </button>
+          <button class="nav-button" id="about-open" type="button">ABOUT</button>
+        </nav>
+      </header>
+
+      <section class="intro" id="intro">
+        <p class="eyebrow">AN ENDLESS QUIET ROAD</p>
+        <h1>Take the<br><em>long way home.</em></h1>
+        <p class="lede">No finish line. No rush.<br>Just you, the road, and the night.</p>
+        <button class="start-button" id="start" type="button">
+          <span>START DRIVING</span><b aria-hidden="true">→</b>
+        </button>
+        <p class="hint">WASD / ARROW KEYS &nbsp;•&nbsp; PRESS SPACE TO CRUISE</p>
+      </section>
+
+      <section class="hud" id="hud" aria-live="polite">
+        <div class="speed"><strong id="speed">00</strong><span>KM/H</span></div>
+        <div class="route"><span>NOW DRIVING</span><strong id="route-name">MOONLIT PASS</strong></div>
+        <div class="distance"><span>DISTANCE</span><strong id="distance">0.0 KM</strong></div>
+      </section>
+
+      <aside class="about-panel" id="about" aria-hidden="true">
+        <button id="about-close" class="close" aria-label="Close about panel">×</button>
+        <p class="eyebrow">ABOUT THE JOURNEY</p>
+        <h2>A place to<br><em>slow down.</em></h2>
+        <p>Night Drive is a small, endless escape inspired by long roads, quiet radio stations, and nowhere in particular.</p>
+        <p>Built with Three.js. Multiplayer convoys and original lo-fi radio are on the roadmap.</p>
+        <small>DESIGNED FOR HEADPHONES &amp; LATE NIGHTS</small>
+      </aside>
+
+      <div class="vignette"></div>
+      <div class="grain"></div>
+    </div>
+    <script type="module" src="/src/main.js"></script>
+  </body>
+</html>
