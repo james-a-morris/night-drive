@@ -108,7 +108,7 @@ export function terrainHeight(
     dunes * weights.desert +
     coast * weights.coast +
     (stone * 1.4 + bank * 12) * weights.tunnel +
-    (stone * 0.8 - 34 * smoothstep(5.5, 12, distance)) * weights.bridge
+    (stone * 0.8 - 34 * smoothstep(0, 5.5, distance)) * weights.bridge
   );
 }
 

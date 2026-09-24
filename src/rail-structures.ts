@@ -35,6 +35,8 @@ const liningProfile = [
 
 type Vertex = { x: number; y: number; z: number };
 class Surface {
+  readonly baseColor?: THREE.Color;
+  constructor(baseColor?: THREE.Color) { this.baseColor = baseColor; }
   positions: number[] = [];
   colors: number[] = [];
   quad(
@@ -48,7 +50,7 @@ class Surface {
     for (const index of [0, 1, 2, 1, 3, 2]) {
       const p = vertices[index];
       this.positions.push(p.x, p.y, p.z);
-      const shade = Array.isArray(color) ? color[index] : color;
+      const shade = (Array.isArray(color) ? color[index] : color) ?? this.baseColor;
       if (shade) this.colors.push(shade.r, shade.g, shade.b);
     }
   }
@@ -118,6 +120,7 @@ function box(
   depth: number,
   color?: THREE.Color,
 ) {
+  color ??= surface.baseColor;
   const frame = roadFrame(station),
     center = roadPoint(station, lateral);
   const points = cube.attributes.position;
@@ -133,6 +136,30 @@ function box(
   }
 }
 
+// Solid braces use route-space endpoints so adjacent bays follow the bends.
+function brace(surface: Surface, a: Vertex, b: Vertex, width: number, color: THREE.Color) {
+  const start = new THREE.Vector3(a.x, a.y, a.z), end = new THREE.Vector3(b.x, b.y, b.z);
+  const direction = end.clone().sub(start), length = direction.length();
+  const rotation = new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 1, 0), direction.normalize());
+  const center = start.add(end).multiplyScalar(0.5), point = new THREE.Vector3();
+  const scale = new THREE.Vector3(width, length, width);
+  for (let i = 0; i < cube.attributes.position.count; i++) {
+    point.fromBufferAttribute(cube.attributes.position, i).multiply(scale);
+    point.applyQuaternion(rotation).add(center);
+    surface.positions.push(point.x, point.y, point.z);
+    surface.colors.push(color.r, color.g, color.b);
+  }
+}
+export function bridgeDeckAt(station: number, mode: SceneryMode) {
+  return environmentWeights(station + 1.5, mode).bridge >= 0.015 && !insideTunnel(station + 1.5, mode);
+}
+
+const bridgeColors = {
+  stone: new THREE.Color(0x96816a), coping: new THREE.Color(0xc0ad87),
+  course: new THREE.Color(0x756c5b), steel: new THREE.Color(0x426a61),
+  darkSteel: new THREE.Color(0x304d49), bronze: new THREE.Color(0xb08a52),
+};
+
 export function createRailStructures(world: THREE.Group) {
   const root = new THREE.Group();
   root.name = "tunnel-and-viaduct";
@@ -145,19 +172,19 @@ export function createRailStructures(world: THREE.Group) {
       side: THREE.DoubleSide,
     }),
     stone: new THREE.MeshStandardMaterial({
-      color: 0x666968,
+      vertexColors: true,
       roughness: 1,
       side: THREE.DoubleSide,
     }),
     iron: new THREE.MeshStandardMaterial({
-      color: 0x495659,
+      vertexColors: true,
       roughness: 0.7,
       metalness: 0.35,
       side: THREE.DoubleSide,
     }),
     lamps: new THREE.MeshBasicMaterial({ color: 0xffd399 }),
     water: new THREE.MeshStandardMaterial({
-      color: 0x527b86,
+      color: 0x3f8187,
       roughness: 0.28,
       metalness: 0.35,
       side: THREE.DoubleSide,
@@ -183,8 +210,8 @@ export function createRailStructures(world: THREE.Group) {
   function rebuild(progress: number, mode: SceneryMode) {
     const surfaces = {
       lining: new Surface(),
-      stone: new Surface(),
-      iron: new Surface(),
+      stone: new Surface(new THREE.Color(0x666968)),
+      iron: new Surface(new THREE.Color(0x495659)),
       lamps: new Surface(),
       water: new Surface(),
     };
@@ -383,36 +410,77 @@ export function createRailStructures(world: THREE.Group) {
       }
       // Deck follows the same three-metre samples as the terrain and railway.
       for (let s = station; s < station + SEGMENT_LENGTH; s += 3) {
-        if (
-          environmentWeights(s + 1.5, mode).bridge < 0.015 ||
-          insideTunnel(s + 1.5, mode)
-        )
-          continue;
+        if (!bridgeDeckAt(s, mode)) continue;
         ribbon(surfaces.stone, s, s + 3, [
-          { x: -6.15, y: 0.02 },
-          { x: -6.15, y: -0.9 },
-          { x: 6.15, y: -0.9 },
-          { x: 6.15, y: 0.02 },
-        ]);
+          { x: -6.15, y: 0.02 }, { x: -6.15, y: -0.9 },
+          { x: 6.15, y: -0.9 }, { x: 6.15, y: 0.02 },
+        ], () => bridgeColors.stone);
         for (const side of [-1, 1]) {
-          for (const y of [0.65, 1.35])
-            ribbon(surfaces.iron, s, s + 3, [
-              { x: side * 5.9, y: y - 0.05 },
-              { x: side * 5.9, y: y + 0.05 },
-            ]);
-          if (s % 6 === 0)
-            box(surfaces.iron, s, side * 5.9, 0.7, 0.12, 1.5, 0.12);
-          if (s % 24 === 0) {
-            box(surfaces.iron, s, side * 5.9, 1.65, 0.32, 0.55, 0.32);
-            box(surfaces.lamps, s, side * 5.9, 1.7, 0.34, 0.14, 0.34);
+          // Check neighboring route samples, not the recycled mesh window:
+          // terminal posts only appear where the actual bridge begins or ends.
+          for (const end of [
+            ...(!bridgeDeckAt(s - 3, mode) ? [s] : []),
+            ...(!bridgeDeckAt(s + 3, mode) ? [s + 3] : []),
+          ]) {
+            box(surfaces.stone, end, side * 5.9, 0.06, 0.86, 0.5, 0.86, bridgeColors.stone);
+            box(surfaces.stone, end, side * 5.9, 0.95, 0.54, 1.6, 0.54, bridgeColors.coping);
+            box(surfaces.iron, end, side * 5.9, 1.79, 0.74, 0.14, 0.74, bridgeColors.bronze);
+            box(surfaces.iron, end, side * 5.9, 1.92, 0.38, 0.14, 0.38, bridgeColors.darkSteel);
           }
-          if (s % 48 === 0)
-            box(surfaces.stone, s, side * 4.8, -18, 1.9, 35, 2.8);
-          ribbon(surfaces.iron, s, s + 3, [
-            { x: side * 5, y: -1 },
-            { x: side * 5, y: -2.6 },
-          ]);
+          // Pale coping separates the warm masonry from the painted ironwork.
+          ribbon(surfaces.stone, s, s + 3, [
+            { x: side * 5.55, y: 0.08 }, { x: side * 6.24, y: 0.08 },
+            { x: side * 6.24, y: -0.16 }, { x: side * 6.15, y: -0.22 },
+          ], () => bridgeColors.coping);
+          for (const y of [0.38, 1.35]) {
+            ribbon(surfaces.iron, s, s + 3, [
+              { x: side * 5.83, y: y - 0.055 }, { x: side * 5.83, y: y + 0.055 },
+              { x: side * 5.97, y: y + 0.055 }, { x: side * 5.97, y: y - 0.055 },
+              { x: side * 5.83, y: y - 0.055 },
+            ], () => y > 1 ? bridgeColors.bronze : bridgeColors.steel);
+          }
+          if (s % 6 === 0) {
+            box(surfaces.iron, s, side * 5.9, 0.72, 0.14, 1.44, 0.14, bridgeColors.steel);
+            box(surfaces.iron, s, side * 5.9, 0.16, 0.27, 0.24, 0.27, bridgeColors.darkSteel);
+            box(surfaces.iron, s, side * 5.9, 1.45, 0.23, 0.09, 0.23, bridgeColors.bronze);
+          }
+          // Alternating diagonal balusters keep the view into the valley open.
+          const even = Math.abs(s / 3) % 2 === 0;
+          brace(surfaces.iron, at(s, side * 5.9, even ? 0.42 : 1.29),
+            at(s + 3, side * 5.9, even ? 1.29 : 0.42), 0.055, bridgeColors.steel);
+          if (s % 24 === 0) {
+            box(surfaces.iron, s, side * 5.9, 1.85, 0.16, 0.8, 0.16, bridgeColors.darkSteel);
+            box(surfaces.iron, s, side * 5.9, 2.21, 0.46, 0.08, 0.46, bridgeColors.bronze);
+            box(surfaces.lamps, s, side * 5.9, 2.46, 0.29, 0.43, 0.29);
+            for (const x of [-0.19, 0.19]) for (const z of [-0.19, 0.19])
+              box(surfaces.iron, s + z, side * 5.9 + x, 2.46, 0.045, 0.48, 0.045, bridgeColors.darkSteel);
+            box(surfaces.iron, s, side * 5.9, 2.73, 0.5, 0.12, 0.5, bridgeColors.darkSteel);
+            box(surfaces.iron, s, side * 5.9, 2.84, 0.22, 0.12, 0.22, bridgeColors.bronze);
+          }
+          if (s % 48 === 0) {
+            box(surfaces.stone, s, side * 4.8, -18, 2.1, 35, 3.1, bridgeColors.stone);
+            box(surfaces.stone, s, side * 4.8, -3.5, 3, 0.65, 4, bridgeColors.coping);
+            box(surfaces.stone, s, side * 4.8, -4.2, 2.55, 0.75, 3.6, bridgeColors.stone);
+            for (let y = -7; y > -33; y -= 4)
+              box(surfaces.stone, s, side * 4.8, y, 2.16, 0.12, 3.16, bridgeColors.course);
+          }
+          // Deep flanged girders and diagonal web members, visible below the deck.
+          for (const y of [-1.05, -3.25])
+            ribbon(surfaces.iron, s, s + 3, [
+              { x: side * 4.85, y: y - 0.1 }, { x: side * 4.85, y: y + 0.1 },
+              { x: side * 5.25, y: y + 0.1 }, { x: side * 5.25, y: y - 0.1 },
+              { x: side * 4.85, y: y - 0.1 },
+            ], () => bridgeColors.steel);
+          brace(surfaces.iron, at(s, side * 5.05, even ? -1.15 : -3.15),
+            at(s + 3, side * 5.05, even ? -3.15 : -1.15), 0.18, bridgeColors.steel);
+          if (s % 12 === 0) {
+            box(surfaces.iron, s, side * 5.05, -2.15, 0.24, 2.2, 0.22, bridgeColors.darkSteel);
+            for (const y of [-1.3, -2.95])
+              box(surfaces.iron, s, side * 5.2, y, 0.08, 0.11, 0.11, bridgeColors.bronze);
+          }
         }
+        if (s % 12 === 0)
+          box(surfaces.iron, s, 0, -1.25, 10.3, 0.38, 0.32, bridgeColors.darkSteel);
         ribbon(surfaces.water, s, s + 3, [
           { x: -34, y: -29 },
           { x: 34, y: -29 },
