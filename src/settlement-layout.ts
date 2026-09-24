@@ -17,14 +17,20 @@ export function buildingDimensions(kind: BuildingKind) {
 
 // Include eaves, the entire porch and its steps, not just the wall corners.
 export function buildingGround(kind: BuildingKind, x: number, z: number, yaw: number, mode: SceneryMode) {
+  return sampleBuildingGround(kind, (localX, localZ) => terrainSurfaceHeight(
+    x + Math.cos(yaw) * localX + Math.sin(yaw) * localZ,
+    z + Math.cos(yaw) * localZ - Math.sin(yaw) * localX, mode,
+  ));
+}
+
+export function sampleBuildingGround(kind: BuildingKind, groundAt: (x: number, z: number) => number) {
   const { width, depth } = buildingDimensions(kind);
   const halfX = width / 2 + 0.6, back = -depth / 2 - 0.6;
   const front = depth / 2 + (kind === "barn" ? 0.6 : 2.5);
   let low = Infinity, high = -Infinity;
   for (let ix = 0; ix <= 4; ix++) for (let iz = 0; iz <= 4; iz++) {
     const localX = -halfX + ix * halfX / 2, localZ = back + iz * (front - back) / 4;
-    const y = terrainSurfaceHeight(x + Math.cos(yaw) * localX + Math.sin(yaw) * localZ,
-      z + Math.cos(yaw) * localZ - Math.sin(yaw) * localX, mode);
+    const y = groundAt(localX, localZ);
     low = Math.min(low, y); high = Math.max(high, y);
   }
   return { low, high };

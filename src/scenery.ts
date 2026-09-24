@@ -29,7 +29,7 @@ import { createStylizedNature } from "./stylized-nature.ts";
 import { createSettlements } from "./settlements.ts";
 import { createStations } from "./stations.ts";
 import { stationClearing } from "./station-route.ts";
-import { settlementClearing } from "./settlement-layout.ts";
+import { natureClearing } from "./nature-layout.ts";
 import { createFirFairyLights } from "./fir-fairy-lights.ts";
 import { createTumbleweeds } from "./tumbleweeds.ts";
 import { createTunnelLighting } from "./tunnel-lighting.ts";
@@ -505,11 +505,11 @@ export function createScenery(scene: THREE.Scene, scope: Lifecycle) {
       if (stationClearing(start + item.offset, item.lateral, mode)) item.object.visible = false;
       const worldPoint = roadPoint(start + item.offset, item.lateral);
       if (
-        settlementClearing(
+        natureClearing(
           worldPoint.x,
           worldPoint.z,
           start + item.offset,
-          item.kind === "pine" ? 3 : 0.8,
+          item.kind === "pine",
           mode,
         )
       )
@@ -796,7 +796,7 @@ export function createScenery(scene: THREE.Scene, scope: Lifecycle) {
     structures.update(progress, mode);
     nature.update(progress, dt, mode);
     tumbleweeds.update(progress, dt, mode);
-    settlements.update(progress, mode, modeChanged);
+    settlements.update(progress, mode, modeChanged, dt);
     stations.update(progress, mode);
     landmarks.update(progress, dt, mode, modeChanged);
     for (const segment of segments) {

@@ -129,9 +129,9 @@
 .tree-care button svg { display:inline-block; vertical-align:-2px; margin-right:3px; }
 .tree-care .tree-view { min-height:28px; padding:3px 10px; font-size:10px; background:#20392cd9; }
 
-/* Keep the plant's name and timer quiet until the plant is inspected. */
-.tree-care :is(.tree-name,.tree-time,.tree-count) { opacity:0; pointer-events:auto; transition:opacity .14s ease; }
-.tree-care:is(.is-plant-hovered,:hover,:focus-within,[data-garden-view="true"]) :is(.tree-name,.tree-time,.tree-count) { opacity:1; }
-@media (hover:none) { .tree-care :is(.tree-name,.tree-time,.tree-count) { opacity:1; } }
-@media (prefers-reduced-motion:reduce) { .tree-care :is(.tree-name,.tree-time,.tree-count) { transition:none; } }
-#world:focus-visible + .tree-care :is(.tree-name,.tree-time,.tree-count) { opacity:1; }
+/* Reveal plant details and garden access when the plant is inspected. */
+.tree-care :is(.tree-name,.tree-time,.tree-count,.tree-view) { opacity:0; pointer-events:auto; transition:opacity .14s ease; }
+.tree-care:is(.is-plant-hovered,:hover,:focus-within,[data-garden-view="true"]) :is(.tree-name,.tree-time,.tree-count,.tree-view) { opacity:1; }
+@media (hover:none) { .tree-care :is(.tree-name,.tree-time,.tree-count,.tree-view) { opacity:1; } }
+@media (prefers-reduced-motion:reduce) { .tree-care :is(.tree-name,.tree-time,.tree-count,.tree-view) { transition:none; } }
+#world:focus-visible + .tree-care :is(.tree-name,.tree-time,.tree-count,.tree-view) { opacity:1; }
