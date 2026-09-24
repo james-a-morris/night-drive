@@ -22,7 +22,7 @@ export default function Brand() {
         />
         <circle cx="11" cy="21" r=".7" fill="currentColor" />
       </svg>
-      <span className="brand-wordmark">Night Line</span>
+      <span className="brand-wordmark">Night Rail</span>
     </>
   );
 }

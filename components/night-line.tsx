@@ -153,7 +153,7 @@ export default function NightLine() {
           className="brand"
           id="about-open"
           type="button"
-          aria-label="About Night Line"
+          aria-label="About Night Rail"
           aria-controls="about"
           aria-expanded={aboutOpen}
           onClick={() => setAboutOpen(true)}

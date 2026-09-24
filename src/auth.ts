@@ -4,6 +4,25 @@ import type { Lifecycle } from "./lifecycle.ts";
 let clerk: ClerkBrowser | undefined;
 let ready: Promise<ClerkBrowser> | undefined;
 
+function navigateAuth(to: string, replace = false) {
+  const current = new URL(window.location.href);
+  const destination = new URL(to, current);
+  if (destination.origin === current.origin && destination.pathname === current.pathname) {
+    // Completing authentication returns to this cabin. A document navigation
+    // would recreate the scene and stop its audio, timer, and current journey.
+    clerk?.closeSignIn?.();
+    clerk?.closeSignUp?.();
+    if (destination.href !== current.href) {
+      const method = replace ? "replaceState" : "pushState";
+      window.history[method](window.history.state, "", destination.href);
+    }
+    return;
+  }
+  // Other destinations (including verification routes) still navigate normally.
+  if (replace) window.location.replace(destination.href);
+  else window.location.assign(destination.href);
+}
+
 // Keep Clerk's verification and security flows, with the same visual language
 // as the road's own controls. Stable appearance hooks also cover later steps.
 const appearance = {
@@ -97,6 +116,10 @@ function loadClerk() {
     clerk = client;
     await client.load({
       ui: { ClerkUI: window.__internal_ClerkUICtor },
+      routerPush: (to: string) => navigateAuth(to),
+      routerReplace: (to: string) => navigateAuth(to, true),
+      signInForceRedirectUrl: window.location.pathname,
+      signUpForceRedirectUrl: window.location.pathname,
       appearance,
       localization: {
         signIn: {

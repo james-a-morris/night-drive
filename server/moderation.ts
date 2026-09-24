@@ -15,7 +15,7 @@ export async function moderateIntention(
       headers: {
         Authorization: `Bearer ${apiKey}`,
         "Content-Type": "application/json",
-        "X-OpenRouter-Title": "Night Line",
+        "X-OpenRouter-Title": "Night Rail",
       },
       signal: AbortSignal.timeout(12000),
       body: JSON.stringify({

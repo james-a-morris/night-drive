@@ -1,11 +1,11 @@
 # Cabin material artwork
 
-Generated with the image generation tool for Night Line. Saved as
+Generated with the image generation tool for Night Rail. Saved as
 `public/assets/train-cabin.png`. The app samples two small painted wood regions
 as textures for its Three.js table and wooden trim. The cabin and landscape
 remain real 3D geometry; the artwork is not a background image.
 
-The Night Line wordmark uses a locally hosted Latin glyph subset of Cormorant
+The Night Rail wordmark uses a locally hosted Latin glyph subset of Cormorant
 Garamond Light Italic by Christian Thalmann. It is distributed under the SIL
 Open Font License; see [the included license](cormorant-license.txt). The window
 and moon emblem is drawn directly in SVG.

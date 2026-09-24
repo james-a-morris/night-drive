@@ -58,7 +58,7 @@ export default function AccountMenu({
             </svg>
           </button>
           <div {...panelProps} className="account-panel" id="account-panel">
-            <p className="account-eyebrow">YOUR NIGHT LINE</p>
+            <p className="account-eyebrow">YOUR NIGHT RAIL</p>
             <div
               className="account-menu"
               id="account-menu"

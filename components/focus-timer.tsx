@@ -154,7 +154,7 @@ export default function FocusTimer() {
         : "Break over. Ready when you are.";
   useEffect(() => {
     document.title = running
-      ? `${text} · ${noun[0].toUpperCase()}${noun.slice(1)} · Night Line`
+      ? `${text} · ${noun[0].toUpperCase()}${noun.slice(1)} · Night Rail`
       : pageTitle.current;
   }, [running, text, noun]);
   function act(type: "toggle" | "skip" | "reset" | "mode", mode?: TimerMode) {
