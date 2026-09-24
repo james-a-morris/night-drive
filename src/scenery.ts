@@ -31,6 +31,7 @@ import { createStations } from "./stations.ts";
 import { stationClearing } from "./station-route.ts";
 import { settlementClearing } from "./settlement-layout.ts";
 import { createFirFairyLights } from "./fir-fairy-lights.ts";
+import { createTumbleweeds } from "./tumbleweeds.ts";
 
 interface Decoration {
   object: THREE.Group;
@@ -348,6 +349,7 @@ export function createScenery(scene: THREE.Scene, scope: Lifecycle) {
   world.name = "landscape";
   scene.add(world);
   const nature = createStylizedNature(world, scope);
+  const tumbleweeds = createTumbleweeds(world, scope);
   const settlements = createSettlements(world);
   const stations = createStations(world, scope);
   const roadMaterial = new THREE.MeshStandardMaterial({
@@ -795,6 +797,7 @@ export function createScenery(scene: THREE.Scene, scope: Lifecycle) {
     const underground = structures.update(progress, mode);
     enclosure += (underground - enclosure) * (1 - Math.exp(-dt * 2));
     nature.update(progress, dt, mode);
+    tumbleweeds.update(progress, dt, mode);
     settlements.update(progress, mode, modeChanged);
     stations.update(progress, mode);
     landmarks.update(progress, dt, mode, modeChanged);
