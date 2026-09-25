@@ -458,9 +458,17 @@ async function recordMiles(
       Number(journey.reported_metres),
       elapsed,
     );
+    // Only movement keeps a journey live. Background tabs keep reporting, but
+    // their trains stand still, so they leave the board after 90 seconds.
     await query(
       "UPDATE journeys SET reported_metres = $1, sequence = $2, last_seen = $3, credited_metres = credited_metres + $4 WHERE id = $5",
-      [metres, sequence, now, credit, journey.id],
+      [
+        metres,
+        sequence,
+        credit > 0 ? now : Number(journey.last_seen),
+        credit,
+        journey.id,
+      ],
     );
     const [updated] = await query<{ total_metres: number | string }>(
       "UPDATE road_profiles SET total_metres = total_metres + $1, last_mileage_at = $2, last_seen = $2 WHERE id = $3 RETURNING total_metres",

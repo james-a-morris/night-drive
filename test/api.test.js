@@ -92,6 +92,24 @@ test('current journeys rank independently of lifetime miles and old trips cannot
   assert.equal((await veteran.request()).body.leaderboard.length, 0, 'finished journeys expire from the live board');
 });
 
+test('a background tab that keeps reporting without moving leaves the board until it moves again', async t => {
+  const { visitor, advance } = await setup(t);
+  const rider = visitor(), viewer = visitor();
+  const journeyId = (await rider.request({ action: 'start' })).body.journeyId;
+  advance(10000);
+  await rider.request({ action: 'mileage', journeyId, sequence: 1, metres: 200 });
+  for (let sequence = 2; sequence <= 11; sequence++) {
+    advance(10000);
+    assert.equal((await rider.request({ action: 'mileage', journeyId, sequence, metres: 200 })).status, 200);
+  }
+  assert.equal((await viewer.request()).body.leaderboard.length, 0);
+  advance(10000);
+  await rider.request({ action: 'mileage', journeyId, sequence: 12, metres: 400 });
+  const board = (await viewer.request()).body.leaderboard;
+  assert.equal(board.length, 1);
+  assert.equal(board[0].currentMiles, 400 / 1609.344, 'the same journey resumes with its miles');
+});
+
 test('the leaderboard contains only the top five drivers, including when the viewer ranks below them', async t => {
   const { visitor, advance } = await setup(t);
   const drivers = Array.from({ length: 7 }, () => visitor());
