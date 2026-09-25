@@ -69,11 +69,11 @@ Import the repository into Vercel with the **Next.js** framework preset. `vercel
 Configure these server environment variables before deployment:
 
 - `DATABASE_URL`: a persistent PostgreSQL connection URL, preferably pooled. Required on Vercel; the application creates its tables on first connection. For providers that require TLS, use their supplied connection URL and SSL settings.
-- `CLERK_PUBLISHABLE_KEY` and `CLERK_SECRET_KEY`: keys for the same Clerk instance. Use Clerk's production instance and configure its domain for a public production launch.
+- `CLERK_PUBLISHABLE_KEY` and `CLERK_SECRET_KEY`: keys for the same Clerk instance. Use Clerk's production instance and configure its domain for a public production launch. The secret key also keys the hashed addresses used for rate limits, so rotating it resets them.
 - `OPENROUTER_API_KEY`: the server-only key used for intention moderation.
 - `APP_ORIGIN`: the public application origin, such as `https://night-line.example.com`. Also used for absolute social preview URLs. On Vercel, social metadata falls back to `VERCEL_PROJECT_PRODUCTION_URL`, then `VERCEL_URL`; local development uses `PORT` (5173 by default). Set `APP_ORIGIN` when self-hosting. Authentication still uses the request origin when it is unset.
 
-For self-hosting, run `pnpm build` and `pnpm start` with PostgreSQL or a durable SQLite volume. Never expose the project directory with a general-purpose static file server.
+For self-hosting, run `pnpm build` and `pnpm start` with PostgreSQL or a durable SQLite volume. Never expose the project directory with a general-purpose static file server. Behind a reverse proxy, set `CLIENT_IP_HEADER` to a header the proxy overwrites with the visitor's IP address, such as `x-real-ip`; otherwise every visitor shares one rate limit.
 
 ## Social previews
 
@@ -89,7 +89,7 @@ pnpm test
 pnpm build
 ```
 
-Tests cover focus timer phases, route continuity, varied terrain, radio selection and fallback, persistent guest mileage, live presence, cumulative report retries, speed limits, ownership, concurrent account linking, origin checks, moderation failures, rider-name updates, intention expiry and migration, and the account gate. HTTP checks exercise native Web Request/Response handlers, including bounded streaming bodies. Lifecycle checks cover cleanup and cancellation on unmount. Reports save every 10 seconds and on page exit; a sudden disconnection can lose unacknowledged miles. The server caps mileage by elapsed time and maximum travel speed, including across multiple tabs. This is a casual leaderboard, not proof of study time. Legacy database names and browser storage keys remain compatible with earlier versions.
+Tests cover focus timer phases, route continuity, varied terrain, radio selection and fallback, persistent guest mileage, live presence, cumulative report retries, speed limits, ownership, concurrent account linking, origin checks, moderation failures, rider-name updates, intention expiry and migration, request limits, and the account gate. HTTP checks exercise native Web Request/Response handlers, including bounded streaming bodies. Lifecycle checks cover cleanup and cancellation on unmount. Reports save every 10 seconds and on page exit; a sudden disconnection can lose unacknowledged miles. The server caps mileage by elapsed time and maximum travel speed, including across multiple tabs. This is a casual leaderboard, not proof of study time. Legacy database names and browser storage keys remain compatible with earlier versions.
 
 ## Code structure
 

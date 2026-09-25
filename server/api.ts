@@ -19,7 +19,7 @@ interface ApiOptions {
   clock?: () => number;
   origin?: string;
 }
-import { createHash, randomBytes, randomUUID } from "node:crypto";
+import { createHash, createHmac, randomBytes, randomUUID } from "node:crypto";
 import { createStore } from "./store.ts";
 import { moderateIntention, ModerationUnavailable } from "./moderation.ts";
 import { authenticatedUser, requestOrigin } from "./auth.ts";
@@ -27,11 +27,13 @@ import { authenticatedUser, requestOrigin } from "./auth.ts";
 const COOKIE = "night_drive_guest";
 const METRES_PER_MILE = 1609.344;
 const INTENTION_HOURS = [1, 3, 6, 12, 24];
+const JOURNEYS_PER_RIDER = 10;
 const currentJourneyRanking = `
   WITH latest_journeys AS (
     SELECT journeys.*, ROW_NUMBER() OVER (
       PARTITION BY driver_id ORDER BY started_at DESC, id DESC
     ) AS recency FROM journeys
+    WHERE driver_id IN (SELECT id FROM road_profiles WHERE last_seen >= $1)
   ), ranked_journeys AS (
     SELECT p.id, p.name, p.intention, p.intention_expires_at, j.id AS journey_id, j.credited_metres,
       ROW_NUMBER() OVER (ORDER BY j.credited_metres DESC, j.started_at ASC, p.id ASC) AS rank
@@ -40,10 +42,42 @@ const currentJourneyRanking = `
   ) SELECT * FROM ranked_journeys WHERE rank <= 5 OR id = $2 ORDER BY rank`;
 const hash = (value: string) =>
   createHash("sha256").update(value).digest("hex");
-const clientIp = (req: Request) =>
-  process.env.VERCEL
-    ? req.headers.get("x-forwarded-for")?.split(",")[0].trim() || "unknown"
-    : "local";
+// One IPv6 subscriber can rotate through a whole /64, so limit by that prefix.
+export function addressBucket(ip: string) {
+  // IPv4, including IPv4-mapped IPv6 such as ::ffff:203.0.113.7.
+  if (ip.includes(".")) return ip.slice(ip.lastIndexOf(":") + 1);
+  if (!ip.includes(":")) return ip;
+  const [head, tail] = ip.split("::");
+  const left = head ? head.split(":") : [];
+  const right = tail ? tail.split(":") : [];
+  const groups =
+    tail === undefined
+      ? left
+      : [
+          ...left,
+          ...Array(Math.max(0, 8 - left.length - right.length)).fill("0"),
+          ...right,
+        ];
+  return `${groups
+    .slice(0, 4)
+    .map((group) => parseInt(group, 16).toString(16))
+    .join(":")}::/64`;
+}
+// Vercel sets X-Forwarded-For itself. Elsewhere clients can forge it, so only
+// a header named by CLIENT_IP_HEADER (set by a trusted proxy) is used.
+function clientIp(req: Request) {
+  const header =
+    process.env.CLIENT_IP_HEADER ||
+    (process.env.VERCEL ? "x-forwarded-for" : "");
+  const ip = header && req.headers.get(header)?.split(",")[0].trim();
+  return ip ? addressBucket(ip) : header ? "unknown" : "local";
+}
+// Keyed with a server secret, so a copy of the database cannot be brute-forced
+// back into visitors' addresses. Expired windows are deleted as well.
+const addressKey = (req: Request) =>
+  createHmac("sha256", process.env.CLERK_SECRET_KEY || "")
+    .update(`rate-limit:${clientIp(req)}`)
+    .digest("hex");
 export class ApiError extends Error {
   status: number;
   constructor(status: number, message: string) {
@@ -187,6 +221,11 @@ async function rateLimit(
     RETURNING count`,
     [key, now, window],
   );
+  // A window just began: drop ones that have ended. The longest is an hour.
+  if (row.count === 1)
+    await store.query("DELETE FROM request_limits WHERE window_start < $1", [
+      now - 3600000,
+    ]);
   if (row.count > limit)
     throw new ApiError(
       429,
@@ -277,20 +316,14 @@ async function identify(
           return account;
         }
       }
-      token = randomBytes(32).toString("hex");
-      await query(
-        "INSERT INTO guest_sessions (token_hash, driver_id) VALUES ($1, $2)",
-        [hash(token), account.id],
-      );
-      setCookie(req, headers, token);
+      // Accounts need only the Clerk token; don't mint a session per request.
       return account;
     });
   }
   // Signing out starts a fresh guest; an account's mileage and intention stay
   // with that account rather than being handed to the next person on this device.
   if (guest && !guest.clerk_user_id) return guest;
-  const ip = clientIp(req);
-  await rateLimit(store, `visitor:${hash(ip)}`, 120, 3600000, now);
+  await rateLimit(store, `visitor:${addressKey(req)}`, 120, 3600000, now);
   const id = randomUUID();
   token = randomBytes(32).toString("hex");
   const name = `Guest ${randomBytes(2).readUInt16BE()}`;
@@ -345,7 +378,8 @@ async function roomView(
       .filter((row) => Number(row.rank) <= 5)
       .map((row) => ({
         rank: Number(row.rank),
-        id: row.id,
+        // Profile IDs never change, so sharing them would link a rider's names.
+        you: row.id === driver.id,
         name: row.name,
         ...intentionView(row, now),
         currentMiles: Number(row.credited_metres) / METRES_PER_MILE,
@@ -495,7 +529,7 @@ export function createApi({
     await rateLimit(store, `moderation:${driver.id}`, 5, 600000, now);
     await rateLimit(
       store,
-      `moderation-ip:${hash(clientIp(request))}`,
+      `moderation-ip:${addressKey(request)}`,
       60,
       3600000,
       now,
@@ -518,6 +552,15 @@ export function createApi({
       await store.query(
         "INSERT INTO journeys (id, driver_id, started_at, last_seen) VALUES ($1, $2, $3, $3)",
         [id, driver.id, now],
+      );
+      // Only the newest journey ranks, and credited miles already live on the
+      // profile. Keep enough for a rider's other open tabs, and no more.
+      await store.query(
+        `DELETE FROM journeys WHERE driver_id = $1 AND id NOT IN (
+          SELECT id FROM journeys WHERE driver_id = $1
+          ORDER BY started_at DESC, id DESC LIMIT $2
+        )`,
+        [driver.id, JOURNEYS_PER_RIDER],
       );
       return {
         journeyId: id,
@@ -605,9 +648,9 @@ export function createApi({
       const userId = await getUser(request);
       const store = await getStore();
       const driver = await identify(request, headers, store, now, userId);
+      await rateLimit(store, `requests:${driver.id}`, 120, 60000, now);
       if (request.method === "GET")
         return send(200, await roomView(store, driver, userId, now));
-      await rateLimit(store, `requests:${driver.id}`, 120, 60000, now);
       if (
         !body ||
         typeof body.action !== "string" ||

@@ -9,7 +9,12 @@ const nextConfig: NextConfig = {
     return [
       {
         source: "/:path*",
-        headers: [{ key: "X-Content-Type-Options", value: "nosniff" }],
+        headers: [
+          { key: "X-Content-Type-Options", value: "nosniff" },
+          // Other sites cannot frame the cabin to trick clicks on its controls.
+          { key: "X-Frame-Options", value: "DENY" },
+          { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
+        ],
       },
     ];
   },

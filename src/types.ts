@@ -16,7 +16,7 @@ export interface RiderProfile extends Intention {
   currentMiles?: number;
 }
 export interface Leader extends Intention {
-  id: string;
+  you: boolean;
   name: string;
   rank: number;
   currentMiles: number;
