@@ -22,7 +22,7 @@ function Board({
   useEffect(() => {
     void room.refresh();
   }, []);
-  const rows = room.board?.leaderboard || [],
+  const rows = (room.board?.leaderboard || []).slice(0, 5),
     label = unit.toUpperCase();
   const ownRow =
     rows.some((entry) => entry.id === room.me?.id) &&
@@ -101,17 +101,6 @@ function Board({
         A quiet carriage. Your journey starts here.
       </div>
       <div className="leaderboard-footer">
-        <div className="your-mileage" id="your-mileage" hidden={ownRow}>
-          <span id="your-rank">
-            {room.me?.rank && room.me.currentJourneyId === room.journey
-              ? `#${room.me.rank}`
-              : "N/A"}
-          </span>
-          <span id="your-name">{room.me?.name || "Guest"}</span>
-          <strong id="your-miles">
-            {formatDistance(room.currentMiles, unit)} {label}
-          </strong>
-        </div>
         <p
           id="road-status"
           className="road-status"

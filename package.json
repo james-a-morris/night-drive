@@ -15,6 +15,7 @@
   },
   "dependencies": {
     "@clerk/backend": "^3.18.1",
+    "dompurify": "^3.4.16",
     "next": "16.3.6",
     "pg": "^8.23.0",
     "react": "19.3.0",

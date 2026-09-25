@@ -8,6 +8,7 @@ import "../src/timer.css";
 import "../src/welcome.css";
 import "../src/about.css";
 import "../src/dev-kit.css";
+import "../src/anki.css";
 
 const title = "Night Rail: a little room for your thoughts";
 const description =
@@ -41,7 +42,7 @@ export const metadata: Metadata = {
       url: "/opengraph-image",
       width: 1200,
       height: 630,
-      alt: "Night Rail. Lo-fi + coffee. Let’s ride together. Logo and text on a dark green background.",
+      alt: "Night Rail. Lo-fi + coffee. Let’s ride together. A moonlit window above the name on forest green.",
     }],
   },
 };
