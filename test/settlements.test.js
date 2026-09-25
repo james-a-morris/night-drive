@@ -36,7 +36,7 @@ test('hamlets recycle without changing architecture, remain bounded, and get sno
   for (const mode of ['forest', 'alpine', 'coast', 'desert', 'auto']) {
     for (const progress of [0, 700, 1500, 2800, 1e6]) {
       settlements.update(progress, mode, true);
-      assert.equal(snapshot().length, 12);
+      assert.equal(snapshot().length, 36);
       settlements.root.traverse(o => {
         assert.ok(o.position.toArray().every(Number.isFinite));
         if (o.name === 'snow-on-roof' && mode !== 'auto') assert.equal(o.visible, mode === 'alpine');

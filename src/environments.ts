@@ -189,9 +189,6 @@ export const TRANSITION_LENGTH = 240;
 export const TUNNEL_REGION_LENGTH = 1680;
 export const TUNNEL_CYCLE_LENGTH = TUNNEL_REGION_LENGTH + 240;
 
-export function tunnelApproach(progress: number) {
-  return Math.ceil(progress / TUNNEL_CYCLE_LENGTH) * TUNNEL_CYCLE_LENGTH + 48;
-}
 export const routeRegions = environmentNames.map((name, index) => ({
   name,
   start: environmentNames
@@ -212,7 +209,9 @@ export function tunnelSpan(station: number, mode: SceneryMode) {
   if (mode !== "auto" && mode !== "tunnel") return null;
   const cycle = mode === "auto" ? ROUTE_LENGTH : TUNNEL_CYCLE_LENGTH;
   const origin = Math.floor(station / cycle) * cycle;
-  const start = origin + (mode === "auto" ? 4 * REGION_LENGTH + 48 : 96);
+  // Manual selection tiles adjoining sections indefinitely; only auto has portals.
+  if (mode === "tunnel") return { start: origin, end: origin + cycle };
+  const start = origin + 4 * REGION_LENGTH + 48;
   return { start, end: start + TUNNEL_REGION_LENGTH - 96 };
 }
 

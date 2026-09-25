@@ -1,3 +1,4 @@
+import { NATURE_CELL_LENGTH, NATURE_CELL_COUNT, NATURE_HALF_CELLS, DETAIL_HALF_CELLS, firstNatureCell } from "./view-distance.ts";
 import { cottageSite } from "./cottage-layout.ts";
 import { environmentWeights, type SceneryMode } from "./environments.ts";
 import { roadFrame, roadPoint } from "./drive.ts";
@@ -6,15 +7,15 @@ import { stationClearing } from "./station-route.ts";
 import { SEA_LEVEL, terrainSurfaceHeight } from "./terrain.ts";
 
 export const NATURE_CAPACITY = {
-  birch: 192,
-  "birch-tall": 192,
-  broadleaf: 192,
-  maple: 192,
-  "flower-bush": 192,
-  bush: 512,
-  flowers: 192,
-  "blue-flowers": 192,
-  grass: 1536,
+  birch: NATURE_CELL_COUNT * 16,
+  "birch-tall": NATURE_CELL_COUNT * 16,
+  broadleaf: NATURE_CELL_COUNT * 16,
+  maple: NATURE_CELL_COUNT * 16,
+  "flower-bush": (DETAIL_HALF_CELLS * 2 + 1) * 10,
+  bush: (DETAIL_HALF_CELLS * 2 + 1) * 38,
+  flowers: (DETAIL_HALF_CELLS * 2 + 1) * 10,
+  "blue-flowers": (DETAIL_HALF_CELLS * 2 + 1) * 10,
+  grass: (DETAIL_HALF_CELLS * 2 + 1) * 102,
 } as const;
 export type NatureKind = keyof typeof NATURE_CAPACITY;
 export interface NaturePlacement {
@@ -71,13 +72,14 @@ export function natureClearing(
   return false;
 }
 
-// Reuse the eleven overlapping cells when advancing into a new section. Terrain
+// Reuse overlapping cells when advancing into a new section. Terrain
 // and clearing checks only run for newly arriving plants, avoiding a full rebuild.
 const plantedCells = new Map<string, NaturePlacement[]>();
 
 export function naturePlacements(progress: number, mode: SceneryMode) {
   const placements: NaturePlacement[] = [];
-  const first = Math.floor((progress - 72) / 32);
+  const first = firstNatureCell(progress);
+  const center = first + NATURE_HALF_CELLS;
   function add(kind: NatureKind, cell: number, seed: number, station: number, lateral: number) {
     const tree = isNatureTree(kind);
     if (stationClearing(station, lateral, mode)) return;
@@ -102,7 +104,7 @@ export function naturePlacements(progress: number, mode: SceneryMode) {
       shade: 0.84 + random(cell, seed + 19) * 0.16,
     });
   }
-  for (let cell = first; cell < first + 12; cell++) {
+  for (let cell = first; cell < first + NATURE_CELL_COUNT; cell++) {
     const key = `${mode}:${cell}`, cached = plantedCells.get(key);
     if (cached) { placements.push(...cached); continue; }
     const cellStart = placements.length;
@@ -112,12 +114,12 @@ export function naturePlacements(progress: number, mode: SceneryMode) {
         const seed = sideSeed + i * 37;
         const species = random(cell, seed + 3);
         const kind = species < 0.3 ? "birch" : species < 0.5 ? "birch-tall" : species < 0.83 ? "broadleaf" : "maple";
-        add(kind, cell, seed, cell * 32 + random(cell, seed + 5) * 32,
+        add(kind, cell, seed, cell * NATURE_CELL_LENGTH + random(cell, seed + 5) * NATURE_CELL_LENGTH,
           side * (15 + (i % 3) * 15 + random(cell, seed + 7) * 15));
 
         // Layer the canopy above irregular banks of shrubs and wildflowers.
         if (i >= 5 || random(cell, seed + 23) < 0.08) continue;
-        const station = cell * 32 + 5 + random(cell, seed + 29) * 22;
+        const station = cell * NATURE_CELL_LENGTH + 5 + random(cell, seed + 29) * 22;
         const lateral = side * (9 + random(cell, seed + 31) * 19);
         add("flower-bush", cell, seed + 40, station, lateral);
         for (let j = 0; j < 2; j++) {
@@ -134,7 +136,7 @@ export function naturePlacements(progress: number, mode: SceneryMode) {
       // Keep coverage through shape and placement, not thousands of tiny leaves.
       for (let i = 0; i < 36; i++) {
         const seed = sideSeed + 1200 + i * 11;
-        const station = cell * 32 + (i % 12 + random(cell, seed)) * (32 / 12);
+        const station = cell * NATURE_CELL_LENGTH + (i % 12 + random(cell, seed)) * (NATURE_CELL_LENGTH / 12);
         const lateral = side * (6.8 + Math.floor(i / 12) * 4 + random(cell, seed + 1) * 4);
         add("grass", cell, seed, station, lateral);
         if (i % 4 === 0 && Math.abs(lateral) > 9)
@@ -142,7 +144,10 @@ export function naturePlacements(progress: number, mode: SceneryMode) {
       }
     }
     plantedCells.set(key, placements.slice(cellStart));
-    if (plantedCells.size > 32) plantedCells.delete(plantedCells.keys().next().value!);
+    if (plantedCells.size > NATURE_CELL_COUNT * 2) plantedCells.delete(plantedCells.keys().next().value!);
   }
-  return placements;
+  // Small details fade away before their cells leave the resident window.
+  // Retain full tree silhouettes through the distant bends in either direction.
+  return placements.filter(p => isNatureTree(p.kind) ||
+    Math.abs(Math.floor(p.station / NATURE_CELL_LENGTH) - center) <= DETAIL_HALF_CELLS);
 }

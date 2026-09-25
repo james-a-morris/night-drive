@@ -6,7 +6,7 @@ type XYZ = [number, number, number];
 
 // Original carriage-side flora. Solid, softly shaded forms keep their silhouette
 // through rain and at a distance, without alpha-cutout leaf textures.
-export function createNatureModels() {
+export function createNatureModels(distant = false) {
   const root = new THREE.Group();
   root.name = "night-line-nature-models";
   const material = new THREE.MeshStandardMaterial({
@@ -31,14 +31,15 @@ export function createNatureModels() {
 
   function branch(points: XYZ[], radius: number, color: number, tip = 0.018) {
     const curve = new THREE.CatmullRomCurve3(points.map((p) => new THREE.Vector3(...p)));
-    const geometry = new THREE.TubeGeometry(curve, 8, 1, 7, false);
+    const rings = distant ? 3 : 8, sides = distant ? 4 : 7;
+    const geometry = new THREE.TubeGeometry(curve, rings, 1, sides, false);
     const positions = geometry.attributes.position;
-    for (let ring = 0; ring <= 8; ring++) {
-      const t = ring / 8;
+    for (let ring = 0; ring <= rings; ring++) {
+      const t = ring / rings;
       const center = curve.getPointAt(t);
       const width = radius * (1 - t) + tip * t;
-      for (let j = 0; j <= 7; j++) {
-        const i = ring * 8 + j;
+      for (let j = 0; j <= sides; j++) {
+        const i = ring * (sides + 1) + j;
         positions.setXYZ(i,
           center.x + (positions.getX(i) - center.x) * width,
           center.y + (positions.getY(i) - center.y) * width,
@@ -50,7 +51,7 @@ export function createNatureModels() {
   }
 
   function crown(position: XYZ, size: XYZ, color: number, seed: number) {
-    const raw = new THREE.IcosahedronGeometry(1, 2);
+    const raw = new THREE.IcosahedronGeometry(1, distant ? 1 : 2);
     raw.deleteAttribute("uv");
     raw.deleteAttribute("normal");
     const geometry = mergeVertices(raw);
@@ -120,6 +121,7 @@ export function createNatureModels() {
   tree("birch-tall", true, false, false);
   tree("broadleaf", false, true, false);
   tree("maple", false, true, true);
+  if (distant) return root;
   for (const flowering of [false, true]) {
     // Broad, low shrubs: two smooth masses with a quiet, nearly uniform colour.
     // No overlapping leaf clusters, petal spheres or fine stems.

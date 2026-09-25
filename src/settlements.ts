@@ -1,3 +1,4 @@
+import { SCENERY_DISTANCE } from "./view-distance.ts";
 import { createChimneySmoke } from "./chimney-smoke.ts";
 import { reducedMotion } from "./motion.ts";
 import * as THREE from "./three.ts";
@@ -153,8 +154,10 @@ export function createBuilding(kind: BuildingKind) {
 
 export function createSettlements(world: THREE.Group) {
   const root = new THREE.Group(); root.name = "wayside-hamlets"; world.add(root);
-  // Four reusable sets keep each village's architecture stable when recycled.
-  const villages = Array.from({ length: 4 }, (_, index) => {
+  // Keep complete villages around both the upcoming and previous bends.
+  // Multiples of four preserve each cell's building types when recycled.
+  const count = Math.ceil((SCENERY_DISTANCE * 2 + SETTLEMENT_SPACING * 2) / (SETTLEMENT_SPACING * 4)) * 4;
+  const villages = Array.from({ length: count }, (_, index) => {
     const group = new THREE.Group(); root.add(group);
     const buildings = settlementLayout(index, "forest").map(spec => {
       const building = createBuilding(spec.kind);
@@ -167,11 +170,11 @@ export function createSettlements(world: THREE.Group) {
   let elapsed = 0;
   function update(progress: number, mode: SceneryMode, modeChanged: boolean, dt = 0) {
     if (typeof matchMedia === "undefined" || !reducedMotion().matches) elapsed += dt;
-    const first = Math.floor((progress - 230) / SETTLEMENT_SPACING);
+    const first = Math.floor((progress - SCENERY_DISTANCE - 139) / SETTLEMENT_SPACING);
     for (const village of villages) {
-      const cell = first + ((village.index - first % 4 + 4) % 4);
+      const cell = first + ((village.index - first % count + count) % count);
       const weights = environmentWeights(cell * SETTLEMENT_SPACING + 139, mode);
-      village.group.visible = Math.abs(cell * SETTLEMENT_SPACING + 139 - progress) < 360 &&
+      village.group.visible = Math.abs(cell * SETTLEMENT_SPACING + 139 - progress) < SCENERY_DISTANCE &&
         weights.tunnel < 0.15 && weights.bridge < 0.15;
       for (const [i, building] of village.buildings.entries()) {
         if (village.group.visible && building.group.visible)

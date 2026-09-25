@@ -8,38 +8,34 @@ import {
   tunnelSpan,
   tunnelSection,
   tunnelLampLit,
-  tunnelApproach,
   ROUTE_LENGTH,
   TUNNEL_CYCLE_LENGTH,
 } from "../src/environments.ts";
+import { SCENERY_DISTANCE } from "../src/view-distance.ts";
 import { terrainHeight } from "../src/terrain.ts";
 
-test("choosing the tunnel always arrives before its entrance without moving the route backwards", () => {
-  for (const progress of [0, 80, 900, 3648, 5200, 1e6]) {
-    const approach = tunnelApproach(progress);
-    const span = tunnelSpan(approach, "tunnel");
-    assert.ok(approach >= progress);
-    assert.equal(span.start - approach, 48);
-    assert.equal(insideTunnel(approach, "tunnel"), false);
-    assert.equal(insideTunnel(span.start + 1, "tunnel"), true);
+test("selected tunnel stays enclosed across former exits and repeated sections", () => {
+  for (const progress of [0, 48, 96, 1679, 1680, 1919, 1920, 1921, 1e6]) {
+    assert.equal(insideTunnel(progress, "tunnel"), true);
+    assert.notEqual(tunnelSection(progress, "tunnel"), null);
+  }
+  for (let progress = 0; progress < TUNNEL_CYCLE_LENGTH * 10; progress++) {
+    assert.equal(insideTunnel(progress, "tunnel"), true);
+    assert.equal(insideTunnel(progress, "forest"), false);
   }
 });
 
-test("each mountain passage lasts about two minutes and has a real exit", () => {
-  for (const mode of ["auto", "tunnel"])
-    for (let cycle = 0; cycle < 5; cycle++) {
-      const span = tunnelSpan(
-        cycle * (mode === "auto" ? ROUTE_LENGTH : TUNNEL_CYCLE_LENGTH),
-        mode,
-      );
-      let metres = 0;
-      for (let s = span.start; s < span.end; s++) metres += roadFrame(s).length;
-      const seconds = metres / (CRUISING_SPEED / 3.6);
-      assert.ok(seconds > 115 && seconds < 130, `${mode}: ${seconds} seconds`);
-      assert.equal(insideTunnel(span.start - 1, mode), false);
-      assert.equal(insideTunnel(span.end - 1, mode), true);
-      assert.equal(insideTunnel(span.end, mode), false);
-    }
+test("automatic mountain passages last about two minutes and have a real exit", () => {
+  for (let cycle = 0; cycle < 5; cycle++) {
+    const span = tunnelSpan(cycle * ROUTE_LENGTH, "auto");
+    let metres = 0;
+    for (let s = span.start; s < span.end; s++) metres += roadFrame(s).length;
+    const seconds = metres / (CRUISING_SPEED / 3.6);
+    assert.ok(seconds > 115 && seconds < 130, `${seconds} seconds`);
+    assert.equal(insideTunnel(span.start - 1, "auto"), false);
+    assert.equal(insideTunnel(span.end - 1, "auto"), true);
+    assert.equal(insideTunnel(span.end, "auto"), false);
+  }
 });
 
 test("the bridge clears a deep valley while retaining the railway elevation", () => {
@@ -60,10 +56,12 @@ test("structures recycle through entrances, exits and long jumps with finite, bo
     ["tunnel", 48],
     ["tunnel", 300],
     ["tunnel", 1660],
+    ["tunnel", 1680],
     ["auto", 3600],
     ["auto", 5240],
     ["bridge", 5400],
-    ["tunnel", tunnelApproach(1e6)],
+    ["tunnel", 1e6],
+    ["tunnel", TUNNEL_CYCLE_LENGTH],
     ["forest", 1e6 + 300],
   ]) {
     structures.update(progress, mode);
@@ -74,7 +72,16 @@ test("structures recycle through entrances, exits and long jumps with finite, bo
         assert.ok(attribute.array.every(Number.isFinite));
       vertices += object.geometry.attributes.position.count;
     });
-    assert.ok(vertices < 200000, `bounded geometry: ${vertices}`);
+    assert.ok(vertices < 200000 * Math.ceil(SCENERY_DISTANCE / 384), `bounded geometry: ${vertices}`);
+    if (mode === "tunnel") {
+      structures.root.updateMatrixWorld(true);
+      const lining = structures.root.getObjectByName("rail-structure-lining");
+      for (const offset of [-0.1, 0.1]) {
+        const point = roadPoint(progress + offset);
+        const hits = new Raycaster(new Vector3(point.x, 1, point.z), new Vector3(0, 1, 0)).intersectObject(lining);
+        assert.ok(hits.length > 0, `continuous tunnel roof at ${progress + offset}`);
+      }
+    }
     if (mode === "forest") assert.equal(vertices, 0);
   }
 });

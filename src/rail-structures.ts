@@ -1,3 +1,4 @@
+import { SCENERY_DISTANCE } from "./view-distance.ts";
 import * as THREE from "./three.ts";
 import { createTunnelDinosaurs, DINOSAUR_SITES } from "./tunnel-dinosaur.ts";
 import { createTunnelGraffiti } from "./tunnel-graffiti.ts";
@@ -215,8 +216,13 @@ export function createRailStructures(world: THREE.Group) {
       lamps: new Surface(),
       water: new Surface(),
     };
-    const first = Math.floor(progress / SEGMENT_LENGTH) * SEGMENT_LENGTH - 384;
-    const last = first + 816;
+    // The enclosed tunnel has dense fog; rebuilding distant, invisible lining
+    // every section would add a periodic CPU hitch. Exterior portals and bridges
+    // retain the full bend distance.
+    const distance = mode === "tunnel" ? 384 : SCENERY_DISTANCE;
+    const reach = Math.ceil(distance / SEGMENT_LENGTH) * SEGMENT_LENGTH + SEGMENT_LENGTH;
+    const first = Math.floor(progress / SEGMENT_LENGTH) * SEGMENT_LENGTH - reach;
+    const last = first + reach * 2 + SEGMENT_LENGTH;
     for (let station = first; station < last; station += SEGMENT_LENGTH) {
       const span = tunnelSpan(station, mode);
       if (span) {
@@ -371,7 +377,7 @@ export function createRailStructures(world: THREE.Group) {
           [span.start, 1],
           [span.end, -1],
         ]) {
-          if (portal < station || portal >= station + SEGMENT_LENGTH) continue;
+          if (mode !== "auto" || portal < station || portal >= station + SEGMENT_LENGTH) continue;
           // A mountain face with a real open arch, backed by a rocky mound.
           for (let i = 0; i < angles.length - 1; i++) {
             const a = profile(angles[i]),
