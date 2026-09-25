@@ -186,6 +186,85 @@ test("idle tabs and duplicate reports do not steal an active tab's growth time",
   );
 });
 
+test("check-ins grow the plant by server time since the last one, within 90 seconds", async (t) => {
+  const { visitor, advance } = await setup(t);
+  const rider = visitor();
+  await rider();
+  const { journeyId } = await rider({ action: "start" });
+  let sequence = 0;
+  const checkIn = (extra = {}) =>
+    rider({ action: "check-in", journeyId, sequence: ++sequence, metres: 0, ...extra });
+  assert.equal((await checkIn({ resumed: true })).garden.seconds, 0);
+  advance(15);
+  assert.equal((await checkIn()).garden.seconds, 15);
+  advance(10);
+  assert.equal((await checkIn()).garden.seconds, 25);
+  advance(100);
+  assert.equal((await checkIn()).garden.seconds, 25, "a gap over 90 seconds is not credited");
+  advance(15);
+  assert.equal((await checkIn()).garden.seconds, 40);
+  advance(30);
+  assert.equal(
+    (await checkIn({ resumed: true })).garden.seconds,
+    40,
+    "time in a hidden tab is not credited",
+  );
+  advance(15);
+  const boarding = await rider({ action: "check-in" });
+  assert.equal(boarding.garden.seconds, 40, "riders not yet aboard do not grow the plant");
+  assert.equal(boarding.mileage, null);
+  assert.ok(Array.isArray(boarding.leaderboard));
+});
+
+test("tabs share one check-in clock, so two open tabs grow the plant at real time", async (t) => {
+  const { visitor, advance } = await setup(t);
+  const rider = visitor();
+  await rider();
+  const first = (await rider({ action: "start" })).journeyId;
+  const second = (await rider({ action: "start" })).journeyId;
+  const sequences = { [first]: 0, [second]: 0 };
+  const checkIn = (journeyId, extra = {}) =>
+    rider({ action: "check-in", journeyId, sequence: ++sequences[journeyId], metres: 0, ...extra });
+  await checkIn(first, { resumed: true });
+  for (const journeyId of [second, first, second, first]) {
+    advance(journeyId === first ? 10 : 5);
+    await checkIn(journeyId);
+  }
+  assert.equal((await rider()).garden.seconds, 30);
+});
+
+test("harvest counts the time since the last check-in and collects a mature plant once", async (t) => {
+  const { visitor, store, advance } = await setup(t);
+  const rider = visitor();
+  const room = await rider();
+  const { journeyId } = await rider({ action: "start" });
+  await rider({ action: "check-in", journeyId, sequence: 1, metres: 0, resumed: true });
+  await store.query(
+    "UPDATE tree_gardens SET seconds = 1790 WHERE driver_id = $1",
+    [room.me.id],
+  );
+  advance(5);
+  let result = await rider({ action: "harvest", treeId: room.garden.id });
+  assert.equal(result.garden.collection.length, 0, "a plant 5 seconds short keeps growing");
+  assert.equal(result.garden.seconds, 1795);
+  advance(5);
+  result = await rider({ action: "harvest", treeId: room.garden.id });
+  assert.equal(result.garden.collection.length, 1);
+  assert.equal(result.garden.seconds, 0);
+  assert.notEqual(result.garden.id, room.garden.id);
+  advance(5);
+  result = await rider({ action: "harvest", treeId: room.garden.id });
+  assert.equal(result.garden.collection.length, 1, "a stale harvest cannot collect again");
+  for (const body of [
+    { action: "harvest" },
+    { action: "harvest", treeId: result.garden.id, seconds: 1800 },
+    { action: "check-in", resumed: "yes" },
+    { action: "check-in", journeyId },
+    { action: "check-in", seconds: 30 },
+  ])
+    assert.equal((await rider(body)).status, 400);
+});
+
 test("guest collection and current growth transfer on sign-in, and sign-out keeps account trees private", async (t) => {
   const { visitor, store } = await setup(t);
   const guest = visitor();

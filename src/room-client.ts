@@ -1,5 +1,4 @@
 import type { TreeGardenController } from "./tree-garden.ts";
-import type { TreeGarden } from "./tree-varieties.ts";
 import type { Drive } from "./drive.ts";
 import type { Lifecycle } from "./lifecycle.ts";
 import {
@@ -9,7 +8,9 @@ import {
   type RoomView,
   type RoomAction,
   type StartResult,
-  type MileageResult,
+  type CheckInResult,
+  type HarvestResult,
+  type MileageReport,
   type ProfileAction,
   type ProfileResult,
 } from "./types.ts";
@@ -33,7 +34,10 @@ export function createRoomClient(
   let totalMiles = 0,
     currentMiles = 0,
     starting = false,
-    saving = false;
+    checkingIn = false,
+    // The first check-in aboard, and the first after returning to the tab,
+    // starts a new stretch: time away never grows the plant.
+    resumeNext = true;
   let lastServerTime = 0,
     clockOffset = 0,
     status = "",
@@ -89,16 +93,16 @@ export function createRoomClient(
     if (journey && profile.currentJourneyId === journey)
       currentMiles = profile.currentMiles ?? 0;
   }
+  function acceptRoom(data: RoomView, sent?: { id: string; seconds: number }) {
+    if (data.serverTime < lastServerTime) return;
+    updateMe(data.me, data.serverTime);
+    if (data.garden) garden?.accept(data.garden, data.me.id, sent);
+    board = data;
+    report("");
+  }
   const refresh = () =>
     scope
-      .task(async () => {
-        const data = await request<RoomView>();
-        if (data.serverTime < lastServerTime) return;
-        updateMe(data.me, data.serverTime);
-        if (data.garden) garden?.accept(data.garden, data.me.id);
-        board = data;
-        report("");
-      })
+      .task(async () => acceptRoom(await request<RoomView>()))
       .catch(() => report("Reconnecting to the shared carriage…"));
 
   const start = () =>
@@ -113,7 +117,7 @@ export function createRoomClient(
           acceptedMetres = currentMiles = sequence = 0;
           updateMe(data.me, data.serverTime);
           emit();
-          void refresh();
+          void checkIn();
         } finally {
           starting = false;
         }
@@ -122,48 +126,59 @@ export function createRoomClient(
         report("Your seat is here. Mileage will reconnect shortly."),
       );
 
-  function mileageReport(): RoomAction {
+  function mileageReport(): MileageReport {
     return {
-      action: "mileage",
       journeyId: journey!,
       sequence: ++sequence,
       metres: Math.max(0, drive.distance - baseMetres),
     };
   }
-  const saveMiles = () =>
+  // One check-in every 15 seconds from a visible tab saves distance, lets the
+  // server count plant growth, and refreshes the board. Hidden tabs stay
+  // quiet, so they leave the rider count and the board after 90 seconds.
+  const checkIn = () =>
     scope
       .task(async () => {
-        if (!drive.started || saving) return;
-        if (!journey) {
+        if (checkingIn) return;
+        if (drive.started && !journey) {
           await startJourney();
           return;
         }
-        saving = true;
-        const savingJourney = journey;
+        const reported = journey && drive.started ? mileageReport() : null;
+        const resumed = Boolean(reported) && resumeNext;
+        if (reported) resumeNext = false;
+        const tree = garden?.getSnapshot().garden;
+        const sent = tree ? { id: tree.id, seconds: garden!.seconds } : undefined;
+        checkingIn = true;
         try {
-          const data = await request<MileageResult>(mileageReport());
-          // A board refresh may arrive before this save; acknowledge distance
+          const data = await request<CheckInResult>({
+            action: "check-in",
+            ...(resumed ? { resumed: true as const } : {}),
+            ...reported,
+          });
+          // A board refresh may arrive before this check-in; acknowledge distance
           // independently so optimistic miles are never displayed twice.
-          if (journey === savingJourney) {
-            acceptedMetres = Math.max(acceptedMetres, data.acceptedMetres);
-            currentMiles = Math.max(currentMiles, data.currentMiles);
+          if (reported && journey === reported.journeyId && data.mileage) {
+            acceptedMetres = Math.max(
+              acceptedMetres,
+              data.mileage.acceptedMetres,
+            );
+            currentMiles = Math.max(currentMiles, data.mileage.currentMiles);
           }
-          if (data.serverTime >= lastServerTime) {
-            lastServerTime = data.serverTime;
-            totalMiles = data.totalMiles;
-          }
-          emit();
+          acceptRoom(data, sent);
         } catch (error) {
+          // Nothing was credited, so the next check-in must not claim the gap.
+          if (resumed) resumeNext = true;
           if (requestError(error).status === 404) {
             journey = null;
             acceptedMetres = 0;
           }
           throw error;
         } finally {
-          saving = false;
+          checkingIn = false;
         }
       })
-      .catch(() => report("Reconnecting to save your progress…"));
+      .catch(() => report("Reconnecting to the shared carriage…"));
 
   async function changeProfile(body: ProfileAction) {
     const data = await request<ProfileResult>(body);
@@ -171,67 +186,27 @@ export function createRoomClient(
     emit();
     void refresh();
   }
-  let treeSaving: Promise<void> | null = null;
-  async function saveTree(harvest = false) {
-    if (treeSaving) {
-      await treeSaving;
-      if (!harvest) return;
-    }
+  async function harvestTree() {
     const tree = garden?.getSnapshot().garden;
     if (!tree || !me) return;
     const sent = { id: tree.id, seconds: garden!.seconds };
-    const task = (async () => {
-      const data = await request<{ garden: TreeGarden; owner: string }>({
-        action: harvest ? "tree-harvest" : "tree-save",
-        treeId: sent.id,
-        seconds: sent.seconds,
-      });
-      if (me?.id !== data.owner) return;
-      garden!.accept(data.garden, data.owner, sent, harvest);
-      if (harvest && data.garden.id === sent.id)
-        garden!.report("Your plant is still growing. A little longer aboard…");
-    })();
-    treeSaving = task;
-    try {
-      await task;
-    } finally {
-      if (treeSaving === task) treeSaving = null;
-    }
-  }
-  if (garden) scope.defer(garden.bind(() => saveTree(true)));
-  const saveTreeQuietly = () =>
-    void saveTree().catch(() =>
-      garden?.report("Reconnecting to save your garden…"),
-    );
-  scope.interval(saveTreeQuietly, 15000);
-  scope.on(document, "visibilitychange", () => {
-    if (document.hidden) saveTreeQuietly();
-  });
-  function flushTree() {
-    const tree = garden?.getSnapshot().garden;
-    if (!tree) return;
-    const body = JSON.stringify({
-      action: "tree-save",
-      treeId: tree.id,
-      seconds: garden!.seconds,
+    const data = await request<HarvestResult>({
+      action: "harvest",
+      treeId: sent.id,
     });
-    void authHeaders()
-      .then((headers) =>
-        fetch("/api/room", {
-          method: "POST",
-          credentials: "same-origin",
-          keepalive: true,
-          headers: { ...headers, "Content-Type": "application/json" },
-          body,
-        }),
-      )
-      .catch(() => {});
+    if (me?.id !== data.owner) return;
+    garden!.accept(data.garden, data.owner, sent, true);
+    if (data.garden.id === sent.id)
+      garden!.report("Your plant is still growing. A little longer aboard…");
   }
-  scope.on(window, "pagehide", flushTree);
-  scope.defer(flushTree);
-  function flushJourney() {
-    if (!journey) return;
-    const body = JSON.stringify(mileageReport());
+  if (garden) scope.defer(garden.bind(harvestTree));
+  function flush() {
+    if (!journey || !drive.started) return;
+    const body = JSON.stringify({
+      action: "check-in",
+      ...(resumeNext ? { resumed: true } : {}),
+      ...mileageReport(),
+    });
     // Keepalive allows the authenticated token on the final report.
     void authHeaders()
       .then((headers) =>
@@ -245,16 +220,18 @@ export function createRoomClient(
       )
       .catch(() => {});
   }
-  scope.interval(() => void saveMiles(), 10000);
-  scope.interval(() => void refresh(), 15000);
+  scope.interval(() => {
+    if (!document.hidden) void checkIn();
+  }, 15000);
   scope.interval(emit, 250);
   scope.on(document, "visibilitychange", () => {
-    if (document.hidden) void saveMiles();
-    else void refresh();
+    void checkIn();
+    // That check-in covers the time up to leaving; the next one starts afresh.
+    if (document.hidden) resumeNext = true;
   });
-  scope.on(window, "online", () => void refresh());
-  scope.on(window, "pagehide", flushJourney);
-  scope.defer(flushJourney);
+  scope.on(window, "online", () => void checkIn());
+  scope.on(window, "pagehide", flush);
+  scope.defer(flush);
   // Establish the guest cookie before the first journey or account transfer.
   const initialSync = refresh();
   const startJourney = () => initialSync.then(start);
@@ -265,8 +242,7 @@ export function createRoomClient(
         scope.task(async () => {
           const signedOut = wasSignedIn && !signedIn;
           wasSignedIn = signedIn;
-          await saveMiles();
-          await saveTree().catch(() => {});
+          await checkIn();
           await refresh();
           scope.signal.throwIfAborted();
           if (signedOut) {

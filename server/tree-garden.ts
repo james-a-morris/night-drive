@@ -75,27 +75,65 @@ export async function updateGarden(
         "UPDATE tree_gardens SET seconds = $1, updated_at = $2 WHERE driver_id = $3",
         [age, now, driverId],
       );
-    if (harvest && age >= duration) {
-      await query(
-        "INSERT INTO collected_trees (id, driver_id, variety, collected_at) VALUES ($1, $2, $3, $4) ON CONFLICT(id) DO NOTHING",
-        [id, driverId, row.variety, now],
-      );
-      const collection = await query<CollectedTree>(
-        "SELECT id, variety FROM collected_trees WHERE driver_id = $1",
-        [driverId],
-      );
-      const owned = new Set(collection.map((tree) => tree.variety));
-      const next =
-        Array.from({ length: 50 }, (_, index) => nextTreeVariety(index)).find(
-          (variety) => !owned.has(variety),
-        ) ?? 0;
-      await query(
-        "UPDATE tree_gardens SET tree_id = $1, variety = $2, seconds = 0, updated_at = $3 WHERE driver_id = $4",
-        [randomUUID(), next, now, driverId],
-      );
-    }
+    if (harvest && age >= duration) await collectTree(query, driverId, row, now);
     return readGarden(query, driverId, now);
   });
+}
+// A check-in grows the plant by the time since the previous one, if that was
+// within 90 seconds. Longer gaps and returns from a hidden tab start afresh,
+// so only time aboard in a visible tab counts. Tabs share the one timestamp.
+export async function tendGarden(
+  store: Store,
+  driverId: string,
+  now: number,
+  { resumed = false, harvest }: { resumed?: boolean; harvest?: string } = {},
+) {
+  return store.transaction(async (query, lock) => {
+    await query(`SELECT id FROM road_profiles WHERE id = $1${lock}`, [
+      driverId,
+    ]);
+    const before = await readGarden(query, driverId, now);
+    if (gardenComplete(before)) return before;
+    const [row] = await query<GardenRow>(
+      `SELECT * FROM tree_gardens WHERE driver_id = $1${lock}`,
+      [driverId],
+    );
+    const gap = now - Number(row.updated_at);
+    const credit = !resumed && gap > 0 && gap <= 90000 ? gap / 1000 : 0;
+    const duration = treeDuration(row.variety);
+    const age = Math.min(duration, Number(row.seconds) + credit);
+    await query(
+      "UPDATE tree_gardens SET seconds = $1, updated_at = $2 WHERE driver_id = $3",
+      [age, Math.max(now, Number(row.updated_at)), driverId],
+    );
+    if (harvest === row.tree_id && age >= duration)
+      await collectTree(query, driverId, row, now);
+    return readGarden(query, driverId, now);
+  });
+}
+async function collectTree(
+  query: Query,
+  driverId: string,
+  row: GardenRow,
+  now: number,
+) {
+  await query(
+    "INSERT INTO collected_trees (id, driver_id, variety, collected_at) VALUES ($1, $2, $3, $4) ON CONFLICT(id) DO NOTHING",
+    [row.tree_id, driverId, row.variety, now],
+  );
+  const collection = await query<CollectedTree>(
+    "SELECT id, variety FROM collected_trees WHERE driver_id = $1",
+    [driverId],
+  );
+  const owned = new Set(collection.map((tree) => tree.variety));
+  const next =
+    Array.from({ length: 50 }, (_, index) => nextTreeVariety(index)).find(
+      (variety) => !owned.has(variety),
+    ) ?? 0;
+  await query(
+    "UPDATE tree_gardens SET tree_id = $1, variety = $2, seconds = 0, updated_at = $3 WHERE driver_id = $4",
+    [randomUUID(), next, now, driverId],
+  );
 }
 export async function transferGarden(
   query: Query,

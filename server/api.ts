@@ -1,4 +1,9 @@
-import { readGarden, updateGarden, transferGarden } from "./tree-garden.ts";
+import {
+  readGarden,
+  updateGarden,
+  tendGarden,
+  transferGarden,
+} from "./tree-garden.ts";
 import { TREE_GROWTH_HOURS } from "../src/tree-varieties.ts";
 import type { Store, ProfileRow, JourneyRow, RankingRow } from "./types.ts";
 import type { RiderProfile, RoomView } from "../src/types.ts";
@@ -345,11 +350,12 @@ async function roomView(
   driver: ProfileRow,
   userId: string | null,
   now: number,
+  garden?: RoomView["garden"],
 ): Promise<RoomView> {
   // Presence counts people in the room, even before their first mile. A
   // profile is shared across tabs, and disappears after 90 seconds away.
-  await store.query<ProfileRow>(
-    "UPDATE road_profiles SET last_seen = $1 WHERE id = $2",
+  const [profile] = await store.query<ProfileRow>(
+    "UPDATE road_profiles SET last_seen = $1 WHERE id = $2 RETURNING *",
     [now, driver.id],
   );
   const rows = await store.query<RankingRow>(currentJourneyRanking, [
@@ -363,17 +369,19 @@ async function roomView(
   const mine = rows.find((row) => row.id === driver.id);
   return {
     me: {
-      ...profileView(driver, userId, now),
+      ...profileView(profile ?? driver, userId, now),
       rank: mine ? Number(mine.rank) : null,
       currentJourneyId: mine?.journey_id ?? null,
       currentMiles: mine ? Number(mine.credited_metres) / METRES_PER_MILE : 0,
     },
-    garden: await store.transaction(async (query, lock) => {
-      await query(`SELECT id FROM road_profiles WHERE id = $1${lock}`, [
-        driver.id,
-      ]);
-      return readGarden(query, driver.id, now);
-    }),
+    garden:
+      garden ??
+      (await store.transaction(async (query, lock) => {
+        await query(`SELECT id FROM road_profiles WHERE id = $1${lock}`, [
+          driver.id,
+        ]);
+        return readGarden(query, driver.id, now);
+      })),
     leaderboard: rows
       .filter((row) => Number(row.rank) <= 5)
       .map((row) => ({
@@ -547,6 +555,48 @@ export function createApi({
     return clock();
   }
   const actions: Record<string, (context: ActionContext) => Promise<object>> = {
+    // One request every 15 seconds from a visible tab: it saves distance,
+    // grows the plant by server time, and returns the room.
+    async "check-in"({ store, driver, body, userId, now }) {
+      const { resumed, ...report } = body;
+      if (
+        Object.keys(report).some(
+          (key) => !["action", "journeyId", "sequence", "metres"].includes(key),
+        ) ||
+        (resumed !== undefined && typeof resumed !== "boolean")
+      )
+        throw new ApiError(400, "Invalid check-in.");
+      // A journey report means the rider is aboard, so miles and the plant
+      // grow. Riders still boarding only refresh the room.
+      const aboard = report.journeyId !== undefined;
+      const mileage = aboard
+        ? await recordMiles(store, driver.id, report, now)
+        : null;
+      const garden = aboard
+        ? await tendGarden(store, driver.id, now, { resumed: resumed === true })
+        : undefined;
+      return {
+        ...(await roomView(store, driver, userId, now, garden)),
+        mileage,
+      };
+    },
+    async harvest({ store, driver, body, now }) {
+      if (
+        Object.keys(body).some((key) => !["action", "treeId"].includes(key)) ||
+        typeof body.treeId !== "string" ||
+        body.treeId.length > 64
+      )
+        throw new ApiError(400, "Invalid harvest.");
+      return {
+        garden: await tendGarden(store, driver.id, now, {
+          harvest: body.treeId,
+        }),
+        owner: driver.id,
+        serverTime: now,
+      };
+    },
+    // Tabs opened before check-ins still send these. Remove them once those
+    // tabs have reloaded.
     async "tree-save"(context) {
       return treeAction(context, false);
     },
@@ -576,6 +626,7 @@ export function createApi({
         serverTime: now,
       };
     },
+    // Tabs opened before check-ins still send this; remove with tree-save.
     async mileage({ store, driver, body, now }) {
       return {
         ...(await recordMiles(store, driver.id, body, now)),

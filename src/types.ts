@@ -37,10 +37,21 @@ export interface ProfileResult {
 export interface StartResult extends ProfileResult {
   journeyId: string;
 }
-export interface MileageResult {
-  totalMiles: number;
-  currentMiles: number;
-  acceptedMetres: number;
+export interface MileageReport {
+  journeyId: string;
+  sequence: number;
+  metres: number;
+}
+export interface CheckInResult extends RoomView {
+  mileage: {
+    totalMiles: number;
+    currentMiles: number;
+    acceptedMetres: number;
+  } | null;
+}
+export interface HarvestResult {
+  garden: TreeGarden;
+  owner: string;
   serverTime: number;
 }
 export type ProfileAction =
@@ -49,9 +60,9 @@ export type ProfileAction =
   | { action: "clear-intention" };
 export type RoomAction =
   | ProfileAction
-  | { action: "tree-save" | "tree-harvest"; treeId: string; seconds: number }
-  | { action: "start" }
-  | { action: "mileage"; journeyId: string; sequence: number; metres: number };
+  | ({ action: "check-in"; resumed?: true } & Partial<MileageReport>)
+  | { action: "harvest"; treeId: string }
+  | { action: "start" };
 export interface RoomSnapshot {
   me: RiderProfile | null;
   board: RoomView | null;

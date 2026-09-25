@@ -110,6 +110,26 @@ test('a background tab that keeps reporting without moving leaves the board unti
   assert.equal(board[0].currentMiles, 400 / 1609.344, 'the same journey resumes with its miles');
 });
 
+test('a check-in saves distance and returns the room in one request', async t => {
+  const { visitor, advance } = await setup(t);
+  const rider = visitor(), viewer = visitor();
+  const { journeyId } = (await rider.request({ action: 'start' })).body;
+  advance(10000);
+  const { status, body } = await rider.request({ action: 'check-in', journeyId, sequence: 1, metres: 200 });
+  assert.equal(status, 200);
+  assert.equal(body.mileage.acceptedMetres, 200);
+  assert.equal(body.me.totalMiles, 200 / 1609.344, 'the profile includes the distance just saved');
+  assert.equal(body.leaderboard[0].you, true);
+  assert.equal(body.leaderboard[0].currentMiles, 200 / 1609.344);
+  assert.equal(body.garden.seconds, 0, 'the first check-in starts the plant clock');
+  advance(10000);
+  const next = (await rider.request({ action: 'check-in', journeyId, sequence: 2, metres: 300 })).body;
+  assert.equal(next.garden.seconds, 10);
+  assert.equal(next.me.totalMiles, 300 / 1609.344);
+  assert.equal((await viewer.request()).body.othersCount, 1);
+  assert.equal((await rider.request({ action: 'check-in', journeyId: 'someone-else', sequence: 2, metres: 300 })).status, 404);
+});
+
 test('the leaderboard contains only the top five drivers, including when the viewer ranks below them', async t => {
   const { visitor, advance } = await setup(t);
   const drivers = Array.from({ length: 7 }, () => visitor());
