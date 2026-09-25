@@ -1,5 +1,6 @@
+import type { EnvironmentSource } from "./environments.ts";
 import { blendEnvironment } from "./environments.ts";
-import type { Environment, EnvironmentWeights } from "./environments.ts";
+import type { EnvironmentWeights } from "./environments.ts";
 import type { Track } from "./tracks.ts";
 import { createTrack } from "./tracks.ts";
 import { createThunder } from "./thunder-audio.ts";
@@ -240,7 +241,7 @@ export class LocalSoundscape {
     if (this.enabled && this.context) playDepartureChime(this.context, this.ambienceVolume, this.voices);
   }
 
-  setWeather(weights: EnvironmentWeights, stormRain = 0, forest?: Environment) {
+  setWeather(weights: EnvironmentWeights, stormRain = 0, forest?: EnvironmentSource) {
     if (!this.context) return;
     const time = this.context.currentTime;
     this.weatherGain.gain.setTargetAtTime(

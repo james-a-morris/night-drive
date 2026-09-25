@@ -496,3 +496,78 @@ test('Jev is a fixed server decision, with strict response validation and no fai
   assert.equal(mileageCredit(100, 100, 10000), 0);
   assert.equal(mileageCredit(100, 0, 0), 0);
 });
+
+const cityPreferences = {
+  city: { id: 4560349, name: 'Philadelphia', region: 'Pennsylvania', country: 'United States', population: 1600000, capital: false, latitude: 39.95, longitude: -75.16, timezone: 'America/New_York' },
+  sync: false, unit: 'F',
+};
+
+test('city, sync-off and temperature units persist for guests and across account devices', async t => {
+  const { visitor, store } = await setup(t);
+  const guest = visitor();
+  const ownerId = (await guest.request()).body.me.id;
+  const saved = await guest.request({ action: 'city-sync', ownerId, preferences: cityPreferences });
+  assert.equal(saved.status, 200);
+  assert.deepEqual(saved.body.me.citySync, cityPreferences);
+  assert.deepEqual((await visitor(guest.cookie).request()).body.me.citySync, cityPreferences);
+  assert.deepEqual(JSON.parse((await store.query('SELECT city_preferences FROM road_profiles WHERE id = $1', [ownerId]))[0].city_preferences), cityPreferences);
+  const signedIn = (await guest.request(undefined, { user: 'alice' })).body.me;
+  assert.deepEqual(signedIn.citySync, cityPreferences);
+  const anotherDevice = visitor();
+  assert.deepEqual((await anotherDevice.request(undefined, { user: 'alice' })).body.me.citySync, cityPreferences);
+  const enabled = { ...cityPreferences, sync: true, unit: 'C' };
+  assert.equal((await anotherDevice.request({ action: 'city-sync', ownerId: signedIn.id, preferences: enabled }, { user: 'alice' })).status, 200);
+  assert.deepEqual((await guest.request(undefined, { user: 'alice' })).body.me.citySync, enabled);
+  assert.equal((await visitor().request(undefined, { user: 'bob' })).body.me.citySync, null);
+  assert.equal((await guest.request()).body.me.citySync, null, 'signing out does not hand account settings to the next guest');
+});
+
+test('existing account city wins over guest transfer and legacy browser initialization', async t => {
+  const { visitor } = await setup(t);
+  const account = visitor(), guest = visitor();
+  const ownerId = (await account.request(undefined, { user: 'alice' })).body.me.id;
+  await account.request({ action: 'city-sync', ownerId, preferences: cityPreferences }, { user: 'alice' });
+  const guestId = (await guest.request()).body.me.id;
+  const conflicting = { ...cityPreferences, sync: true, unit: 'C' };
+  await guest.request({ action: 'city-sync', ownerId: guestId, preferences: conflicting });
+  assert.deepEqual((await guest.request(undefined, { user: 'alice' })).body.me.citySync, cityPreferences);
+  const initialized = await account.request({ action: 'city-sync', ownerId, preferences: conflicting, initializeOnly: true }, { user: 'alice' });
+  assert.deepEqual(initialized.body.me.citySync, cityPreferences);
+  const wrongOwner = await guest.request({ action: 'city-sync', ownerId: guestId, preferences: conflicting }, { user: 'alice' });
+  assert.equal(wrongOwner.status, 409);
+  assert.deepEqual((await account.request(undefined, { user: 'alice' })).body.me.citySync, cityPreferences);
+});
+
+test('city profile updates validate settings and never expose private city settings on the leaderboard', async t => {
+  const { visitor, advance } = await setup(t);
+  const rider = visitor(), viewer = visitor();
+  const start = (await rider.request({ action: 'start' })).body;
+  const ownerId = start.me.id;
+  for (const preferences of [null, {}, { ...cityPreferences, sync: 'false' }, { ...cityPreferences, unit: 'K' }, { ...cityPreferences, secret: 'extra' }, { ...cityPreferences, city: { ...cityPreferences.city, latitude: 999 } }, { ...cityPreferences, city: { ...cityPreferences.city, timezone: 'invalid' } }]) {
+    assert.equal((await rider.request({ action: 'city-sync', ownerId, preferences })).status, 400);
+  }
+  await rider.request({ action: 'city-sync', ownerId, preferences: cityPreferences });
+  advance(10000);
+  await rider.request({ action: 'mileage', journeyId: start.journeyId, sequence: 1, metres: 100 });
+  const publicView = (await viewer.request()).body;
+  assert.ok(publicView.leaderboard.length);
+  assert.equal(JSON.stringify(publicView).includes('Philadelphia'), false);
+});
+
+test('city preferences survive database reopen and migration of an existing database', async t => {
+  const folder = await mkdtemp(join(tmpdir(), 'night-city-'));
+  t.after(() => rm(folder, { recursive: true, force: true }));
+  const path = join(folder, 'city.sqlite');
+  const { DatabaseSync } = await import('node:sqlite');
+  const old = new DatabaseSync(path);
+  old.exec(`CREATE TABLE road_profiles (id TEXT PRIMARY KEY, clerk_user_id TEXT UNIQUE, name TEXT NOT NULL, intention TEXT, intention_expires_at BIGINT, total_metres DOUBLE PRECISION NOT NULL DEFAULT 0, last_mileage_at BIGINT NOT NULL, last_seen BIGINT NOT NULL, created_at BIGINT NOT NULL);
+    INSERT INTO road_profiles (id, name, last_mileage_at, last_seen, created_at) VALUES ('existing', 'Existing rider', 1, 1, 1);`);
+  old.close();
+  const migrated = await createStore({ databaseUrl: null, sqlitePath: path });
+  assert.equal((await migrated.query('SELECT city_preferences FROM road_profiles WHERE id = $1', ['existing']))[0].city_preferences, null);
+  await migrated.query('UPDATE road_profiles SET city_preferences = $1 WHERE id = $2', [JSON.stringify(cityPreferences), 'existing']);
+  await migrated.close();
+  const reopened = await createStore({ databaseUrl: null, sqlitePath: path });
+  assert.deepEqual(JSON.parse((await reopened.query('SELECT city_preferences FROM road_profiles WHERE id = $1', ['existing']))[0].city_preferences), cityPreferences);
+  await reopened.close();
+});

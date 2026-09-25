@@ -14,12 +14,15 @@ export default function SceneryPicker({
   value,
   onChange,
   pineWeather,
+  cityWeather,
 }: {
   value: SceneryMode;
   pineWeather: PineWeather;
+  cityWeather?: string;
   onChange(mode: SceneryMode): void;
 }) {
-  const options = { ...routes, forest: pineEnvironment(pineWeather) };
+  const options = { ...routes, forest: { ...pineEnvironment(pineWeather), ...(cityWeather ? { name: "THE PINES" } : {}) } };
+  const description = (mode: string, fallback: string) => cityWeather && mode !== "tunnel" ? cityWeather : fallback;
   const name = title(options[value].name);
   return (
     <Popover role="listbox">
@@ -63,7 +66,7 @@ export default function SceneryPicker({
                   data-value={mode}
                   role="option"
                   aria-selected={value === mode}
-                  aria-label={`${title(route.name)}, ${title(route.weather)}`}
+                  aria-label={`${title(route.name)}, ${title(description(mode, route.weather))}`}
                   tabIndex={-1}
                   onClick={() => {
                     onChange(mode as SceneryMode);
@@ -81,7 +84,7 @@ export default function SceneryPicker({
                       )}
                     </span>
                     <span className="scenery-option-description">
-                      {title(route.weather)}
+                      {title(description(mode, route.weather))}
                     </span>
                   </span>
                   <svg

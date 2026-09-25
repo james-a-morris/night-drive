@@ -22,7 +22,7 @@ export default function Popover({
   role = "menu",
 }: {
   children: (state: PopoverState) => ReactNode;
-  role?: "menu" | "listbox" | null;
+  role?: "menu" | "listbox" | "dialog" | null;
 }) {
   const trigger = useRef<HTMLButtonElement | null>(null),
     panel = useRef<HTMLElement | null>(null),
@@ -32,7 +32,7 @@ export default function Popover({
   const items = () =>
     [
       ...(panel.current?.querySelectorAll<HTMLElement>(
-        '[role^="menuitem"],[role="option"]',
+        role === "dialog" ? 'button,input,select,textarea,summary,a[href]' : '[role^="menuitem"],[role="option"]',
       ) || []),
     ].filter((item) => !item.closest("[hidden]") && !item.matches(":disabled"));
   const close = (restoreFocus = false) => {
@@ -45,7 +45,8 @@ export default function Popover({
     const selected = choices.find(
       (item) =>
         item.getAttribute("aria-selected") === "true" ||
-        item.getAttribute("aria-checked") === "true",
+        item.getAttribute("aria-checked") === "true" ||
+        item.getAttribute("aria-pressed") === "true",
     );
     (initial.current === "selected"
       ? selected || choices[0]
@@ -75,6 +76,8 @@ export default function Popover({
       close(true);
       return;
     }
+    // Settings dialogs contain inputs and use native typing and tab order.
+    if (role === "dialog") return;
     if (event.key === "Tab") {
       close(true);
       return;

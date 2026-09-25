@@ -1,4 +1,6 @@
 "use client";
+import type { CityAtmosphere } from "../src/city-atmosphere.ts";
+import { localTime, weatherDescription } from "../src/city-weather.ts";
 import type { EnvironmentName, SceneryMode } from "../src/environments.ts";
 import type { JourneyDialog } from "../src/types.ts";
 import type { NightRadio } from "../src/radio.ts";
@@ -21,6 +23,7 @@ import { readPreference, savePreference } from "../src/prefs.ts";
 import Brand from "./brand.tsx";
 import AboutPanel from "./about-panel.tsx";
 import SceneryPicker from "./scenery-picker.tsx";
+import TrainPicker from "./train-picker.tsx";
 import AccountMenu from "./account-menu.tsx";
 import DevKit from "./dev-kit.tsx";
 import FocusTimer from "./focus-timer.tsx";
@@ -33,6 +36,8 @@ import { useAsyncAction } from "./use-async-action.ts";
 import AnkiStudy from "./anki-study.tsx";
 import AnkiIcon from "./anki-icon.tsx";
 
+const devKitEnabled = process.env.NEXT_PUBLIC_ENABLE_DEV_KIT === "true";
+
 export default function NightLine() {
   const [garden] = useState(createTreeGarden);
   const [gardenView, setGardenView] = useState(false);
@@ -44,6 +49,8 @@ export default function NightLine() {
   const treeLabel = useRef<HTMLDivElement | null>(null);
   const canvas = useRef<HTMLCanvasElement | null>(null);
   const [drive] = useState(createDrive);
+  const [cityTimezone, setCityTimezone] = useState<string | null>(null);
+  const [cityAtmosphere, setCityAtmosphere] = useState<CityAtmosphere | null>(null);
   const [pineWeather, setPineWeather] = useState<PineWeather>("rain");
   const [stationStatus, setStationStatus] = useState<string | null>(null);
   const [diagnostics] = useState(createDiagnostics);
@@ -54,6 +61,8 @@ export default function NightLine() {
     [route, setRoute] = useState<EnvironmentName>("forest"),
     [radio, setRadio] = useState<NightRadio | null>(null);
   const [seat, setSeat] = usePreference("seat"),
+    [trainType, setTrainType] = usePreference("train"),
+    [seatDirection, setSeatDirection] = usePreference("seatDirection"),
     [windowState, setWindow] = usePreference("window"),
     [unit, setUnit] = usePreference("distanceUnit"),
     [devKit, setDevKit] = usePreference("devKit");
@@ -61,8 +70,10 @@ export default function NightLine() {
     [aboutOpen, setAboutOpen] = useState(false);
   const [ankiOpen, setAnkiOpen] = useState(false);
   const settings = useRef<SceneSettings>({
+    trainType: "classic",
     mode: "auto",
     seat: "left",
+    seatDirection: "forward",
     windowOpen: false,
     distanceUnit: "mi",
     journey: null,
@@ -82,8 +93,12 @@ export default function NightLine() {
   const authAction = useAsyncAction();
   useEffect(() => {
     settings.current = {
+      trainType,
       mode,
+      cityAtmosphere,
+      cityTimezone,
       seat,
+      seatDirection,
       windowOpen: windowState === "open",
       gardenView,
       distanceUnit: unit,
@@ -91,8 +106,12 @@ export default function NightLine() {
       currentMiles: room.currentMiles,
     };
   }, [
+    trainType,
     mode,
+    cityAtmosphere,
+    cityTimezone,
     seat,
+    seatDirection,
     windowState,
     gardenView,
     unit,
@@ -300,9 +319,11 @@ export default function NightLine() {
             onClick={() => setAnkiOpen(true)}>
             <AnkiIcon />
           </button>
+          <TrainPicker value={trainType} onChange={setTrainType} />
           <SceneryPicker
             value={mode}
             pineWeather={pineWeather}
+            cityWeather={cityAtmosphere ? `${weatherDescription(cityAtmosphere.weather.current.code)} · ${cityAtmosphere.city.name}` : undefined}
             onChange={(nextMode) => {
               if (nextMode === "tunnel")
                 drive.progress = tunnelApproach(drive.progress);
@@ -310,15 +331,21 @@ export default function NightLine() {
             }}
           />
           <AccountMenu
+            weatherEnabled={started}
+            onAtmosphere={setCityAtmosphere}
+            onCityTimezone={setCityTimezone}
             room={room}
             seat={seat}
             onSeat={setSeat}
+            seatDirection={seatDirection}
+            onSeatDirection={setSeatDirection}
             windowOpen={windowState === "open"}
             onWindow={() =>
               setWindow(windowState === "open" ? "closed" : "open")
             }
             unit={unit}
             onUnit={setUnit}
+            devKitEnabled={devKitEnabled}
             devKit={devKit === "on"}
             onDevKit={() => setDevKit(devKit === "on" ? "off" : "on")}
             onEditName={() => setDialog("rider-name")}
@@ -421,7 +448,7 @@ export default function NightLine() {
         </div>
         <div className="dash-route">
           <span id="route-name">
-            {
+            {cityAtmosphere && route === "forest" ? "THE PINES" :
               (route === "forest"
                 ? pineEnvironment(pineWeather)
                 : ENVIRONMENTS[route]
@@ -430,7 +457,7 @@ export default function NightLine() {
           </span>
           <i aria-hidden="true">·</i>
           <span id="route-weather">
-            {
+            {cityAtmosphere ? `${cityAtmosphere.city.name} · ${localTime(room.now, cityAtmosphere.city.timezone)} · ${weatherDescription(cityAtmosphere.weather.current.code)}` :
               (route === "forest"
                 ? pineEnvironment(pineWeather)
                 : ENVIRONMENTS[route]
@@ -449,7 +476,7 @@ export default function NightLine() {
       />
       <AboutPanel open={aboutOpen} onClose={() => setAboutOpen(false)} />
       {started && <AnkiStudy open={ankiOpen} onClose={() => setAnkiOpen(false)} />}
-      {started && devKit === "on" && (
+      {devKitEnabled && started && devKit === "on" && (
         <DevKit probe={diagnostics} onClose={() => setDevKit("off")} />
       )}
       {error && (

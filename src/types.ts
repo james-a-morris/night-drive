@@ -1,12 +1,15 @@
+import type { CityPreferences } from "./city-preferences.ts";
 import type { TreeGarden } from "./tree-varieties.ts";
 export type DistanceUnit = "mi" | "km";
 export type Seat = "left" | "right";
+export type SeatDirection = "forward" | "backward";
 export type JourneyDialog = "account" | "intention" | "rider-name" | null;
 export interface Intention {
   intention: string | null;
   intentionExpiresAt: number | null;
 }
 export interface RiderProfile extends Intention {
+  citySync: CityPreferences | null;
   id: string;
   name: string;
   totalMiles: number;
@@ -55,6 +58,7 @@ export interface HarvestResult {
   serverTime: number;
 }
 export type ProfileAction =
+  | { action: "city-sync"; ownerId: string; preferences: CityPreferences; initializeOnly?: boolean }
   | { action: "intention"; intention: string; expiresInHours: number }
   | { action: "rider-name"; name: string }
   | { action: "clear-intention" };

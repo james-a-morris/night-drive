@@ -9,6 +9,7 @@ export interface Store {
   close(): void | Promise<void>;
 }
 export interface ProfileRow {
+  city_preferences: string | null;
   id: string;
   clerk_user_id: string | null;
   name: string;

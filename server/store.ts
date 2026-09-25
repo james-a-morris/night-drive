@@ -10,6 +10,7 @@ const schema = `
     name TEXT NOT NULL,
     intention TEXT,
     intention_expires_at BIGINT,
+    city_preferences TEXT,
     total_metres DOUBLE PRECISION NOT NULL DEFAULT 0,
     last_mileage_at BIGINT NOT NULL,
     last_seen BIGINT NOT NULL,
@@ -67,6 +68,7 @@ export async function createStore({
       connectionTimeoutMillis: 8000,
     });
     await pool.query(schema);
+    await pool.query("ALTER TABLE road_profiles ADD COLUMN IF NOT EXISTS city_preferences TEXT");
     await pool.query(
       "ALTER TABLE journeys ADD COLUMN IF NOT EXISTS credited_metres DOUBLE PRECISION NOT NULL DEFAULT 0",
     );
@@ -112,6 +114,9 @@ export async function createStore({
     "PRAGMA journal_mode = WAL; PRAGMA foreign_keys = ON; PRAGMA busy_timeout = 5000;",
   );
   database.exec(schema);
+  if (!database.prepare("PRAGMA table_info(road_profiles)").all().some(column => column.name === "city_preferences")) {
+    database.exec("ALTER TABLE road_profiles ADD COLUMN city_preferences TEXT");
+  }
   if (
     !database
       .prepare("PRAGMA table_info(road_profiles)")

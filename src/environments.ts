@@ -24,6 +24,8 @@ export interface Environment {
   fogDensity: number;
   particles: { rain: number; snow: number; dust: number };
   starOpacity: number;
+  daylight?: number;
+  cloudCover?: number;
   windowRain: number;
   audio: { weatherGain: number; filterHz: number; surfGain: number };
   wildlife: string;
@@ -271,13 +273,18 @@ export function dominantEnvironment(weights: EnvironmentWeights) {
   );
 }
 
+export type EnvironmentSource = Environment | Record<EnvironmentName, Environment>;
+export function environmentFrom(name: EnvironmentName, source: EnvironmentSource): Environment {
+  return "forest" in source ? source[name] : name === "forest" ? source : ENVIRONMENTS[name];
+}
+
 export function blendEnvironment(
   weights: EnvironmentWeights,
   value: (environment: Environment) => number,
-  forest: Environment = ENVIRONMENTS.forest,
+  forest: EnvironmentSource = ENVIRONMENTS.forest,
 ) {
   return environmentNames.reduce(
-    (sum, name) => sum + weights[name] * value(name === "forest" ? forest : ENVIRONMENTS[name]),
+    (sum, name) => sum + weights[name] * value(environmentFrom(name, forest)),
     0,
   );
 }

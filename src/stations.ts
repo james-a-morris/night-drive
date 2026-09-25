@@ -12,7 +12,8 @@ export function createStations(world: THREE.Group, scope: Lifecycle) {
   const root = new THREE.Group(); root.name = "wayside-station"; world.add(root);
   let current = "";
   let clockMinute = -1;
-  let updateClock: ((now: Date) => void) | undefined;
+  let clockTimezone: string | undefined;
+  let updateClock: ((now: Date, timezone?: string) => void) | undefined;
   function clear() {
     const resources = new Set<{ dispose(): void }>();
     root.traverse(object => {
@@ -29,7 +30,9 @@ export function createStations(world: THREE.Group, scope: Lifecycle) {
   function build(stop: StationStop, mode: SceneryMode) {
     clear(); root.userData.station = stop;
     const solid: THREE.BufferGeometry[] = [], glowing: THREE.BufferGeometry[] = [];
-    const snow = environmentWeights(stop.at, mode).alpine > 0.5;
+    const weights = environmentWeights(stop.at, mode);
+    const snow = weights.alpine > 0.5;
+    const coast = weights.coast > 0.5;
     const roof = snow ? 0xcbd6d2 : 0x485e58, wood = 0x7b7057, cream = 0xc0b799;
     function paint(geometry: THREE.BufferGeometry, hex: number, bucket = solid) {
       const color = new THREE.Color(hex), colors = new Float32Array(geometry.attributes.position.count * 3);
@@ -64,39 +67,89 @@ export function createStations(world: THREE.Group, scope: Lifecycle) {
     // Closed platforms follow the railway. All fixed detail is merged into
     // two meshes, with eight simple signs and clocks; there are no extra lights or shaders.
     for (const side of [-1, 1]) {
+      // Keep the seaside halt on the shoulder, before the land falls away.
+      // A full-width platform here reads as a concrete pier over the beach.
+      const seaside = coast && side === -1;
+      const outer = seaside ? 9.8 : 16.5;
       // Bury the retaining walls in the actual bank, including the coastal slope.
       let foundation = -.35;
       for (let offset = -30; offset <= 96; offset += 3) {
-        const point = roadPoint(stop.at + offset, side * 16.5);
+        const point = roadPoint(stop.at + offset, side * outer);
         foundation = Math.min(foundation, terrainSurfaceHeight(point.x, point.z, mode) - .25);
       }
-      slab(-30, 96, side, 3.58, 16.5, foundation, .65, 0x646558);
-      slab(-30, 96, side, 3.5, 16.5, .65, .74, 0x686b60);
+      if (seaside) {
+        // The approach exposes the underside. Use a light boardwalk on piles,
+        // not a retaining block extending down to the lowest point of the bank.
+        slab(-30, 96, side, 3.58, outer, .52, .74, 0x756e5b);
+        for (let offset = -30; offset <= 96; offset += 6) {
+          const at = stop.at + offset;
+          for (const lateral of [4.5, outer - .55]) {
+            const point = roadPoint(at, side * lateral);
+            const bottom = Math.min(0, terrainSurfaceHeight(point.x, point.z, mode)) - .3;
+            box(at, side * lateral, (bottom + .57) / 2, .28, .57 - bottom, .28, wood);
+          }
+          box(at, side * ((3.58 + outer) / 2), .45, outer - 3.58, .2, .24, wood);
+        }
+      } else {
+        slab(-30, 96, side, 3.58, outer, foundation, .65, 0x646558);
+        slab(-30, 96, side, 3.5, outer, .65, .74, 0x686b60);
+      }
       const paving = snow ? [0xb1b6ac, 0xa9afa6, 0xb7b9ad, 0xaeb2a8]
         : [0x939080, 0x8e8c7d, 0x999585, 0x908f80];
+      const decking = [0x9b9683, 0xa49d89, 0x969381, 0xaaa18c];
       for (let offset = -30; offset < 96; offset += 3) {
-        for (let row = 0; row < 5; row++) {
-          const inner = 4.04 + row * 2.42;
-          const color = paving[((offset + 30) / 3 * 7 + row * 3) % paving.length];
-          slab(offset + .018, offset + 2.982, side, inner, inner + 2.395, .735, .8, color);
+        if (seaside) {
+          for (let board = 0; board < 4; board++) {
+            const start = offset + board * .75;
+            slab(start + .012, start + .738, side, 4.04, outer - .33, .735, .8,
+              decking[((offset + 30) / 3 + board) % decking.length]);
+          }
+        } else {
+          for (let row = 0; row < 5; row++) {
+            const inner = 4.04 + row * 2.42;
+            const color = paving[((offset + 30) / 3 * 7 + row * 3) % paving.length];
+            slab(offset + .018, offset + 2.982, side, inner, inner + 2.395, .735, .8, color);
+          }
         }
         // The coping overhang leaves a dark lip above coursed masonry.
         slab(offset + .014, offset + 2.986, side, 3.46, 4.015, .66, .825, cream);
-        slab(offset + .018, offset + 2.982, side, 16.17, 16.56, .69, .87, 0xa5a38e);
-        for (const y of [.17, .4]) {
-          slab(offset, offset + 3, side, 3.573, 3.59, y, y + .025, 0x858474);
-        }
-        for (const [shift, bottom, top] of [[0, .195, .4], [1.5, .425, .64]]) {
-          slab(offset + shift, offset + shift + .028, side, 3.573, 3.59, bottom, top, 0x858474);
+        slab(offset + .018, offset + 2.982, side, outer - .33, outer + .06, .69, .87, 0xa5a38e);
+        if (!seaside) {
+          for (const y of [.17, .4]) {
+            slab(offset, offset + 3, side, 3.573, 3.59, y, y + .025, 0x858474);
+          }
+          for (const [shift, bottom, top] of [[0, .195, .4], [1.5, .425, .64]]) {
+            slab(offset + shift, offset + shift + .028, side, 3.573, 3.59, bottom, top, 0x858474);
+          }
         }
       }
       for (const end of [-30, 95.58]) {
-        slab(end, end + .42, side, 3.46, 16.56, .65, .825, cream);
+        slab(end, end + .42, side, 3.46, outer + .06, .65, .825, cream);
       }
       for (let step = 0; step < 3; step++) {
         const height = .6 - step * .2;
-        slab(-30 - (step + 1) * .48, -30 - step * .48, side, 12.3, 15.6, foundation, height, 0xa29c85);
-        slab(96 + step * .48, 96 + (step + 1) * .48, side, 12.3, 15.6, foundation, height, 0xa29c85);
+        const inner = seaside ? 5.8 : 12.3, edge = seaside ? 8.8 : 15.6;
+        slab(-30 - (step + 1) * .48, -30 - step * .48, side, inner, edge, foundation, height, 0xa29c85);
+        slab(96 + step * .48, 96 + (step + 1) * .48, side, inner, edge, foundation, height, 0xa29c85);
+      }
+      if (seaside) {
+        // Open timber rails frame the water without blocking the seated view.
+        const fence = 0xa9ac9a;
+        for (let offset = -30; offset <= 96; offset += 6) {
+          box(stop.at + offset, side * (outer - .16), 1.36, .16, 1.12, .16, fence);
+          box(stop.at + offset, side * (outer - .16), 1.94, .22, .08, .22, cream);
+        }
+        for (const y of [1.22, 1.78]) {
+          slab(-30, 96, side, outer - .22, outer - .1, y, y + .12, fence, 1);
+          for (const end of [-30, 95.84]) {
+            for (const [inner, edge] of [[3.65, 5.65], [8.95, outer - .1]]) {
+              slab(end, end + .16, side, inner, edge, y, y + .12, fence);
+            }
+          }
+        }
+        for (const end of [-30, 96]) for (const lateral of [3.73, 5.57, 9.03]) {
+          box(stop.at + end, side * lateral, 1.36, .16, 1.12, .16, fence);
+        }
       }
       // A pitched roof with a real soffit and closed gables, joined continuously
       // through bends. Fascias, rafters and knee braces carry it down to the deck.
@@ -131,7 +184,7 @@ export function createStations(world: THREE.Group, scope: Lifecycle) {
     }
     // Brick booking hall beside the boarding window, with a second hall on
     // the inland platform. Pitched roofs, cream quoins and tall sash windows.
-    const sides = environmentWeights(stop.at, mode).coast > .5 ? [1] : [-1, 1];
+    const sides = coast ? [1] : [-1, 1];
     for (const side of sides) {
       const at = stop.at + 15;
       const frame = roadFrame(at), origin = roadPoint(at, side * 12.1);
@@ -182,11 +235,11 @@ export function createStations(world: THREE.Group, scope: Lifecycle) {
       ctx.strokeRect(x - 48, 119, 96, 96); ctx.font = "bold 64px Georgia"; ctx.fillText(String(number), x, 173);
     }
     const texture = new THREE.CanvasTexture(canvas); texture.colorSpace = THREE.SRGBColorSpace;
-    updateClock = (now) => {
+    updateClock = (now, timezone) => {
       ctx.fillStyle = "#ece7ce"; ctx.beginPath(); ctx.arc(390,174,60,0,Math.PI*2); ctx.fill();
       ctx.strokeStyle = "#354e43"; ctx.lineWidth = 4;
       for (let tick=0;tick<12;tick++) {const a=tick*Math.PI/6;ctx.beginPath();ctx.moveTo(390+Math.sin(a)*49,174-Math.cos(a)*49);ctx.lineTo(390+Math.sin(a)*55,174-Math.cos(a)*55);ctx.stroke();}
-      const hands = stationClockHands(now);
+      const hands = stationClockHands(now, timezone);
       for (const [angle, length] of [[hands.hour, 31], [hands.minute, 44]]) {
         ctx.beginPath(); ctx.moveTo(390,174);
         ctx.lineTo(390+Math.sin(angle)*length,174-Math.cos(angle)*length);ctx.stroke();
@@ -233,13 +286,15 @@ export function createStations(world: THREE.Group, scope: Lifecycle) {
       parts.forEach(part => part.dispose()); root.add(mesh);
     }
   }
-  return { root, update(progress: number, mode: SceneryMode) {
+  return { root, update(progress: number, mode: SceneryMode, timezone?: string) {
     const stop = stationsNear(progress).find(candidate => Math.abs(candidate.at - progress) < 360 && stationAvailable(candidate.at, mode));
     root.visible = !!stop;
     if (!stop) return;
     const key = `${stop.index}:${mode}`;
     if (key !== current) { current = key; build(stop, mode); }
     const now = Date.now(), minute = Math.floor(now / 60000);
-    if (minute !== clockMinute) { clockMinute = minute; updateClock?.(new Date(now)); }
+    if (minute !== clockMinute || timezone !== clockTimezone) {
+      clockMinute = minute; clockTimezone = timezone; updateClock?.(new Date(now), timezone);
+    }
   }};
 }

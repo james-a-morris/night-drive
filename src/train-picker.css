@@ -1,0 +1,51 @@
+.train-control { position:relative; flex:none; }
+.train-control [hidden] { display:none; }
+.train-art { display:block; width:100%; height:100%; }
+.train-trigger { display:flex; align-items:center; gap:5px; min-height:38px; padding:4px 8px 4px 5px; border:1px solid #dce1dc33; border-radius:22px; color:#d9dece; background:#243a36dd; box-shadow:inset 0 1px 0 #ffffff0a; backdrop-filter:blur(16px); cursor:pointer; }
+.train-trigger:hover,.train-trigger[aria-expanded="true"] { border-color:#d8be8b80; background:#31443ce8; }
+.train-current-preview { display:block; width:38px; height:26px; border-radius:5px; overflow:hidden; }
+.train-chevron { width:11px; height:11px; transition:transform .2s; }
+.train-chevron,.train-check { fill:none; stroke:currentColor; stroke-width:1.5; stroke-linecap:round; stroke-linejoin:round; }
+.train-trigger[aria-expanded="true"] .train-chevron { transform:rotate(180deg); }
+.train-menu { position:absolute; top:calc(100% + 13px); right:0; width:344px; padding:8px; border:1px solid #ced8bd2e; border-radius:17px; background:linear-gradient(145deg,#2c4039fa,#172b28fa); box-shadow:0 20px 60px #07161266,inset 0 1px 0 #ffffff08; backdrop-filter:blur(28px); transform-origin:top right; animation:train-menu-in .2s ease-out; }
+.train-menu-heading { margin:10px 10px 13px; color:#b9c4ad; font:var(--text-label) var(--font-ui); letter-spacing:.16em; }
+.train-options { display:grid; gap:5px; max-height:calc(100dvh - 155px); overflow:auto; }
+.train-option { display:flex; align-items:center; gap:12px; width:100%; padding:10px; min-height:80px; border:1px solid transparent; border-radius:11px; color:#ece5d4; background:transparent; text-align:left; cursor:pointer; }
+.train-option:hover,.train-option:focus-visible { background:#ffffff08; outline:1px solid #d8c7a35c; outline-offset:-2px; }
+.train-option[aria-selected="true"] { border-color:#dfc29350; background:#e0bd8010; }
+.train-preview { width:86px; height:52px; flex:none; border:1px solid #ffffff14; border-radius:8px; overflow:hidden; transition:transform .25s ease,border-color .25s ease; }
+.train-option:hover .train-preview,.train-option:focus-visible .train-preview { transform:translateY(-1px); border-color:#e2c99e55; }
+.train-option-copy { display:grid; gap:6px; flex:1; }
+.train-option-name { font:500 var(--text-body)/1.3 var(--font-ui); }
+.train-option-description { color:#adbaa8; font:var(--text-label)/1.5 var(--font-ui); }
+.train-check { width:16px; height:16px; flex:none; color:#e2c99e; opacity:0; }
+.train-option[aria-selected="true"] .train-check { opacity:1; }
+.train-trigger:focus-visible { outline:2px solid #dfc293; outline-offset:3px; }
+.train-illustration { animation:train-sway 4.8s ease-in-out infinite; }
+.train-window-glow { animation:train-window-glow 5s ease-in-out infinite alternate; }
+.train-svg-wheel { transform-box:fill-box; transform-origin:center; animation:train-wheel-turn 16s linear infinite; }
+.train-svg-steam circle { animation:train-steam-rise 5s ease-out infinite; }
+.train-svg-steam circle:nth-child(2) { animation-delay:-1.7s; }
+.train-svg-steam circle:nth-child(3) { animation-delay:-3.4s; }
+@keyframes train-menu-in { from { opacity:0; transform:translateY(-4px); } to { opacity:1; transform:none; } }
+@keyframes train-sway { 0%,100% { transform:translateY(0); } 50% { transform:translateY(.55px); } }
+@keyframes train-window-glow { from { opacity:.75; } to { opacity:1; } }
+@keyframes train-wheel-turn { to { transform:rotate(-360deg); } }
+@keyframes train-steam-rise { 0% { opacity:0; transform:translate(0,2px); } 25% { opacity:.8; } 100% { opacity:0; transform:translate(5px,-5px); } }
+@media(max-width:650px) {
+  .train-control { position:static; }
+  .train-trigger { width:40px; height:36px; min-height:36px; padding:4px; justify-content:center; }
+  .train-current-preview { width:30px; height:24px; }
+  .train-chevron { display:none; }
+  .train-menu { top:calc(100% + 12px); right:12px; width:min(344px,calc(100vw - 24px)); }
+}
+@media(max-width:380px) {
+  .topbar:has(.train-control) nav { gap:5px; }
+  .topbar:has(.train-control) .brand { grid-template-columns:auto; }
+  .topbar:has(.train-control) .brand-emblem { display:none; }
+  .topbar:has(.train-control) .brand-wordmark { grid-column:1; }
+}
+@media(prefers-reduced-motion:reduce) {
+  .train-menu,.train-art * { animation:none; }
+  .train-chevron,.train-preview { transition:none; }
+}

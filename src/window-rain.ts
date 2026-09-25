@@ -6,10 +6,10 @@ const RAIN_LAYER = 1;
 const vertexShader = `
   varying vec2 glassPosition;
   void main() {
-    // The top of a lowering pane stays attached to the same part of the glass.
+    // The bottom of a rising pane stays attached to the same part of the glass.
     // Account for its visible height so opening it never squashes the water.
     glassPosition = vec2(position.x,
-      (position.y - 0.825) * length(modelMatrix[1].xyz) + 0.825);
+      (position.y + 0.825) * length(modelMatrix[1].xyz) - 0.825);
     gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
   }
 `;

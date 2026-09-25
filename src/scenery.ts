@@ -1,6 +1,7 @@
-import { NIGHT_PINES } from "./pine-weather.ts";
+import { environmentFrom } from "./environments.ts";
+import type { EnvironmentSource } from "./environments.ts";
 import type { Lifecycle } from "./lifecycle.ts";
-import type { Environment, EnvironmentWeights, SceneryMode } from "./environments.ts";
+import type { EnvironmentWeights, SceneryMode } from "./environments.ts";
 import * as THREE from "./three.ts";
 import { roadFrame, roadPoint, SEGMENT_LENGTH } from "./drive.ts";
 import {
@@ -79,17 +80,17 @@ const palette = Object.fromEntries(
   ]),
 );
 
-const nightPalette = Object.fromEntries(colorKeys.map(key => [key, new THREE.Color(NIGHT_PINES[key])]));
+const atmosphereColor = new THREE.Color();
 
 function blendColor(
   target: THREE.Color,
   weights: EnvironmentWeights,
   key: (typeof colorKeys)[number],
-  starry = false,
+  atmosphere?: EnvironmentSource,
 ) {
   target.setRGB(0, 0, 0);
   for (const name of environmentNames) {
-    const color = name === "forest" && starry ? nightPalette[key] : palette[name][key];
+    const color = atmosphere ? atmosphereColor.setHex(environmentFrom(name, atmosphere)[key]) : palette[name][key];
     target.r += color.r * weights[name];
     target.g += color.g * weights[name];
     target.b += color.b * weights[name];
@@ -789,6 +790,7 @@ export function createScenery(scene: THREE.Scene, scope: Lifecycle) {
     movement: number,
     dt: number,
     mode: SceneryMode,
+    cityTimezone?: string,
   ) {
     const frame = roadFrame(progress);
     world.position.set(-frame.x, 0, progress);
@@ -797,7 +799,7 @@ export function createScenery(scene: THREE.Scene, scope: Lifecycle) {
     nature.update(progress, dt, mode);
     tumbleweeds.update(progress, dt, mode);
     settlements.update(progress, mode, modeChanged, dt);
-    stations.update(progress, mode);
+    stations.update(progress, mode, cityTimezone);
     landmarks.update(progress, dt, mode, modeChanged);
     for (const segment of segments) {
       const start = recycleStation(
@@ -822,19 +824,18 @@ export function createScenery(scene: THREE.Scene, scope: Lifecycle) {
     eye: THREE.Vector3,
     dt: number,
     mode: SceneryMode,
-    forest: Environment = ENVIRONMENTS.forest,
+    forest: EnvironmentSource = ENVIRONMENTS.forest,
   ) {
-    const starry = forest === NIGHT_PINES;
     const { weights, enclosure } = lighting.update(progress, eye.x, eye.z, dt, mode);
-    blendColor(skyMaterial.uniforms.top.value, weights, "sky", starry);
-    blendColor(skyMaterial.uniforms.horizon.value, weights, "horizon", starry);
-    blendColor(scene.fog!.color, weights, "fog", starry).lerp(
+    blendColor(skyMaterial.uniforms.top.value, weights, "sky", forest);
+    blendColor(skyMaterial.uniforms.horizon.value, weights, "horizon", forest);
+    blendColor(scene.fog!.color, weights, "fog", forest).lerp(
       palette.tunnel.fog,
       enclosure,
     );
     (scene.background as THREE.Color).copy(scene.fog!.color);
-    blendColor(moonlight.color, weights, "light", starry);
-    hemisphere.color.copy(blendColor(targetColor, weights, "light", starry));
+    blendColor(moonlight.color, weights, "light", forest);
+    hemisphere.color.copy(blendColor(targetColor, weights, "light", forest));
     (scene.fog as THREE.FogExp2).density = blendEnvironment(
       weights,
       (environment) => environment.fogDensity,
@@ -848,17 +849,21 @@ export function createScenery(scene: THREE.Scene, scope: Lifecycle) {
       (environment) => environment.starOpacity,
       forest,
     );
-    hemisphere.intensity = 1.6 * (1 - enclosure * 0.84);
-    moonlight.intensity = 1.8 * (1 - enclosure);
-    moon.visible = enclosure < 0.05;
+    const daylight = blendEnvironment(weights, environment => environment.daylight ?? 0, forest);
+    const cloudCover = blendEnvironment(weights, environment => environment.cloudCover ?? 0, forest);
+    const citySynced = "forest" in forest;
+    const sunBlend = citySynced ? daylight : weights.coast;
+    hemisphere.intensity = (1.6 + daylight * .6) * (1 - enclosure * 0.84);
+    moonlight.intensity = (1.8 + daylight * 1.2) * (1 - cloudCover * .65) * (1 - enclosure);
+    moon.visible = enclosure < 0.05 && cloudCover < .7;
     starMaterial.opacity *= 1 - enclosure;
-    moon.position.lerpVectors(moonPosition, coastSunPosition, weights.coast);
-    moon.scale.setScalar(1 + weights.coast * 0.45);
-    moonMaterial.color.copy(nightMoonColor).lerp(coastSunColor, weights.coast);
+    moon.position.lerpVectors(moonPosition, coastSunPosition, sunBlend);
+    moon.scale.setScalar(1 + sunBlend * 0.45);
+    moonMaterial.color.copy(nightMoonColor).lerp(coastSunColor, sunBlend);
     moonlight.position.lerpVectors(
       nightLightPosition,
       coastSunPosition,
-      weights.coast,
+      sunBlend,
     );
   }
 

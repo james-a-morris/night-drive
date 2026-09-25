@@ -71,3 +71,18 @@ test('departure bell schedules two gentle notes and releases every voice', () =>
   for(const node of nodes){assert.ok(node.end-node.at<1.5);node.onended();assert.ok(node.disconnected)}
   assert.equal(voices.size,0);audio.state='suspended';playDepartureChime(audio,{},voices);assert.equal(voices.size,0);
 });
+
+
+test('station clock sync follows city timezone offsets and DST, then restores browser time', () => {
+  const winter = new Date('2026-01-01T12:00:00Z');
+  const summer = new Date('2026-07-01T12:00:00Z');
+  assert.equal(stationClockHands(winter, 'Europe/London').hour, 0);
+  assert.equal(stationClockHands(summer, 'Europe/London').hour, Math.PI / 6);
+  const nepal = stationClockHands(summer, 'Asia/Kathmandu');
+  assert.equal(nepal.minute, 45 / 60 * Math.PI * 2);
+  assert.equal(nepal.hour, 5.75 / 12 * Math.PI * 2);
+  assert.equal(stationClockHands(summer, 'Pacific/Kiritimati').hour, 2 / 12 * Math.PI * 2);
+  // Same instant: changing the city must not retain a cached previous timezone.
+  assert.equal(stationClockHands(summer, 'America/New_York').hour, 8 / 12 * Math.PI * 2);
+  assert.equal(stationClockHands(summer).hour, (summer.getHours() % 12) / 12 * Math.PI * 2);
+});

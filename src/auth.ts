@@ -177,7 +177,43 @@ export function observeAuth(
   });
 }
 
-export const manageAccount = () => clerk?.openUserProfile();
+export const manageAccount = () => clerk?.openUserProfile({
+  customPages: [{ label: "account" }, { label: "security" }, {
+    label: "Sign out",
+    url: "sign-out",
+    mount(element) {
+      element.innerHTML = `
+        <section class="night-account-sign-out" aria-labelledby="account-sign-out-title">
+          <h2 id="account-sign-out-title">Sign out</h2>
+          <p>Your progress will be here when you return.</p>
+          <button class="night-auth-primary" type="button">Sign out</button>
+          <p class="form-error" role="alert"></p>
+        </section>`;
+      const button = element.querySelector("button")!;
+      const error = element.querySelector<HTMLElement>('[role="alert"]')!;
+      button.onclick = async () => {
+        if (button.disabled) return;
+        button.disabled = true;
+        button.textContent = "Signing out…";
+        error.textContent = "";
+        try {
+          await signOut();
+          clerk?.closeUserProfile?.();
+        } catch {
+          error.textContent = "Couldn’t sign out. Please try again.";
+        } finally {
+          button.disabled = false;
+          button.textContent = "Sign out";
+        }
+      };
+    },
+    unmount: (element) => element.replaceChildren(),
+    mountIcon(element) {
+      element.innerHTML = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 4H5a1 1 0 0 0-1 1v14a1 1 0 0 0 1 1h4M10 12h10m-4-4 4 4-4 4" /></svg>`;
+    },
+    unmountIcon: (element) => element.replaceChildren(),
+  }],
+});
 export const signOut = () => clerk!.signOut();
 
 // Room requests wait for sign-in to finish loading, so a signed-in reload is

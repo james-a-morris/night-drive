@@ -1,19 +1,26 @@
+import type { EnvironmentSource } from "./environments.ts";
 import type { TreeGardenController } from "./tree-garden.ts";
 import { blendEnvironment } from "./environments.ts";
 import { radialTexture } from "./textures.ts";
 import type { Lifecycle } from "./lifecycle.ts";
-import type { Environment, EnvironmentWeights } from "./environments.ts";
+import type { EnvironmentWeights } from "./environments.ts";
 import type { SceneSettings } from "./main.ts";
 type XYZ = [number, number, number];
 import { reducedMotion } from "./motion.ts";
 import * as THREE from "./three.ts";
 import { createWindowRain } from "./window-rain.ts";
 import { createPottedTree } from "./potted-tree.ts";
+import { createCabinSurrounds } from "./cabin-surrounds.ts";
+import { createCabinStyleDetails } from "./cabin-styles.ts";
+import { TRAIN_PALETTES, type TrainType } from "./train-types.ts";
+import { advanceWindowSlide, createWindowSlide } from "./window-motion.ts";
+import { createWindowHandle } from "./window-handle.ts";
 import { mergeStaticMeshes } from "./static-meshes.ts";
 
 export function createStudyCabin(scope: Lifecycle, garden: TreeGardenController) {
   const rig = new THREE.Group();
   rig.name = "train-study-cabin";
+  rig.userData.trainType = "classic";
   const nook = new THREE.Group();
   rig.add(nook);
   const material = (
@@ -35,7 +42,7 @@ export function createStudyCabin(scope: Lifecycle, garden: TreeGardenController)
   fabric.wrapS = fabric.wrapT = THREE.RepeatWrapping;
   fabric.repeat.set(5, 5);
   const upholstery = material(0xa29377, { bumpMap: fabric, bumpScale: 0.0015 });
-  const headliner = material(0x80725c, { bumpMap: fabric, bumpScale: 0.001 });
+  const headliner = material(0xb7aa8c, { bumpMap: fabric, bumpScale: 0.001 });
   const dash = material(0x9e8160, { bumpMap: fabric, bumpScale: 0.0008 });
   const walnut = material(0x72543e);
   const dark = material(0x3b4037);
@@ -44,6 +51,7 @@ export function createStudyCabin(scope: Lifecycle, garden: TreeGardenController)
   // Sample the painted material surfaces from the cabin artwork. The geometry
   // remains three dimensional; the painting supplies the warmth and grain.
   const paintedTextures: THREE.Texture[] = [];
+  scope.defer(() => paintedTextures.forEach(texture => texture.dispose()));
   const artwork = new THREE.TextureLoader().load(
     "/assets/train-cabin.png",
     () => {
@@ -159,17 +167,29 @@ export function createStudyCabin(scope: Lifecycle, garden: TreeGardenController)
 
   // A long observation carriage. The camera sits at a table facing forward,
   // with empty seats ahead and panoramic windows on both sides.
-  const seatFabric = material(0x597265, { bumpMap: fabric, bumpScale: 0.003 });
-  const seatPocket = material(0x969580);
-  softBox([4.25, 0.15, 31], [0, 0.73, -12], walnut, nook, 0.03);
+  const seatFabric = material(0x819583, { bumpMap: fabric, bumpScale: 0.003 });
+  const seatPocket = material(0x927252, { roughness: 0.78 });
+  const linen = material(0xd2c5a6, { bumpMap: fabric, bumpScale: 0.002 });
+  const panel = material(0x59665a, { roughness: 0.76 });
+  const piping = material(0xac9b75, { bumpMap: fabric, bumpScale: 0.001 });
+  const floor = walnut.clone();
+  const carpet = material(0x536052, { bumpMap: fabric, bumpScale: 0.002 });
+  const runner = material(0x8b9277, { bumpMap: fabric, bumpScale: 0.002 });
+  softBox([4.25, 0.15, 31], [0, 0.73, -12], floor, nook, 0.03);
   softBox([2.45, 0.12, 31], [0, 3.67, -12], headliner, nook, 0.04);
   softBox(
     [0.84, 0.012, 30],
     [0, 0.814, -12],
-    material(0x536052, { bumpMap: fabric, bumpScale: 0.002 }),
+    carpet,
     nook,
     0.004,
   );
+  // A woven border gives the aisle a quiet edge.
+  for (const side of [-1, 1]) {
+    softBox([0.035, 0.006, 30], [side * 0.39, 0.823, -12], piping, nook, 0.002);
+  }
+  const surrounds = createCabinSurrounds(nook, fabric, scope);
+  const styleDetails = createCabinStyleDetails(nook, headliner, scope);
   const windowRain = createWindowRain();
   scope.defer(() => windowRain.dispose());
   const roofGlass = new THREE.MeshBasicMaterial({
@@ -183,8 +203,17 @@ export function createStudyCabin(scope: Lifecycle, garden: TreeGardenController)
     side: number;
     near: boolean;
     glass: THREE.Mesh;
-    edge: THREE.Mesh;
+    glazing: THREE.Mesh;
+    edge: THREE.Group;
   }[] = [];
+  const windowHandles: ReturnType<typeof createWindowHandle>[] = [];
+  const clearGlass = new THREE.MeshBasicMaterial({
+    color: 0xb6c6bf, opacity: 0.04, transparent: true,
+    side: THREE.DoubleSide, depthWrite: false, forceSinglePass: true,
+  });
+  const glassRim = new THREE.MeshStandardMaterial({
+    color: 0x83988f, roughness: 0.88, metalness: 0.05,
+  });
   for (const side of [-1, 1]) {
     softBox(
       [0.15, 0.69, 30],
@@ -193,25 +222,12 @@ export function createStudyCabin(scope: Lifecycle, garden: TreeGardenController)
       nook,
       0.035,
     );
-    softBox([0.24, 0.08, 30], [side * 2.03, 1.51, -12], walnut, nook, 0.018);
-    softBox([0.13, 0.1, 30], [side * 2.08, 3.24, -12], walnut, nook, 0.02);
-    softBox([0.09, 0.07, 30], [side * 1.19, 3.61, -12], walnut, nook, 0.016);
+    softBox([0.07, 0.1, 30], [side * 2.015, 0.88, -12], walnut, nook, 0.016);
     for (let row = 0; row < 6; row++) {
       const z = -row * 4.8;
-      for (const end of [-2.36, 2.36]) {
-        softBox(
-          [0.13, 1.76, 0.09],
-          [side * 2.08, 2.37, z + end],
-          upholstery,
-          nook,
-          0.015,
-        );
-        beam(
-          [side * 2.08, 3.23, z + end],
-          [side * 1.2, 3.64, z + end],
-          0.045,
-          upholstery,
-        );
+      for (const offset of [-1.18, 1.18]) {
+        softBox([0.028, 0.43, 2.17], [side * 2.025, 1.18, z + offset], walnut, nook, 0.008);
+        softBox([0.02, 0.34, 2.04], [side * 2.002, 1.18, z + offset], panel, nook, 0.008);
       }
       const glass = mesh(
         new THREE.PlaneGeometry(4.6, 1.65),
@@ -220,14 +236,26 @@ export function createStudyCabin(scope: Lifecycle, garden: TreeGardenController)
       );
       glass.rotation.y = Math.PI / 2;
       glass.layers.set(windowRain.layer);
-      const edge = softBox(
-        [0.027, 0.022, 4.6],
-        [side * 2.05, 3.2, z],
-        brass,
-        nook,
-        0.005,
-      );
-      panes.push({ side, near: row === 0, glass, edge });
+      const glazing = mesh(glass.geometry, clearGlass, [side * 2.075, 2.375, z]);
+      glazing.rotation.y = Math.PI / 2;
+      const edge = new THREE.Group();
+      edge.position.set(side * 2.03, 1.55, z);
+      nook.add(edge);
+      if (row === 0) {
+        edge.name = `window-sash-${side < 0 ? "left" : "right"}`;
+        glazing.name = `window-glass-${side < 0 ? "left" : "right"}`;
+        softBox([0.058, 0.052, 4.45], [0, 0, 0], walnut, edge, 0.02);
+        // A single matte bead stays clear of the glass and wood, without
+        // overlapping hairline highlights that shimmer as the carriage moves.
+        softBox([0.016, 0.02, 4.39], [side * 0.032, 0.034, 0], glassRim, edge, 0.005);
+        const handle = createWindowHandle(side, scope);
+        edge.add(handle.group);
+        windowHandles.push(handle);
+      } else {
+        softBox([0.027, 0.022, 4.45], [0, 0, 0], brass, edge, 0.005);
+      }
+      mergeStaticMeshes(edge, [...edge.children], scope);
+      panes.push({ side, near: row === 0, glass, glazing, edge });
       const roofPane = new THREE.BufferGeometry();
       roofPane.setAttribute(
         "position",
@@ -267,11 +295,19 @@ export function createStudyCabin(scope: Lifecycle, garden: TreeGardenController)
       const back = softBox(
         [1.17, 1.04, 0.17],
         [0, 1.65, 0.3],
-        upholstery,
+        seatFabric,
         chair,
         0.075,
       );
       back.rotation.x = 0.09;
+      const backPanel = softBox([0.98, 0.79, 0.045], [0, 1.68, 0.401], seatFabric, chair, 0.02);
+      backPanel.rotation.x = 0.09;
+      // Piping, a linen headrest cover and a leather pocket finish the visible back.
+      for (const edge of [-1, 1]) {
+        beam([edge * 0.51, 1.25, 0.442], [edge * 0.51, 2.03, 0.372], 0.007, piping, chair);
+      }
+      const headrestCover = softBox([0.68, 0.27, 0.032], [0, 2.035, 0.407], linen, chair, 0.014);
+      headrestCover.rotation.x = 0.09;
       const cushion = softBox(
         [1.07, 0.94, 0.11],
         [0, 1.67, 0.2],
@@ -283,11 +319,14 @@ export function createStudyCabin(scope: Lifecycle, garden: TreeGardenController)
       softBox([0.97, 0.21, 0.2], [0, 2.1, 0.3], seatFabric, chair, 0.065);
       softBox(
         [0.7, 0.29, 0.025],
-        [0, 1.36, 0.4],
+        [0, 1.36, 0.457],
         seatPocket,
         chair,
         0.008,
       );
+      softBox([0.69, 0.018, 0.013], [0, 1.503, 0.478], piping, chair, 0.005);
+      // A quiet stitched seam across the headrest cloth.
+      softBox([0.58, 0.008, 0.009], [0, 1.929, 0.436], piping, chair, 0.003);
       for (const arm of [-1, 1]) {
         softBox([0.09, 0.07, 0.7], [arm * 0.64, 1.35, 0], walnut, chair, 0.028);
         beam(
@@ -301,6 +340,13 @@ export function createStudyCabin(scope: Lifecycle, garden: TreeGardenController)
     }
   softBox([4.24, 2.86, 0.18], [0, 2.17, -25.5], upholstery, nook, 0.03);
   softBox([0.96, 2.2, 0.07], [0, 1.94, -25.38], walnut, nook, 0.04);
+  for (const side of [-1, 1]) {
+    softBox([0.075, 2.3, 0.065], [side * 0.54, 1.98, -25.35], walnut, nook, 0.016);
+    softBox([1.25, 0.065, 0.06], [side * 1.31, 1.53, -25.35], walnut, nook, 0.012);
+    softBox([1.11, 0.55, 0.035], [side * 1.31, 1.17, -25.38], panel, nook, 0.014);
+  }
+  softBox([1.15, 0.1, 0.07], [0, 3.15, -25.35], walnut, nook, 0.02);
+  beam([0.34, 1.77, -25.28], [0.34, 1.96, -25.28], 0.018, brass);
   softBox(
     [0.64, 1.08, 0.025],
     [0, 2.2, -25.33],
@@ -318,42 +364,52 @@ export function createStudyCabin(scope: Lifecycle, garden: TreeGardenController)
     color: 0xffdda4,
     toneMapped: false,
   });
+  const fairyLights = new THREE.Group();
+  fairyLights.name = "classic-fairy-lights";
+  nook.add(fairyLights);
   for (const side of [-1, 1]) {
-    line(
-      [
-        [side * 1.92, 3.27, 2.3],
-        [side * 1.92, 3.22, -12],
-        [side * 1.92, 3.27, -25],
-      ],
-      0x756552,
-    );
-    for (let i = 0; i < 14; i++) {
-      const z = 1.8 - i * 1.9;
-      mesh(new THREE.SphereGeometry(0.018, 10, 8), bulbMaterial, [
-        side * 1.92,
-        3.19,
-        z,
-      ]);
-      const glow = new THREE.Sprite(
-        new THREE.SpriteMaterial({
-          map: haloTexture,
-          transparent: true,
-          opacity: 0.6,
-          depthWrite: false,
-          toneMapped: false,
-        }),
-      );
-      glow.position.set(side * 1.91, 3.19, z);
-      glow.scale.setScalar(0.26);
-      nook.add(glow);
+    for (let row = 0; row < 6; row++) {
+      const center = -row * 4.8;
+      line([
+        [side * 1.78, 3.16, center - 2.17],
+        [side * 1.78, 3.05, center],
+        [side * 1.78, 3.16, center + 2.17],
+      ], 0x756552, 1, fairyLights);
+      for (const offset of [-1.48, 0, 1.48]) {
+        const z = center + offset;
+        const y = 3.05 + 0.11 * Math.pow(offset / 2.17, 2);
+        mesh(new THREE.SphereGeometry(0.022, 10, 8), bulbMaterial, [side * 1.78, y - 0.012, z], fairyLights);
+        const glow = new THREE.Sprite(
+          new THREE.SpriteMaterial({
+            map: haloTexture,
+            transparent: true,
+            opacity: 0.5,
+            depthWrite: false,
+            toneMapped: false,
+          }),
+        );
+        glow.position.set(side * 1.765, y - 0.012, z);
+        glow.scale.setScalar(0.25);
+        fairyLights.add(glow);
+      }
     }
   }
+  mergeStaticMeshes(fairyLights, [...fairyLights.children], scope);
+  const classicLamps = new THREE.Group();
+  classicLamps.name = "classic-ceiling-lamps";
+  nook.add(classicLamps);
+  const ceilingLights: THREE.PointLight[] = [];
   for (const z of [-4, -11, -18]) {
-    softBox([0.34, 0.025, 0.19], [0, 3.59, z], bulbMaterial, nook, 0.008);
-    const light = new THREE.PointLight(0xffd2a0, 1.9, 7);
+    // Flush opal lamps sit in stepped timber and aged-brass housings.
+    softBox([0.78, 0.06, 0.5], [0, 3.573, z], walnut, classicLamps, 0.025);
+    softBox([0.64, 0.045, 0.38], [0, 3.527, z], brass, classicLamps, 0.02);
+    softBox([0.54, 0.065, 0.29], [0, 3.48, z], bulbMaterial, classicLamps, 0.028);
+    const light = new THREE.PointLight(0xffd2a0, 2.4, 7);
     light.position.set(0, 3.35, z);
     nook.add(light);
+    ceilingLights.push(light);
   }
+  mergeStaticMeshes(classicLamps, [...classicLamps.children], scope);
   const desk = new THREE.Group();
   desk.name = "study-table";
   nook.add(desk);
@@ -363,7 +419,7 @@ export function createStudyCabin(scope: Lifecycle, garden: TreeGardenController)
   softBox(
     [1.28, 0.013, 0.97],
     [-0.02, 1.435, -0.34],
-    material(0x8b9277, { bumpMap: fabric, bumpScale: 0.002 }),
+    runner,
     desk,
     0.004,
   );
@@ -468,11 +524,54 @@ export function createStudyCabin(scope: Lifecycle, garden: TreeGardenController)
   const deskLight = new THREE.PointLight(0xffcfa0, 0.7, 2.8);
   deskLight.position.set(-0.75, 2.35, -0.3);
   nook.add(deskLight);
-  const movingEdges = new Set(panes.map(pane => pane.edge));
-  const staticParts = nook.children.filter(child => child instanceof THREE.Mesh && !movingEdges.has(child));
+  // Sashes are separate groups; transparent glass also stays out of the batch.
+  const staticParts: THREE.Object3D[] = nook.children.filter(child => child instanceof THREE.Mesh);
   for (const child of nook.children) if (child.name === "empty-seat") staticParts.push(...child.children);
   mergeStaticMeshes(nook, staticParts, scope);
-  return { rig, nook, desk, spareTable, plant, tree, panes, windowRain, steamPuffs };
+  const woodMap = walnut.map, tableMap = dash.map;
+  let currentTrainType: TrainType = "classic";
+  function setTrainType(type: TrainType) {
+    if (type === currentTrainType) return;
+    currentTrainType = type;
+    rig.userData.trainType = type;
+    const palette = TRAIN_PALETTES[type], metro = type === "metro";
+    upholstery.color.set(palette.upholstery);
+    headliner.color.set(palette.ceiling);
+    seatFabric.color.set(palette.seat);
+    seatFabric.roughness = metro ? 0.6 : 0.9;
+    walnut.color.set(palette.wood);
+    dash.color.set(palette.desk);
+    floor.color.set(metro ? 0x47575d : palette.wood);
+    for (const [surface, source] of [[walnut, woodMap], [floor, woodMap], [dash, tableMap]] as const) {
+      const map = metro ? null : source;
+      if (surface.map !== map) { surface.map = map; surface.needsUpdate = true; }
+    }
+    walnut.metalness = metro ? 0.45 : 0;
+    brass.color.set(palette.brass);
+    brass.metalness = metro ? 0.65 : 0.3;
+    panel.color.set(palette.panel);
+    seatPocket.color.set(palette.pocket);
+    linen.color.set(palette.linen);
+    piping.color.set(palette.piping);
+    carpet.color.set(palette.carpet);
+    runner.color.set(palette.runner);
+    light.color.set(type === "classic" ? 0xffd6a6 : palette.light);
+    deskLight.color.set(type === "classic" ? 0xffcfa0 : palette.light);
+    for (const lamp of ceilingLights) {
+      lamp.color.set(palette.light);
+      lamp.position.y = type === "steam" ? 2.82 : 3.35;
+      lamp.intensity = type === "classic" ? 2.4 : 2.9;
+    }
+    for (const child of nook.children) if (child instanceof THREE.Mesh) {
+      if (child.material === roofGlass) child.visible = type === "classic";
+      if (child.material === seatPocket || child.material === linen) child.visible = !metro;
+    }
+    fairyLights.visible = classicLamps.visible = type === "classic";
+    surrounds.setTrainType(type);
+    styleDetails.setTrainType(type);
+    for (const handle of windowHandles) handle.setTrainType(type);
+  }
+  return { rig, nook, desk, spareTable, plant, tree, panes, windowRain, steamPuffs, setTrainType };
 }
 
 export function createCabinView({
@@ -490,7 +589,12 @@ export function createCabinView({
 }) {
   const { rig, nook, desk, spareTable, plant, panes, windowRain, steamPuffs } =
     cabin;
-  let openness = Number(getSettings().windowOpen);
+  const initialSettings = getSettings();
+  const initialSide = initialSettings.seat === "left" ? -1 : 1;
+  const slides = panes.map(pane => createWindowSlide(
+    pane.near && pane.side === initialSide && initialSettings.windowOpen,
+  ));
+  let windowSeat = initialSettings.seat;
   const eye = new THREE.Vector3(),
     target = new THREE.Vector3();
   const pointer = { x: 0, y: 0 },
@@ -551,8 +655,8 @@ export function createCabinView({
     pointer.x = pointer.y = 0;
   });
   return {
-    update(dt: number, weather: EnvironmentWeights, forest?: Environment) {
-      const { seat, windowOpen, gardenView } = getSettings();
+    update(dt: number, weather: EnvironmentWeights, forest?: EnvironmentSource) {
+      const { seat, seatDirection, windowOpen, gardenView } = getSettings();
       const side = seat === "left" ? 1 : -1;
       const portrait = innerWidth / innerHeight < 0.85;
       gaze.x += (pointer.x - gaze.x) * (1 - Math.exp(-dt * 2));
@@ -560,21 +664,29 @@ export function createCabinView({
       look.yaw += ((gardenView ? -side * 0.98 : drag.yaw) - look.yaw) * (motion.matches ? 1 : 1 - Math.exp(-dt * 3));
       look.pitch += ((gardenView ? -0.13 : drag.pitch) - look.pitch) * (motion.matches ? 1 : 1 - Math.exp(-dt * 3));
       nook.position.x = 0;
-      nook.rotation.y = 0;
+      // Turn the furnished interior and viewpoint together around the cabin's
+      // center (z = -12), keeping its footprint aligned with the moving train.
+      nook.position.z = seatDirection === "backward" ? -24 : 0;
+      nook.rotation.y = seatDirection === "backward" ? Math.PI : 0;
       // Keep the desk square to the carriage and its outer edge inside the wall.
       desk.position.x = -side * 1.0;
       // Bring the miniature into the narrow view, behind the ticket button.
       plant.position.x = portrait ? (seat === "left" ? 0.1 : -0.28) : -0.65;
       plant.position.z = portrait ? -0.78 : -0.55;
       spareTable.position.x = side * 1.13;
-      openness += (Number(windowOpen) - openness) * (1 - Math.exp(-dt * 5));
-      for (const pane of panes) {
-        const paneHeight =
-          1.65 * (1 - (pane.near && pane.side === -side ? openness * 0.95 : 0));
-        pane.glass.scale.y = paneHeight / 1.65;
-        pane.glass.position.y = 1.55 + paneHeight / 2;
-        pane.edge.position.y = 1.55 + paneHeight;
-      }
+      const seatChanged = seat !== windowSeat;
+      windowSeat = seat;
+      panes.forEach((pane, index) => {
+        const openness = advanceWindowSlide(slides[index],
+          pane.near && pane.side === -side && windowOpen, dt, motion.matches || seatChanged);
+        // Stop below the valance so the raised pull clears the fixed trim.
+        const paneHeight = 1.65 - openness * 1.33;
+        for (const surface of [pane.glass, pane.glazing]) {
+          surface.scale.y = paneHeight / 1.65;
+          surface.position.y = 3.2 - paneHeight / 2;
+        }
+        pane.edge.position.y = 3.2 - paneHeight;
+      });
       windowRain.update(
         dt,
         blendEnvironment(weather, (environment) => environment.windowRain, forest),
