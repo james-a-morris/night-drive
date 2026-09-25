@@ -180,6 +180,21 @@ export function observeAuth(
 export const manageAccount = () => clerk?.openUserProfile();
 export const signOut = () => clerk!.signOut();
 
+// Room requests wait for sign-in to finish loading, so a signed-in reload is
+// never mistaken for a new guest. A stalled Clerk load gives up after 5 seconds.
+let settled: Promise<void> | undefined;
+export function authSettled() {
+  return (settled ||= new Promise<void>((resolve) => {
+    const timer = setTimeout(resolve, 5000);
+    void loadClerk()
+      .catch(() => {})
+      .finally(() => {
+        clearTimeout(timer);
+        resolve();
+      });
+  }));
+}
+
 export async function authHeaders(): Promise<Record<string, string>> {
   const token = clerk?.session ? await clerk.session.getToken() : null;
   return token ? { Authorization: `Bearer ${token}` } : {};

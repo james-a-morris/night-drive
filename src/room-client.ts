@@ -14,7 +14,7 @@ import {
   type ProfileAction,
   type ProfileResult,
 } from "./types.ts";
-import { authHeaders, observeAuth } from "./auth.ts";
+import { authHeaders, authSettled, observeAuth } from "./auth.ts";
 
 export const METRES_PER_MILE = 1609.344;
 
@@ -63,6 +63,7 @@ export function createRoomClient(
   };
   async function request<T>(body?: RoomAction): Promise<T> {
     scope.signal.throwIfAborted();
+    await authSettled();
     const headers = await authHeaders();
     scope.signal.throwIfAborted();
     const response = await fetch("/api/room", {

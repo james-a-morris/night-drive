@@ -172,6 +172,19 @@ test('live presence includes new guests, excludes self, deduplicates tabs and ex
   assert.equal((await first.request(null, { user: 'alice' })).body.activeCount, 2);
 });
 
+test('signing out does not leave your account counted as another rider', async t => {
+  const { visitor, advance } = await setup(t);
+  const rider = visitor(), elsewhere = visitor();
+  await rider.request();
+  assert.equal((await rider.request(null, { user: 'alice' })).body.othersCount, 0);
+  await elsewhere.request();
+  advance(1000);
+  const signedOut = (await rider.request()).body;
+  assert.equal(signedOut.me.signedIn, false);
+  assert.equal(signedOut.othersCount, 1, 'only the other rider, not the account just left');
+  assert.equal((await rider.request(null, { user: 'alice' })).body.othersCount, 1);
+});
+
 test('forged totals, other guests journeys and impossible speeds cannot grant arbitrary miles', async t => {
   const { visitor, advance } = await setup(t);
   const first = visitor(), stranger = visitor();

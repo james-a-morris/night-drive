@@ -329,6 +329,13 @@ async function identify(
   // with that account rather than being handed to the next person on this device.
   if (guest && !guest.clerk_user_id) return guest;
   await rateLimit(store, `visitor:${addressKey(req)}`, 120, 3600000, now);
+  // This browser just signed out: stop counting its account as here, or the
+  // new guest would see the rider they were a moment ago as someone else.
+  if (guest)
+    await store.query(
+      "UPDATE road_profiles SET last_seen = $1 WHERE id = $2 AND last_seen > $1",
+      [now - 90001, guest.id],
+    );
   const id = randomUUID();
   token = randomBytes(32).toString("hex");
   const name = `Guest ${randomBytes(2).readUInt16BE()}`;

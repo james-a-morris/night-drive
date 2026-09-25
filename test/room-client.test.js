@@ -13,12 +13,12 @@ test('room client establishes identity before starting, checks in only while vis
   globalThis.document = Object.assign(new EventTarget(), { hidden: false });
   t.after(() => { globalThis.window = oldWindow; globalThis.document = oldDocument; });
   const requests = [], snapshots = [];
-  let releaseInitial, releaseRefresh, holdRefresh = false, currentMiles = 0, currentJourneyId = null, sequence = 0;
+  let releaseConfig, releaseInitial, releaseRefresh, holdRefresh = false, currentMiles = 0, currentJourneyId = null, sequence = 0;
   let serverTime = 1790200000000;
   const profile = () => ({ id: 'guest', name: 'Guest', signedIn: false, intention: null, intentionExpiresAt: null, totalMiles: currentMiles, currentMiles, currentJourneyId });
   const room = () => ({ me: profile(), leaderboard: [], activeCount: 1, othersCount: 0, serverTime: ++serverTime });
   t.mock.method(globalThis, 'fetch', async (url, options) => {
-    if (url === '/api/config') return Response.json({ clerkPublishableKey: null });
+    if (url === '/api/config') return new Promise(resolve => { releaseConfig = () => resolve(Response.json({ clerkPublishableKey: null })); });
     const body = options.body ? JSON.parse(options.body) : null;
     requests.push({ body, keepalive: options.keepalive });
     if (!body) {
@@ -41,6 +41,9 @@ test('room client establishes identity before starting, checks in only while vis
   const client = createRoomClient(drive, scope, snapshot => snapshots.push(snapshot));
   const starting = client.startJourney();
   await settle();
+  assert.equal(requests.length, 0, 'a signed-in reload is not mistaken for a new guest before sign-in loads');
+  releaseConfig();
+  for (let i = 0; i < 5 && !requests.length; i++) await settle();
   assert.equal(requests.length, 1, 'wait for the guest cookie before sending start');
   drive.distance = 50;
   releaseInitial();
