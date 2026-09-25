@@ -1,12 +1,29 @@
-// Visits use time spent in the visible, started journey, independent of frame rate.
-export const CONDUCTOR_INTERVAL = 5 * 60;
+// Visits age with time spent in the visible, started journey, independent of frame rate.
 export const CONDUCTOR_VISIT_LENGTH = 78;
 
+// The conductor walks through as the train leaves every fourth or fifth stop.
+// Riders board at the first station, so the count starts after it. A call
+// from the desk restarts the count.
+export function createStationRounds(random = Math.random) {
+  const gap = () => (random() < 0.5 ? 4 : 5);
+  let remaining = gap();
+  return {
+    depart(station: number) {
+      if (station === 0 || --remaining > 0) return false;
+      remaining = gap();
+      return true;
+    },
+    restart() {
+      remaining = gap();
+    },
+  };
+}
+
+// There is no timer: the conductor only comes through when summoned, by a
+// station round or from the desk button.
 export function createConductorVisit() {
-  let elapsed = 0;
   let previous: number | undefined;
   let wasActive = false;
-  let nextVisit = CONDUCTOR_INTERVAL;
   let age: number | null = null;
   let number = 0;
   return {
@@ -17,7 +34,6 @@ export function createConductorVisit() {
       if (age !== null) return false;
       age = 0;
       number++;
-      nextVisit = elapsed + CONDUCTOR_INTERVAL;
       return true;
     },
     update(now: number, active: boolean, paused = false) {
@@ -25,18 +41,11 @@ export function createConductorVisit() {
         active && wasActive && previous !== undefined
           ? Math.max(0, now - previous) / 1000
           : 0;
-      elapsed += dt;
       previous = now;
       wasActive = active;
-      if (age !== null) {
-        if (paused) nextVisit += dt;
-        else age += dt;
+      if (age !== null && !paused) {
+        age += dt;
         if (age >= CONDUCTOR_VISIT_LENGTH) age = null;
-      }
-      if (age === null && elapsed >= nextVisit) {
-        age = 0;
-        number++;
-        nextVisit = elapsed + CONDUCTOR_INTERVAL;
       }
       return age;
     },

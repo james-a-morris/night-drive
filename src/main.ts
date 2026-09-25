@@ -1,3 +1,4 @@
+import { CAMERA_FAR } from "./view-distance.ts";
 import { canSyncWeather, cityEnvironments, isThunderstorm, type CityAtmosphere } from "./city-atmosphere.ts";
 import type { TreeGardenController } from "./tree-garden.ts";
 import type { DiagnosticsProbe } from "./diagnostics.ts";
@@ -71,7 +72,7 @@ export function mountScene(
       70,
       innerWidth / innerHeight,
       0.1,
-      600,
+      CAMERA_FAR,
     );
     const renderer = new THREE.WebGLRenderer({
       canvas,
@@ -179,7 +180,10 @@ export function mountScene(
       if (weatherChoice !== previousPineWeather) { previousPineWeather = weatherChoice; onPineWeather(weatherChoice); }
       const departures = drive.departures;
       const movement = advanceDrive(drive, dt, getSettings().mode);
-      if (drive.departures !== departures) radio.playDepartureDing();
+      if (drive.departures !== departures) {
+        radio.playDepartureDing();
+        conductor.depart(drive.lastStation);
+      }
       const stationStatus = drive.station
         ? drive.dwellRemaining > 0
           ? `${drive.station.name} · ${drive.started ? "Departing shortly" : "Boarding"}`
@@ -263,6 +267,7 @@ export function mountScene(
         radio.setTrainSpeed(drive.speed);
         lastWeatherUpdate = now;
       }
+      scenery.updateVisibility(camera);
       cabin.windowRain.render(renderer, scene, camera);
       diagnostics.sample(now, elapsed, renderer);
       if (!ready) {

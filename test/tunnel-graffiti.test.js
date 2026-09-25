@@ -21,12 +21,12 @@ test("graffiti appears now and then inside the tunnel, using every phrase, and i
     const cycle = mode === "auto" ? ROUTE_LENGTH : TUNNEL_CYCLE_LENGTH;
     for (let passage = 0; passage < 12; passage++) {
       const span = tunnelSpan(passage * cycle, mode);
-      const tags = graffitiPlacements(span.start - 200, span.end + 200, mode);
+      const tags = graffitiPlacements(span.start, span.end - 0.01, mode);
       assert.ok(tags.length <= 16, `${mode}: ${tags.length} tags`);
       if (tags.length === 0) quiet++;
       assert.deepEqual(
         tags,
-        graffitiPlacements(span.start - 200, span.end + 200, mode),
+        graffitiPlacements(span.start, span.end - 0.01, mode),
       );
       for (const tag of tags) phrases.add(tag.phrase);
       for (const tag of tags) {
@@ -69,8 +69,7 @@ test("paint fades into the unlit galleries and brightens beside the lamps", () =
 test("graffiti meshes rebuild with finite geometry and vanish outside the tunnel", () => {
   const world = new Group();
   const graffiti = createTunnelGraffiti(world);
-  const span = tunnelSpan(0, "tunnel");
-  graffiti.update(span.start + 400, "tunnel");
+  graffiti.update(4 * TUNNEL_CYCLE_LENGTH + 400, "tunnel");
   let vertices = 0;
   graffiti.root.traverse((object) => {
     if (!object.isMesh || !object.visible) return;

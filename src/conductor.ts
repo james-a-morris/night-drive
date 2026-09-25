@@ -8,6 +8,7 @@ import {
   conductorPupilOffset,
   createConductorVisit,
   createConductorWander,
+  createStationRounds,
 } from "./conductor-visit.ts";
 import { createConductorWhistle } from "./conductor-whistle.ts";
 
@@ -36,6 +37,7 @@ export function createConductor({
     createConductorModel(parent);
   const { button, face, icon } = createTicketButton(desk);
   const visit = createConductorVisit();
+  const rounds = createStationRounds();
   const whistle = createConductorWhistle(scope);
   const motion = reducedMotion();
   const ray = new THREE.Raycaster();
@@ -104,7 +106,7 @@ export function createConductor({
   function activate(target: Target) {
     if (!isStarted() || document.hidden) return;
     if (target === "call") {
-      visit.summon();
+      if (visit.summon()) rounds.restart();
     } else if (target === "roomba" && roomba.visible) {
       void whistle().then((played) => {
         if (played && !scope.signal.aborted) delightedAt = performance.now();
@@ -188,6 +190,10 @@ export function createConductor({
   scope.defer(() => onWhir(0));
 
   return {
+    // Called with the index of each station as the train leaves it.
+    depart(station: number) {
+      if (rounds.depart(station)) visit.summon();
+    },
     update(now: number) {
       const dt = Math.max(0, Math.min((now - lastUpdate) / 1000, 1));
       lastUpdate = now;

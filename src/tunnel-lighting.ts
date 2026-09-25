@@ -9,6 +9,7 @@ import {
 // Portal planes follow the track's heading. Test the passenger's eye, including
 // its seat offset, rather than the carriage origin or a leading carriage.
 export function viewpointInsideTunnel(x: number, z: number, mode: SceneryMode) {
+  if (mode === "tunnel") return true;
   const span = tunnelSpan(-z, mode);
   if (!span) return false;
   function distancePast(station: number) {
@@ -27,7 +28,6 @@ export function createTunnelLighting() {
       const target = environmentWeights(progress, mode);
       const outsideWeight = 1 - target.tunnel;
       // Preserve the approaching landscape through the tunnel's biome blend.
-      // Explicit tunnel selection retains the previous outdoor palette too.
       if (outsideWeight > 0.00001) {
         for (const name of environmentNames)
           exterior[name] = name === "tunnel" ? 0 : target[name] / outsideWeight;

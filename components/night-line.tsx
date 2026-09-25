@@ -17,7 +17,7 @@ import {
 import { createDiagnostics } from "../src/diagnostics.ts";
 import { createDrive } from "../src/drive.ts";
 import { pineEnvironment, type PineWeather } from "../src/pine-weather.ts";
-import { ENVIRONMENTS, tunnelApproach } from "../src/environments.ts";
+import { ENVIRONMENTS } from "../src/environments.ts";
 import { openAuth } from "../src/auth.ts";
 import { readPreference, savePreference } from "../src/prefs.ts";
 import Brand from "./brand.tsx";
@@ -324,11 +324,7 @@ export default function NightLine() {
             value={mode}
             pineWeather={pineWeather}
             cityWeather={cityAtmosphere ? `${weatherDescription(cityAtmosphere.weather.current.code)} · ${cityAtmosphere.city.name}` : undefined}
-            onChange={(nextMode) => {
-              if (nextMode === "tunnel")
-                drive.progress = tunnelApproach(drive.progress);
-              setMode(nextMode);
-            }}
+            onChange={setMode}
           />
           <AccountMenu
             weatherEnabled={started}

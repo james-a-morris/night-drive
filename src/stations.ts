@@ -1,3 +1,4 @@
+import { SCENERY_DISTANCE } from "./view-distance.ts";
 import * as THREE from "./three.ts";
 import { mergeGeometries } from "three/addons/utils/BufferGeometryUtils.js";
 import { roadFrame, roadPoint } from "./drive.ts";
@@ -287,7 +288,7 @@ export function createStations(world: THREE.Group, scope: Lifecycle) {
     }
   }
   return { root, update(progress: number, mode: SceneryMode, timezone?: string) {
-    const stop = stationsNear(progress).find(candidate => Math.abs(candidate.at - progress) < 360 && stationAvailable(candidate.at, mode));
+    const stop = stationsNear(progress).find(candidate => Math.abs(candidate.at - progress) < SCENERY_DISTANCE + 110 && stationAvailable(candidate.at, mode));
     root.visible = !!stop;
     if (!stop) return;
     const key = `${stop.index}:${mode}`;

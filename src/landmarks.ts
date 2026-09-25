@@ -1,3 +1,4 @@
+import { SCENERY_DISTANCE } from "./view-distance.ts";
 import type { Lifecycle } from "./lifecycle.ts";
 import type { Landmark, GroundAt } from "./landmark-types.ts";
 import type { Environment, SceneryMode } from "./environments.ts";
@@ -279,7 +280,7 @@ export function createLandmarks(world: THREE.Group, scope: Lifecycle) {
   }
 
   const sites: Site[] = [];
-  for (let index = 0; index < 9; index++) {
+  for (let index = 0; index < Math.ceil((SCENERY_DISTANCE * 2 + 172) / (86 * 3)) * 3; index++) {
     const group = new THREE.Group();
     root.add(group);
     const kind = index % 3,
@@ -446,11 +447,11 @@ export function createLandmarks(world: THREE.Group, scope: Lifecycle) {
         const previous = site.station;
         site.station = recycleStation(
           site.station,
-          progress - 130,
+          progress - SCENERY_DISTANCE - 86,
           sites.length * 86,
         );
         if (previous !== site.station || modeChanged) place(site, mode);
-        if (!site.suitable || Math.abs(site.station - progress) > 340 || stationClearing(site.station, 0, mode)) {
+        if (!site.suitable || Math.abs(site.station - progress) > SCENERY_DISTANCE || stationClearing(site.station, 0, mode)) {
           site.group.visible = false;
           continue;
         }

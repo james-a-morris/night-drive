@@ -6,40 +6,87 @@ import {
   createConductorWander,
   conductorAisleLimit,
   conductorPupilOffset,
+  createStationRounds,
 } from "../src/conductor-visit.ts";
+import { createDrive, advanceDrive } from "../src/drive.ts";
 
-test("the first conductor visit waits five minutes after settling in and repeats every five minutes", () => {
+test("the conductor never visits on a timer, only when summoned", () => {
   const visit = createConductorVisit();
-  assert.equal(visit.update(0, false), null);
-  assert.equal(visit.update(900_000, false), null);
-  assert.equal(visit.update(900_000, true), null);
-  assert.equal(visit.update(1_199_999, true), null);
-  assert.equal(visit.update(1_200_000, true), 0);
-  assert.equal(visit.update(1_242_000, true), 42);
-  assert.equal(visit.update(1_278_000, true), null);
-  assert.equal(visit.update(1_499_999, true), null);
-  assert.equal(visit.update(1_500_000, true), 0);
-});
-
-test("time in a hidden tab neither skips a visit nor sends it rushing past on return", () => {
-  const visit = createConductorVisit();
-  visit.update(0, true);
-  visit.update(295_000, true);
-  visit.update(295_000, false);
-  assert.equal(visit.update(3_895_000, true), null);
-  assert.equal(visit.update(3_900_000, true), 0);
-  visit.update(3_934_000, true);
-  visit.update(3_934_000, false);
-  assert.equal(visit.update(7_534_000, true), 34);
-  assert.equal(visit.update(7_535_000, true), 35);
-});
-
-test("the cadence uses elapsed time even at low frame rates", () => {
-  const visit = createConductorVisit();
-  visit.update(0, true);
-  for (let now = 500; now < 300_000; now += 500)
+  assert.equal(visit.update(0, true), null);
+  for (let now = 60_000; now <= 3_600_000; now += 60_000)
     assert.equal(visit.update(now, true), null);
-  assert.equal(visit.update(300_000, true), 0);
+  assert.equal(visit.number, 0);
+  assert.equal(visit.summon(), true);
+  assert.equal(visit.update(3_600_000, true), 0);
+  assert.equal(visit.update(3_642_000, true), 42);
+  assert.equal(visit.update(3_678_000, true), null);
+  assert.equal(visit.update(7_200_000, true), null, "a finished visit does not repeat");
+  assert.equal(visit.number, 1);
+});
+
+test("time in a hidden tab neither advances a visit nor sends it rushing past on return", () => {
+  const visit = createConductorVisit();
+  visit.update(0, true);
+  visit.summon();
+  visit.update(34_000, true);
+  visit.update(34_000, false);
+  assert.equal(visit.update(3_634_000, true), 34);
+  assert.equal(visit.update(3_635_000, true), 35);
+});
+
+test("a visit uses elapsed time even at low frame rates", () => {
+  const visit = createConductorVisit();
+  visit.update(0, true);
+  visit.summon();
+  for (let now = 500; now < 78_000; now += 500)
+    assert.equal(visit.update(now, true), now / 1000);
+  assert.equal(visit.update(78_000, true), null);
+});
+
+test("station rounds skip the boarding halt and come every fourth or fifth stop", () => {
+  for (const [roll, expected] of [[0, [4, 8, 12]], [0.9, [5, 10, 15]]]) {
+    const rounds = createStationRounds(() => roll);
+    assert.equal(rounds.depart(0), false, "never as the train leaves Willow Halt");
+    const visits = [];
+    for (let station = 1; station <= 15; station++)
+      if (rounds.depart(station)) visits.push(station);
+    assert.deepEqual(visits, expected);
+  }
+  const rolls = [0, 0.9, 0.2];
+  const varied = createStationRounds(() => rolls.shift() ?? 0);
+  const visits = [];
+  for (let station = 0; station <= 13; station++)
+    if (varied.depart(station)) visits.push(station);
+  assert.deepEqual(visits, [4, 9, 13], "each round picks its own gap");
+});
+
+test("a call from the desk restarts the count to the next station round", () => {
+  const rounds = createStationRounds(() => 0);
+  rounds.depart(0);
+  assert.equal(rounds.depart(1), false);
+  assert.equal(rounds.depart(2), false);
+  rounds.restart();
+  for (const station of [3, 4, 5]) assert.equal(rounds.depart(station), false);
+  assert.equal(rounds.depart(6), true);
+});
+
+test("the first round comes as the train leaves the fourth or fifth stop after boarding", () => {
+  for (const [roll, stops] of [[0, 4], [0.9, 5]]) {
+    const drive = { ...createDrive(), started: true };
+    const rounds = createStationRounds(() => roll);
+    const departed = [];
+    let visit = null;
+    for (let step = 0; step < 200_000 && visit === null; step++) {
+      const departures = drive.departures;
+      advanceDrive(drive, 0.05);
+      if (drive.departures === departures) continue;
+      departed.push(drive.lastStation);
+      if (rounds.depart(drive.lastStation)) visit = drive.lastStation;
+    }
+    assert.equal(departed[0], 0, "the journey starts by leaving Willow Halt");
+    assert.equal(departed.length, stops + 1);
+    assert.equal(visit, departed.at(-1));
+  }
 });
 
 test("the conductor passes the camera, waits ten seconds and turns only behind it before returning", () => {
@@ -77,20 +124,19 @@ test("reduced motion keeps the visitor still beside either seat", () => {
   }
 });
 
-test("hovering pauses the route and postpones the next round without losing the current visit", () => {
+test("hovering pauses the route without losing the current visit", () => {
   const visit = createConductorVisit();
   visit.update(0, true);
-  visit.update(300_000, true);
-  assert.equal(visit.update(312_000, true), 12);
-  assert.equal(visit.update(322_000, true, true), 12);
-  assert.equal(visit.update(332_000, true, true), 12);
-  assert.equal(visit.update(334_000, true), 14);
-  assert.equal(visit.update(400_000, true), null);
-  assert.equal(visit.update(600_000, true), null);
-  assert.equal(visit.update(620_000, true), 0);
+  visit.summon();
+  assert.equal(visit.update(12_000, true), 12);
+  assert.equal(visit.update(22_000, true, true), 12);
+  assert.equal(visit.update(32_000, true, true), 12);
+  assert.equal(visit.update(34_000, true), 14);
+  assert.equal(visit.update(97_000, true), 77);
+  assert.equal(visit.update(98_000, true), null);
 });
 
-test("the desk button summons one conductor and reschedules the automatic visit", () => {
+test("the desk button or a station departure summons one conductor at a time", () => {
   const visit = createConductorVisit();
   visit.update(0, true);
   visit.update(50_000, true);
@@ -104,9 +150,9 @@ test("the desk button summons one conductor and reschedules the automatic visit"
     "repeated calls must not teleport or duplicate it",
   );
   assert.equal(visit.update(65_000, true), 15);
-  assert.equal(visit.update(130_000, true), null);
-  assert.equal(visit.update(300_000, true), null);
-  assert.equal(visit.update(350_000, true), 0);
+  assert.equal(visit.update(128_000, true), null);
+  assert.equal(visit.summon(), true, "the next call after a visit starts another");
+  assert.equal(visit.update(128_000, true), 0);
   assert.equal(visit.number, 2);
 });
 

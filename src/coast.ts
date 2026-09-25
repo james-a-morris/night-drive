@@ -1,3 +1,4 @@
+import { SCENERY_DISTANCE } from "./view-distance.ts";
 import type { EnvironmentWeights, SceneryMode } from "./environments.ts";
 import type { Lifecycle } from "./lifecycle.ts";
 import { reducedMotion } from "./motion.ts";
@@ -245,8 +246,8 @@ export function createCoast(world: THREE.Group, scope: Lifecycle) {
         const before = site.station;
         site.station = recycleStation(
           site.station,
-          progress - 260,
-          site.grounded ? 1400 : 1610,
+          progress - SCENERY_DISTANCE,
+          site.grounded ? 1680 : 1610,
         );
         if (before !== site.station || modeChanged) {
           const point = roadPoint(site.station, site.lateral);
@@ -258,7 +259,7 @@ export function createCoast(world: THREE.Group, scope: Lifecycle) {
           site.group.rotation.y = roadFrame(site.station).heading;
         }
         site.group.visible =
-          Math.abs(site.station - progress) < 520 &&
+          Math.abs(site.station - progress) < SCENERY_DISTANCE &&
           environmentWeights(site.station, mode).coast > 0.75;
       }
     },

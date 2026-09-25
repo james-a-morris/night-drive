@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { roadFrame, roadPoint } from '../src/drive.ts';
-import { tunnelSpan, environmentWeights } from '../src/environments.ts';
+import { tunnelSpan, environmentWeights, TUNNEL_CYCLE_LENGTH } from '../src/environments.ts';
 import { createTunnelLighting, viewpointInsideTunnel } from '../src/tunnel-lighting.ts';
 
 function update(lighting, progress, mode, dt = 1) {
@@ -24,25 +24,34 @@ test('automatic tunnel approach preserves exterior lighting until the passenger 
   assert.ok(inside.weights.tunnel > 0);
 });
 
-test('selecting the tunnel retains the previous outdoor palette while approaching and restores it on exit', () => {
+test('selected tunnel keeps its lighting indefinitely and changes when another scenery is selected', () => {
   for (const mode of ['forest', 'alpine', 'desert', 'coast', 'bridge']) {
     const lighting = createTunnelLighting();
     update(lighting, 200, mode, 100);
-    const { start, end } = tunnelSpan(0, 'tunnel');
-    for (const progress of [start - 48, start - 10, start - 0.01]) {
+    for (const progress of [0, 48, 1680, 1919, 1920, 1921, 1e6]) {
       const state = update(lighting, progress, 'tunnel', 100);
-      assert.equal(state.enclosure, 0);
-      assert.deepEqual(state.weights, environmentWeights(0, mode));
+      assert.equal(state.enclosure, 1);
+      assert.deepEqual(state.weights, environmentWeights(0, 'tunnel'));
     }
-    assert.equal(update(lighting, start + 10, 'tunnel', 100).enclosure, 1);
-    const outside = update(lighting, end + 1, 'tunnel', 100);
+    const outside = update(lighting, 1e6, mode, 100);
     assert.equal(outside.enclosure, 0);
     assert.deepEqual(outside.weights, environmentWeights(0, mode));
   }
 });
 
+test('both seats stay enclosed across manual tunnel section boundaries', () => {
+  for (const progress of [0, 1680, TUNNEL_CYCLE_LENGTH, TUNNEL_CYCLE_LENGTH * 100]) {
+    for (const side of [-0.95, 0.95]) {
+      for (const offset of [-0.01, 0, 0.01]) {
+        const eye = roadPoint(progress + offset, side);
+        assert.equal(viewpointInsideTunnel(eye.x, eye.z, 'tunnel'), true);
+      }
+    }
+  }
+});
+
 test('both seats cross the actual portal plane, independently of the carriage origin', () => {
-  for (const mode of ['auto', 'tunnel']) {
+  for (const mode of ['auto']) {
     const { start, end } = tunnelSpan(0, mode);
     for (const portal of [start, end]) {
       const frame = roadFrame(portal);

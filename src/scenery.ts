@@ -1,3 +1,6 @@
+import { batchSectionSurfaces } from "./section-surfaces.ts";
+import { createInstanceView, createVisibleInstances, type VisibleInstance } from "./visible-instances.ts";
+import { SCENERY_DISTANCE, DETAIL_FADE_START, DETAIL_FADE_END } from "./view-distance.ts";
 import { environmentFrom } from "./environments.ts";
 import type { EnvironmentSource } from "./environments.ts";
 import type { Lifecycle } from "./lifecycle.ts";
@@ -53,15 +56,21 @@ interface Segment {
   terrains: ReturnType<typeof makeTerrain>[];
   sleepers: THREE.InstancedMesh;
   items: Decoration[];
-  batches: { mesh: THREE.InstancedMesh; parts: BatchPart[] }[];
+  batches: {
+    geometry: THREE.BufferGeometry;
+    material: THREE.MeshStandardMaterial;
+    kind: Decoration["kind"];
+    parts: BatchPart[];
+    instances: VisibleInstance[];
+  }[];
   pineMaterial: THREE.MeshStandardMaterial;
   rockMaterial: THREE.MeshStandardMaterial;
   grassMaterial: THREE.MeshStandardMaterial;
   fairyLights: THREE.Group;
 }
 
-const SEGMENTS = 32;
-const BEHIND_SEGMENTS = 15;
+const BEHIND_SEGMENTS = Math.ceil(SCENERY_DISTANCE / SEGMENT_LENGTH) + 1;
+const SEGMENTS = BEHIND_SEGMENTS * 2 + 2;
 const colorKeys = [
   "ground",
   "pine",
@@ -453,6 +462,7 @@ export function createScenery(scene: THREE.Scene, scope: Lifecycle) {
   function rebuild(segment: Segment, start: number, mode: SceneryMode) {
     segment.start = start;
     segment.group.position.set(roadFrame(start).x, 0, -start);
+    segment.group.updateMatrix();
     const weights = environmentWeights(start + SEGMENT_LENGTH / 2, mode);
     blendColor(segment.pineMaterial.color, weights, "pine");
     blendColor(segment.rockMaterial.color, weights, "rock");
@@ -540,56 +550,38 @@ export function createScenery(scene: THREE.Scene, scope: Lifecycle) {
     }
     const matrix = new THREE.Matrix4();
     for (const batch of segment.batches) {
-      let count = 0;
-      batch.parts.forEach(({ object, child }) => {
-        if (!object.visible) return;
+      batch.instances = [];
+      batch.geometry.computeBoundingSphere();
+      for (const { object, child } of batch.parts) {
+        if (!object.visible) continue;
         object.updateMatrix();
         child.updateMatrix();
-        matrix.multiplyMatrices(object.matrix, child.matrix);
-        batch.mesh.setMatrixAt(count++, matrix);
-      });
-      batch.mesh.count = count;
-      batch.mesh.visible = count > 0;
-      batch.mesh.instanceMatrix.needsUpdate = true;
-      if (count) batch.mesh.computeBoundingSphere();
+        matrix.multiplyMatrices(object.matrix, child.matrix).premultiply(segment.group.matrix);
+        batch.instances.push({
+          matrix: matrix.clone(), color: batch.material.color.clone(),
+          bounds: batch.geometry.boundingSphere!.clone().applyMatrix4(matrix),
+          maxDistance: batch.kind === "grass" ? DETAIL_FADE_END : undefined,
+        });
+      }
     }
   }
 
-  // Reuse meshes for trees, cacti and reflectors to keep draw calls low even
-  // when several hundred objects are visible along an upcoming bend.
+  // Keep section-local placement data, but share GPU batches across the route.
+  // Instance colors preserve each section's environment palette.
   function batchDecorations(segment: THREE.Group, items: Decoration[]) {
-    const batches = new Map<
-      string,
-      {
-        geometry: THREE.BufferGeometry;
-        material: THREE.Material;
-        parts: BatchPart[];
-      }
-    >();
+    const batches = new Map<number, Segment["batches"][number]>();
     for (const { object, kind } of items) {
       for (const child of object.children) {
-        if (!(child instanceof THREE.Mesh) || Array.isArray(child.material))
-          continue;
-        const key = `${kind}-${child.geometry.id}-${child.material.id}`;
-        if (!batches.has(key))
-          batches.set(key, {
-            geometry: child.geometry,
-            material: child.material,
-            parts: [],
-          });
+        if (!(child instanceof THREE.Mesh) || !(child.material instanceof THREE.MeshStandardMaterial)) continue;
+        const key = child.geometry.id;
+        if (!batches.has(key)) batches.set(key, {
+          geometry: child.geometry, material: child.material, kind, parts: [], instances: [],
+        });
         batches.get(key)!.parts.push({ object, child });
       }
       segment.remove(object);
     }
-    return [...batches.values()].map((batch) => {
-      const mesh = new THREE.InstancedMesh(
-        batch.geometry,
-        batch.material,
-        batch.parts.length,
-      );
-      segment.add(mesh);
-      return { mesh, parts: batch.parts };
-    });
+    return [...batches.values()];
   }
 
   for (let index = 0; index < SEGMENTS; index++) {
@@ -690,6 +682,56 @@ export function createScenery(scene: THREE.Scene, scope: Lifecycle) {
     rebuild(segment, (index - BEHIND_SEGMENTS) * SEGMENT_LENGTH, "auto");
     world.add(group);
     segments.push(segment);
+  }
+
+  const surfaces = batchSectionSurfaces(world, segments.flatMap(segment =>
+    [...segment.terrains, ...segment.strips].map(({ mesh }) => ({ mesh, origin: segment.group }))), scope);
+  const instanceView = createInstanceView();
+  const decorations = new Map<number, ReturnType<typeof createVisibleInstances>>();
+  const sectionBatches = segments.flatMap(segment => segment.batches);
+  for (const batch of sectionBatches) {
+    if (decorations.has(batch.geometry.id)) continue;
+    const capacity = sectionBatches.filter(part => part.geometry === batch.geometry)
+      .reduce((total, part) => total + part.parts.length, 0);
+    const material = batch.material.clone();
+    material.color.set(0xffffff);
+    if (batch.kind === "grass") {
+      material.onBeforeCompile = shader => {
+        shader.vertexShader = "varying float detailVisibility;\n" + shader.vertexShader;
+        shader.vertexShader = shader.vertexShader.replace("#include <project_vertex>", `
+          #include <project_vertex>
+          vec4 detailOrigin = vec4(0.0, 0.0, 0.0, 1.0);
+          #ifdef USE_INSTANCING
+            detailOrigin = instanceMatrix * detailOrigin;
+          #endif
+          detailVisibility = 1.0 - smoothstep(${DETAIL_FADE_START.toFixed(1)}, ${DETAIL_FADE_END.toFixed(1)},
+            length((modelViewMatrix * detailOrigin).xyz));
+        `);
+        shader.fragmentShader = "varying float detailVisibility;\n" + shader.fragmentShader;
+        shader.fragmentShader = shader.fragmentShader.replace("#include <clipping_planes_fragment>", `
+          #include <clipping_planes_fragment>
+          if (detailVisibility <= fract(52.9829189 * fract(dot(gl_FragCoord.xy, vec2(0.06711056, 0.00583715))))) discard;
+        `);
+      };
+      material.customProgramCacheKey = () => "night-line-grass-distance-v1";
+    }
+    const mesh = new THREE.InstancedMesh(batch.geometry, material, capacity);
+    mesh.name = `route-${batch.kind}`;
+    world.add(mesh);
+    scope.defer(() => mesh.dispose());
+    decorations.set(batch.geometry.id, createVisibleInstances(mesh));
+  }
+  function refreshDecorations() {
+    for (const [geometry, batch] of decorations)
+      batch.setInstances(sectionBatches.filter(part => part.geometry.id === geometry).flatMap(part => part.instances));
+  }
+  refreshDecorations();
+  const decorationMaterials = new Set(sectionBatches.map(batch => batch.material));
+  scope.defer(() => decorationMaterials.forEach(material => material.dispose()));
+  function updateVisibility(camera: THREE.Camera) {
+    instanceView.update(camera, world);
+    for (const batch of decorations.values()) batch.update(instanceView);
+    nature.updateVisibility(camera);
   }
 
   const horizonMaterial = new THREE.MeshStandardMaterial({ roughness: 1 });
@@ -801,14 +843,20 @@ export function createScenery(scene: THREE.Scene, scope: Lifecycle) {
     settlements.update(progress, mode, modeChanged, dt);
     stations.update(progress, mode, cityTimezone);
     landmarks.update(progress, dt, mode, modeChanged);
+    let decorationsChanged = false;
     for (const segment of segments) {
       const start = recycleStation(
         segment.start,
         progress - (BEHIND_SEGMENTS + 1) * SEGMENT_LENGTH,
         SEGMENTS * SEGMENT_LENGTH,
       );
-      if (start !== segment.start || modeChanged) rebuild(segment, start, mode);
+      if (start !== segment.start || modeChanged) {
+        rebuild(segment, start, mode);
+        for (const { mesh } of [...segment.terrains, ...segment.strips]) surfaces.update(mesh);
+        decorationsChanged = true;
+      }
     }
+    if (decorationsChanged) refreshDecorations();
     previousMode = mode;
     const target = environmentWeights(progress, mode);
     const ease = 1 - Math.exp(-dt * 1.5);
@@ -869,6 +917,7 @@ export function createScenery(scene: THREE.Scene, scope: Lifecycle) {
 
   return {
     update,
+    updateVisibility,
     updateLighting,
     world,
     segments,
