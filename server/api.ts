@@ -37,7 +37,7 @@ const currentJourneyRanking = `
       ROW_NUMBER() OVER (ORDER BY j.credited_metres DESC, j.started_at ASC, p.id ASC) AS rank
     FROM latest_journeys j JOIN road_profiles p ON p.id = j.driver_id
     WHERE j.recency = 1 AND j.last_seen >= $1 AND j.credited_metres > 0
-  ) SELECT * FROM ranked_journeys WHERE rank <= 10 OR id = $2 ORDER BY rank`;
+  ) SELECT * FROM ranked_journeys WHERE rank <= 5 OR id = $2 ORDER BY rank`;
 const hash = (value: string) =>
   createHash("sha256").update(value).digest("hex");
 const clientIp = (req: Request) =>
@@ -342,7 +342,7 @@ async function roomView(
       return readGarden(query, driver.id, now);
     }),
     leaderboard: rows
-      .filter((row) => Number(row.rank) <= 10)
+      .filter((row) => Number(row.rank) <= 5)
       .map((row) => ({
         rank: Number(row.rank),
         id: row.id,

@@ -1,0 +1,72 @@
+.anki-trigger { display:grid; place-items:center; flex:none; width:38px; height:38px; padding:0; border:1px solid #dce1dc33; border-radius:50%; background:linear-gradient(145deg,#27363cd9,#111d24db); color:#d7dcd4; cursor:pointer; box-shadow:inset 0 1px 0 #ffffff0a,0 2px 10px #00000014; backdrop-filter:blur(16px); transition:border-color .2s,background .2s; }
+.anki-trigger:hover,.anki-trigger[aria-expanded=true] { border-color:#efb19180; background:linear-gradient(145deg,#2e3a3ef2,#192429f2); }
+.anki-trigger:focus-visible { outline:2px solid #efb191; outline-offset:4px; }
+
+/* The same green glass and softly raised edge as the journey and timer cards. */
+.anki-panel { position:fixed; inset:0; width:min(560px,calc(100vw - 32px)); max-height:calc(100dvh - 40px); margin:auto; padding:0; overflow:auto; border:1px solid #c8d0af2b; border-top-color:#e0e5c638; border-bottom-color:#b5c6a91c; border-radius:12px; background:#21352fb0; color:#e3dfcc; box-shadow:inset 0 1px 0 #f2ebcf0d,0 2px 4px #07120e14,0 8px 22px -8px #07120e55; -webkit-backdrop-filter:blur(22px) saturate(.8); backdrop-filter:blur(22px) saturate(.8); font:var(--text-body)/1.6 var(--font-ui); scrollbar-width:thin; scrollbar-color:#a6b69b55 transparent; }
+.anki-panel[open] { animation:anki-window-in .45s cubic-bezier(.2,.7,.2,1) both; }
+.anki-panel::backdrop { background:transparent; }
+.anki-panel button,.anki-panel select { cursor:pointer; }
+.anki-panel button:disabled,.anki-panel select:disabled { opacity:.45; cursor:default; }
+.anki-panel button:focus-visible,.anki-panel select:focus-visible,.anki-panel input:focus-visible { outline:2px solid #d3dabb; outline-offset:3px; }
+.anki-panel-header { display:flex; align-items:center; gap:10px; padding:16px 20px; border-bottom:1px solid #c6d2b61a; color:#cbd5be; }
+.anki-panel-header>svg { flex:none; }
+.anki-panel-header h2 { margin:0; color:#ced6b9; font:400 var(--text-body)/1.5 var(--font-ui); letter-spacing:.12em; text-transform:uppercase; }
+.anki-close { display:grid; place-items:center; flex:none; width:30px; height:30px; margin:-2px -4px -2px auto; padding:0; border:0; border-radius:7px; background:transparent; color:#bac8af; }
+.anki-close:hover { background:#d1d8bd12; color:#efe6cf; }
+.anki-deck-row { display:flex; align-items:center; gap:10px; padding:14px 20px; }
+.anki-deck-row>label { color:#a4b49b; font-size:var(--text-label); letter-spacing:.12em; }
+.anki-deck-row select { flex:1; width:0; min-width:0; height:34px; padding:0 28px 0 9px; border:1px solid #b8c6a929; border-radius:6px; background:#10251c33; color:#dedfc8; font:var(--text-body) var(--font-ui); text-overflow:ellipsis; }
+.anki-deck-row option { background:#273c32; color:#dedfc8; }
+.anki-text-button { padding:6px 0 6px 6px; border:0; background:transparent; color:#b5c3a7; font:var(--text-body) var(--font-ui); }
+.anki-text-button:hover { color:#efe3c2; }
+.anki-review-area { position:relative; min-height:240px; margin:0 12px; overflow:hidden; border:1px solid #b8c6a917; border-radius:7px; background:#10251c1a; }
+.anki-card-caption { display:flex; justify-content:space-between; align-items:center; gap:12px; padding:12px 14px 0; color:#a5b499; font-size:var(--text-label); letter-spacing:.1em; }
+.anki-card-caption span:last-child { max-width:70%; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; letter-spacing:0; }
+.anki-card-frame { display:block; width:100%; height:clamp(230px,32dvh,320px); border:0; background:transparent; }
+.anki-media-note { margin:0; padding:8px 14px; color:#bbc5ad; font-size:var(--text-label); }
+.anki-empty { display:flex; flex-direction:column; align-items:center; justify-content:center; min-height:240px; padding:26px; text-align:center; }
+.anki-empty>svg { margin-bottom:18px; color:#bbc6a8; opacity:.8; }
+.anki-empty h3,.anki-connection h3 { margin:0; color:#e3dfcc; font:400 var(--text-title)/1.4 var(--font-ui); }
+.anki-empty p { max-width:310px; margin:9px 0 0; color:#b5c3a7; }
+.anki-message { margin:0; padding:70px 24px; color:#b9c5ad; text-align:center; }
+.anki-review-actions { display:flex; justify-content:center; min-height:79px; padding:16px 20px; }
+.anki-primary { min-width:168px; min-height:42px; padding:10px 22px; border:0; border-radius:9px; background:#c1cba9; color:#283d30; font:500 var(--text-body) var(--font-ui); }
+.anki-primary:hover:not(:disabled) { background:#d4ddc0; }
+.anki-grades { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:8px; width:100%; }
+.anki-grades:has(button:nth-child(3):last-child) { grid-template-columns:repeat(3,minmax(0,1fr)); }
+.anki-grades:has(button:nth-child(2):last-child) { grid-template-columns:repeat(2,minmax(0,1fr)); }
+.anki-grades button { display:flex; flex-direction:column; align-items:center; justify-content:center; gap:1px; min-height:50px; padding:7px 10px; border:1px solid #c6d2b62b; border-radius:7px; background:#c6d2b60a; color:#d8dec6; }
+.anki-grades strong { font-size:var(--text-body); font-weight:500; }.anki-grades span { color:#a6b69b; font-size:var(--text-label); }
+.anki-grades button[data-grade=again] strong { color:#dbb2a4; }.anki-grades button[data-grade=hard] strong { color:#d9c4a0; }
+.anki-grades button[data-grade=good] { background:#bed0a523; border-color:#bed0a557; }.anki-grades button[data-grade=easy] strong { color:#acccd5; }
+.anki-grades button:hover:not(:disabled) { background:#c6d2b624; border-color:#c6d2b666; }
+.anki-panel-footer { display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:9px 16px; padding:12px 20px; border-top:1px solid #c6d2b61a; color:#a5b499; font-size:var(--text-label); }
+.anki-connection-status { white-space:nowrap; }
+.anki-panel-footer i { display:inline-block; width:4px; height:4px; margin-right:6px; vertical-align:1px; border-radius:50%; background:#a69a7c; }
+.anki-panel-footer i[data-connected=true] { background:#b9cf97; }
+.anki-connection { padding:26px 24px; }.anki-connection>p { margin:10px 0 20px; color:#b9c5ad; }
+.anki-connection label { display:block; margin:16px 0 6px; color:#c8d2bc; }
+.anki-connection input { display:block; width:100%; min-height:42px; margin-bottom:16px; padding:9px 12px; border:1px solid #b8c6a947; border-radius:7px; background:#10251c55; color:#eee9d6; font:var(--text-body) var(--font-ui); }
+.anki-error { margin:14px 20px 0; color:#e8bdab; font-size:var(--text-body); }.anki-connection .anki-error { margin:14px 0 0; }
+.anki-help { margin-top:20px; color:#b5c2aa; }.anki-help summary { width:fit-content; cursor:pointer; }.anki-help p { margin:12px 0; }
+.anki-help a { color:#dce5c8; text-underline-offset:3px; }.anki-help code { overflow-wrap:anywhere; font-size:var(--text-body); }
+.anki-origin { display:block; padding:8px 12px; border-radius:6px; background:#10251c55; }
+@keyframes anki-window-in { from { opacity:0; transform:translateY(8px) scale(.985); } to { opacity:1; transform:none; } }
+@media(max-width:650px) {
+  .anki-trigger { width:36px; height:36px; }
+  .anki-panel { max-height:calc(100dvh - 32px); }
+  .anki-panel-header { padding:14px 16px; }.anki-deck-row { gap:8px; padding:12px 16px; }
+  .anki-review-actions { padding:14px 12px; }.anki-grades { gap:5px; }
+  .anki-panel-footer { padding:11px 16px; gap:6px; flex-wrap:wrap; }.anki-connection { padding:22px 20px; }
+  .anki-empty { padding:24px 18px; }
+}
+@media(max-height:600px) { .anki-card-frame { height:180px; }.anki-review-area,.anki-empty { min-height:180px; } }
+@media(prefers-reduced-motion:reduce) { .anki-trigger,.anki-panel[open] { animation:none; transition:none; } }
+.anki-review-area:focus { outline:none; }
+.anki-review-area:focus-visible { outline:1px solid #c6d2b647; outline-offset:2px; }
+.anki-panel kbd { font:inherit; font-size:var(--text-label); font-weight:400; opacity:.7; white-space:nowrap; }
+.anki-notice { margin:12px 20px 0; color:#c8d2bc; font-size:var(--text-body); }
+.anki-shortcuts { display:flex; flex-wrap:wrap; align-items:center; gap:7px 12px; color:#b5c3a7; font-size:var(--text-label); }
+.anki-shortcuts>span { display:inline-flex; align-items:center; gap:5px; white-space:nowrap; }
+.anki-shortcuts kbd { min-width:17px; padding:0 4px; border:1px solid #c6d2b624; border-radius:3px; background:#c6d2b60a; text-align:center; opacity:1; color:#d2dac3; }

@@ -91,6 +91,29 @@ test('current journeys rank independently of lifetime miles and old trips cannot
   assert.equal((await veteran.request()).body.leaderboard.length, 0, 'finished journeys expire from the live board');
 });
 
+test('the leaderboard contains only the top five drivers, including when the viewer ranks below them', async t => {
+  const { visitor, advance } = await setup(t);
+  const drivers = Array.from({ length: 7 }, () => visitor());
+  const trips = [];
+  for (const driver of drivers) trips.push((await driver.request({ action: 'start' })).body.journeyId);
+  advance(10000);
+  for (const [index, driver] of drivers.entries())
+    await driver.request({ action: 'mileage', journeyId: trips[index], sequence: 1, metres: (index + 1) * 10 });
+
+  const outside = (await drivers[0].request()).body;
+  assert.deepEqual(outside.leaderboard.map(row => row.rank), [1, 2, 3, 4, 5]);
+  assert.deepEqual(outside.leaderboard.map(row => row.currentMiles), [70, 60, 50, 40, 30].map(metres => metres / 1609.344));
+  assert.equal(outside.leaderboard.some(row => row.id === outside.me.id), false);
+  assert.equal(outside.me.rank, 7, 'the private profile still knows its own rank');
+  assert.equal(outside.me.currentMiles, 10 / 1609.344);
+  assert.equal(outside.activeCount, 7, 'presence is not capped with the leaderboard');
+
+  const leader = (await drivers[6].request()).body;
+  assert.equal(leader.leaderboard.length, 5);
+  assert.equal(leader.leaderboard[0].id, leader.me.id);
+  assert.equal(leader.leaderboard.filter(row => row.id === leader.me.id).length, 1);
+});
+
 test('live presence includes new guests, excludes self, deduplicates tabs and expires absent travelers', async t => {
   const { visitor, advance } = await setup(t);
   const first = visitor(), second = visitor();

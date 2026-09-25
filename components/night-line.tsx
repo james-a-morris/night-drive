@@ -30,6 +30,8 @@ import RadioPlayer from "./radio-player.tsx";
 import { useRoom, activeIntention } from "./use-room.ts";
 import { usePreference } from "./use-preference.ts";
 import { useAsyncAction } from "./use-async-action.ts";
+import AnkiStudy from "./anki-study.tsx";
+import AnkiIcon from "./anki-icon.tsx";
 
 export default function NightLine() {
   const [garden] = useState(createTreeGarden);
@@ -57,6 +59,7 @@ export default function NightLine() {
     [devKit, setDevKit] = usePreference("devKit");
   const [dialog, setDialog] = useState<JourneyDialog>(null),
     [aboutOpen, setAboutOpen] = useState(false);
+  const [ankiOpen, setAnkiOpen] = useState(false);
   const settings = useRef<SceneSettings>({
     mode: "auto",
     seat: "left",
@@ -192,7 +195,7 @@ export default function NightLine() {
         id="world"
         ref={canvas}
         tabIndex={0}
-        aria-label="A window seat on a nighttime train. Drag to look around, or use the arrow keys when focused. Click the ticket button on the desk or press C to call the Roomba conductor. Hover over it for a spin; click it or press Enter for a choo choo."
+        aria-label="A window seat on a nighttime train. Drag to look around, or use the arrow keys when focused. Click the ticket button on the desk or press C to call the Roomba conductor. Hover over the conductor for a spin; click it or press Enter for a choo choo."
         inert={!started}
         data-ready={ready ? "true" : undefined}
       />
@@ -292,6 +295,11 @@ export default function NightLine() {
           {...journeyProps}
           data-journey-tile
         >
+          <button className="anki-trigger" id="anki-open" type="button" title="Anki"
+            aria-label="Open Anki" aria-haspopup="dialog" aria-controls="anki-panel" aria-expanded={ankiOpen}
+            onClick={() => setAnkiOpen(true)}>
+            <AnkiIcon />
+          </button>
           <SceneryPicker
             value={mode}
             pineWeather={pineWeather}
@@ -440,6 +448,7 @@ export default function NightLine() {
         authError={authAction.error}
       />
       <AboutPanel open={aboutOpen} onClose={() => setAboutOpen(false)} />
+      {started && <AnkiStudy open={ankiOpen} onClose={() => setAnkiOpen(false)} />}
       {started && devKit === "on" && (
         <DevKit probe={diagnostics} onClose={() => setDevKit("off")} />
       )}
