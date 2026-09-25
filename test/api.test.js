@@ -1,10 +1,11 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { mkdtemp, rm } from 'node:fs/promises';
+import { createHash } from 'node:crypto';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { createStore } from '../server/store.ts';
-import { createApi, ApiError, mileageCredit } from '../server/api.ts';
+import { createApi, ApiError, mileageCredit, addressBucket } from '../server/api.ts';
 import { moderateIntention, ModerationUnavailable } from '../server/moderation.ts';
 
 async function setup(t, options = {}) {
@@ -54,7 +55,7 @@ test('guest mileage persists, current journey ranks, and duplicate reports do no
   const restored = visitor(guest.cookie);
   const room = await restored.request();
   assert.equal(room.body.me.totalMiles, first.body.totalMiles);
-  assert.equal(room.body.leaderboard[0].id, initial.body.me.id);
+  assert.equal(room.body.leaderboard[0].you, true);
   assert.equal(room.body.leaderboard[0].currentMiles, first.body.currentMiles);
   assert.equal(room.body.me.rank, 1);
   assert.equal((await store.query('SELECT total_metres FROM road_profiles'))[0].total_metres, 200);
@@ -91,6 +92,24 @@ test('current journeys rank independently of lifetime miles and old trips cannot
   assert.equal((await veteran.request()).body.leaderboard.length, 0, 'finished journeys expire from the live board');
 });
 
+test('a background tab that keeps reporting without moving leaves the board until it moves again', async t => {
+  const { visitor, advance } = await setup(t);
+  const rider = visitor(), viewer = visitor();
+  const journeyId = (await rider.request({ action: 'start' })).body.journeyId;
+  advance(10000);
+  await rider.request({ action: 'mileage', journeyId, sequence: 1, metres: 200 });
+  for (let sequence = 2; sequence <= 11; sequence++) {
+    advance(10000);
+    assert.equal((await rider.request({ action: 'mileage', journeyId, sequence, metres: 200 })).status, 200);
+  }
+  assert.equal((await viewer.request()).body.leaderboard.length, 0);
+  advance(10000);
+  await rider.request({ action: 'mileage', journeyId, sequence: 12, metres: 400 });
+  const board = (await viewer.request()).body.leaderboard;
+  assert.equal(board.length, 1);
+  assert.equal(board[0].currentMiles, 400 / 1609.344, 'the same journey resumes with its miles');
+});
+
 test('the leaderboard contains only the top five drivers, including when the viewer ranks below them', async t => {
   const { visitor, advance } = await setup(t);
   const drivers = Array.from({ length: 7 }, () => visitor());
@@ -103,15 +122,17 @@ test('the leaderboard contains only the top five drivers, including when the vie
   const outside = (await drivers[0].request()).body;
   assert.deepEqual(outside.leaderboard.map(row => row.rank), [1, 2, 3, 4, 5]);
   assert.deepEqual(outside.leaderboard.map(row => row.currentMiles), [70, 60, 50, 40, 30].map(metres => metres / 1609.344));
-  assert.equal(outside.leaderboard.some(row => row.id === outside.me.id), false);
+  assert.equal(outside.leaderboard.some(row => row.you), false);
   assert.equal(outside.me.rank, 7, 'the private profile still knows its own rank');
   assert.equal(outside.me.currentMiles, 10 / 1609.344);
   assert.equal(outside.activeCount, 7, 'presence is not capped with the leaderboard');
 
   const leader = (await drivers[6].request()).body;
   assert.equal(leader.leaderboard.length, 5);
-  assert.equal(leader.leaderboard[0].id, leader.me.id);
-  assert.equal(leader.leaderboard.filter(row => row.id === leader.me.id).length, 1);
+  assert.equal(leader.leaderboard[0].you, true);
+  assert.equal(leader.leaderboard.filter(row => row.you).length, 1);
+  assert.deepEqual(Object.keys(leader.leaderboard[1]).sort(),
+    ['currentMiles', 'intention', 'intentionExpiresAt', 'live', 'name', 'rank', 'you'], 'rows never expose profile IDs');
 });
 
 test('live presence includes new guests, excludes self, deduplicates tabs and expires absent travelers', async t => {
@@ -291,6 +312,83 @@ test('cross-origin writes, oversized requests and repeated moderation attempts a
   assert.equal((await guest.request({ action: 'start', filler: 'x'.repeat(5000) })).status, 413);
   for (let i = 0; i < 5; i++) assert.equal((await guest.request({ action: 'intention', name: 'Test Driver', intention: 'Review my history notes' }, { user: 'alice' })).status, 422);
   assert.equal((await guest.request({ action: 'intention', name: 'Test Driver', intention: 'Review my history notes' }, { user: 'alice' })).status, 429);
+});
+
+test('repeated starts keep only a rider\'s ten newest journeys', async t => {
+  const { visitor, advance, store } = await setup(t);
+  const guest = visitor();
+  const journeys = [];
+  for (let i = 0; i < 15; i++) {
+    journeys.push((await guest.request({ action: 'start' })).body.journeyId);
+    advance(1);
+  }
+  assert.equal((await store.query('SELECT COUNT(*) AS n FROM journeys'))[0].n, 10);
+  advance(10000);
+  assert.equal((await guest.request({ action: 'mileage', journeyId: journeys.at(-1), sequence: 1, metres: 100 })).status, 200);
+  assert.equal((await guest.request({ action: 'mileage', journeyId: journeys[0], sequence: 1, metres: 100 })).status, 404);
+});
+
+test('signed-in requests without a guest cookie add no session rows', async t => {
+  const { visitor, store } = await setup(t);
+  const ids = new Set();
+  for (let i = 0; i < 5; i++) {
+    const room = await visitor().request(null, { user: 'alice' });
+    assert.equal(room.body.me.signedIn, true);
+    ids.add(room.body.me.id);
+  }
+  assert.equal(ids.size, 1);
+  assert.equal((await store.query('SELECT COUNT(*) AS n FROM guest_sessions'))[0].n, 0);
+});
+
+test('reads share the per-rider request limit', async t => {
+  const { visitor } = await setup(t);
+  const guest = visitor();
+  for (let i = 0; i < 120; i++) assert.equal((await guest.request()).status, 200);
+  assert.equal((await guest.request()).status, 429);
+  assert.equal((await guest.request({ action: 'start' })).status, 429);
+});
+
+function withEnv(t, values) {
+  const previous = Object.fromEntries(Object.keys(values).map(name => [name, process.env[name]]));
+  Object.assign(process.env, values);
+  t.after(() => {
+    for (const [name, value] of Object.entries(previous)) {
+      if (value === undefined) delete process.env[name];
+      else process.env[name] = value;
+    }
+  });
+}
+
+test('self-hosted deployments rate-limit visitors by the header their proxy sets', async t => {
+  withEnv(t, { CLIENT_IP_HEADER: 'x-real-ip' });
+  const { visitor } = await setup(t);
+  const from = ip => ({ headers: { 'x-real-ip': ip } });
+  for (let i = 0; i < 120; i++) assert.equal((await visitor().request(null, from('198.51.100.9'))).status, 200);
+  assert.equal((await visitor().request(null, from('198.51.100.9'))).status, 429);
+  assert.equal((await visitor().request(null, from('198.51.100.10'))).status, 200);
+});
+
+test('rate-limit rows hold no recoverable addresses and expire after an hour', async t => {
+  withEnv(t, { CLIENT_IP_HEADER: 'x-real-ip', CLERK_SECRET_KEY: 'sk_test_limits' });
+  const { visitor, advance, store } = await setup(t);
+  const from = { headers: { 'x-real-ip': '198.51.100.9' } };
+  const first = (await visitor().request(null, from)).body.me;
+  const keys = (await store.query('SELECT key FROM request_limits')).map(row => row.key);
+  const plain = createHash('sha256').update('198.51.100.9').digest('hex');
+  assert.ok(keys.includes(`requests:${first.id}`));
+  assert.equal(keys.some(key => key.includes(plain)), false);
+  advance(3600001);
+  await visitor().request(null, from);
+  const remaining = (await store.query('SELECT key FROM request_limits')).map(row => row.key);
+  assert.equal(remaining.includes(`requests:${first.id}`), false);
+  assert.equal(remaining.length, 2);
+});
+
+test('rate limits group IPv6 visitors by /64 and keep IPv4 addresses whole', () => {
+  assert.equal(addressBucket('2001:db8:85a3::8a2e:370:7334'), addressBucket('2001:0DB8:85A3:0000:ffff::1'));
+  assert.notEqual(addressBucket('2001:db8:85a3::1'), addressBucket('2001:db8:85a4::1'));
+  assert.equal(addressBucket('203.0.113.7'), '203.0.113.7');
+  assert.equal(addressBucket('::ffff:203.0.113.7'), '203.0.113.7');
 });
 
 test('SQLite retains total mileage when the server storage is reopened', async () => {

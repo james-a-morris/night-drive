@@ -1,13 +1,12 @@
 import { createClerkClient } from "@clerk/backend";
 
 export function publicConfig() {
-  return {
-    clerkPublishableKey:
-      process.env.CLERK_PUBLISHABLE_KEY ||
-      process.env.VITE_CLERK_PUBLISHABLE_KEY ||
-      process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY ||
-      null,
-  };
+  const key =
+    process.env.CLERK_PUBLISHABLE_KEY ||
+    process.env.VITE_CLERK_PUBLISHABLE_KEY ||
+    process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY;
+  // Every visitor receives this: never echo a secret key pasted here by mistake.
+  return { clerkPublishableKey: key?.startsWith("pk_") ? key : null };
 }
 
 export function requestOrigin(request: Request) {

@@ -30,6 +30,7 @@ const schema = `
   );
   CREATE INDEX IF NOT EXISTS mileage_ranking ON road_profiles(total_metres);
   CREATE INDEX IF NOT EXISTS journey_owner_start ON journeys(driver_id, started_at DESC, id);
+  CREATE INDEX IF NOT EXISTS profile_last_seen ON road_profiles(last_seen);
   CREATE TABLE IF NOT EXISTS tree_gardens (
     driver_id TEXT PRIMARY KEY REFERENCES road_profiles(id),
     tree_id TEXT NOT NULL,
@@ -49,6 +50,7 @@ const schema = `
     window_start BIGINT NOT NULL,
     count INTEGER NOT NULL
   );
+  CREATE INDEX IF NOT EXISTS request_limit_windows ON request_limits(window_start);
 `;
 
 export async function createStore({

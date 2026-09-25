@@ -75,3 +75,16 @@ test('Config endpoint exposes only the public key and disables caching', async (
   assert.equal(response.headers.get('x-content-type-options'), 'nosniff');
   assert.deepEqual(Object.keys(await response.json()), ['clerkPublishableKey']);
 });
+
+test('Config endpoint never serves a secret key saved as the publishable key', async t => {
+  const previous = process.env.CLERK_PUBLISHABLE_KEY;
+  t.after(() => {
+    if (previous === undefined) delete process.env.CLERK_PUBLISHABLE_KEY;
+    else process.env.CLERK_PUBLISHABLE_KEY = previous;
+  });
+  const served = async () => (await handleConfig(new Request(`${origin}/api/config`)).json()).clerkPublishableKey;
+  process.env.CLERK_PUBLISHABLE_KEY = 'sk_test_secret';
+  assert.equal(await served(), null);
+  process.env.CLERK_PUBLISHABLE_KEY = 'pk_test_public';
+  assert.equal(await served(), 'pk_test_public');
+});

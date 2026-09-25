@@ -24,8 +24,12 @@ function Board({
   }, []);
   const rows = (room.board?.leaderboard || []).slice(0, 5),
     label = unit.toUpperCase();
+  // `you` describes the rider this board was built for, who may have since
+  // signed in or out.
+  const current = room.board?.me.id === room.me?.id;
   const ownRow =
-    rows.some((entry) => entry.id === room.me?.id) &&
+    current &&
+    rows.some((entry) => entry.you) &&
     room.me?.currentJourneyId === room.journey;
   return (
     <aside
@@ -65,11 +69,11 @@ function Board({
       </div>
       <ol id="leaderboard" className="leaderboard">
         {rows.map((entry) => {
-          const own = entry.id === room.me?.id,
+          const own = current && entry.you,
             profile = own ? room.me! : entry;
           const intention = activeIntention(profile, room.now);
           return (
-            <li key={entry.id} className={own ? "is-you" : undefined}>
+            <li key={entry.rank} className={own ? "is-you" : undefined}>
               <span className="leader-rank">
                 {String(entry.rank).padStart(2, "0")}
               </span>
