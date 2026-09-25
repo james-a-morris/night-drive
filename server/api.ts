@@ -1,3 +1,4 @@
+import { isCityPreferences, parseCityPreferences } from "../src/city-preferences.ts";
 import {
   readGarden,
   updateGarden,
@@ -107,6 +108,7 @@ function profileView(
 ): RiderProfile {
   return {
     id: profile.id,
+    citySync: parseCityPreferences(profile.city_preferences),
     name: profile.name,
     ...intentionView(profile, now),
     totalMiles: Number(profile.total_metres) / METRES_PER_MILE,
@@ -311,6 +313,10 @@ async function identify(
           await query(
             "UPDATE guest_sessions SET driver_id = $1 WHERE driver_id = $2",
             [account.id, guest.id],
+          );
+          await query(
+            "UPDATE road_profiles SET city_preferences = COALESCE(city_preferences, $1) WHERE id = $2",
+            [unclaimed.city_preferences, account.id],
           );
           await transferGarden(query, guest.id, account.id);
           await query("DELETE FROM road_profiles WHERE id = $1", [guest.id]);
@@ -562,6 +568,22 @@ export function createApi({
     return clock();
   }
   const actions: Record<string, (context: ActionContext) => Promise<object>> = {
+    async "city-sync"({ store, driver, body, userId }) {
+      if (Object.keys(body).some(key => !["action", "ownerId", "preferences", "initializeOnly"].includes(key)) ||
+        !isCityPreferences(body.preferences) ||
+        (body.initializeOnly !== undefined && typeof body.initializeOnly !== "boolean")) {
+        throw new ApiError(400, "Choose a valid city and sync setting.");
+      }
+      // A queued save from another signed-in identity must never change this profile.
+      if (body.ownerId !== driver.id) throw new ApiError(409, "Your rider changed. Please try again.");
+      const [updated] = await store.query<ProfileRow>(
+        body.initializeOnly
+          ? "UPDATE road_profiles SET city_preferences = COALESCE(city_preferences, $1) WHERE id = $2 RETURNING *"
+          : "UPDATE road_profiles SET city_preferences = $1 WHERE id = $2 RETURNING *",
+        [JSON.stringify(body.preferences), driver.id],
+      );
+      return { me: profileView(updated, userId, clock()), serverTime: clock() };
+    },
     // One request every 15 seconds from a visible tab: it saves distance,
     // grows the plant by server time, and returns the room.
     async "check-in"({ store, driver, body, userId, now }) {
@@ -755,7 +777,8 @@ export function createApi({
 }
 
 // Reuse the pool/SQLite connection across Next.js development module reloads.
-const storeKey = Symbol.for("night-line.store");
+// Version the cache when schema migrations change so development runs them too.
+const storeKey = Symbol.for("night-line.store.city-preferences-v1");
 const shared = globalThis as typeof globalThis & {
   [storeKey]?: { promise: Promise<Store> | null };
 };

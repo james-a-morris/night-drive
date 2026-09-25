@@ -6,11 +6,14 @@
 .account-panel { position:absolute; z-index:2; right:0; top:calc(100% + 10px); width:260px; max-width:calc(100vw - 32px); padding:12px 8px 0; border:1px solid rgba(207,218,213,.17); border-radius:12px; background:linear-gradient(145deg,rgba(29,43,49,.97),rgba(12,25,33,.97)); box-shadow:0 18px 55px rgba(0,0,0,.32),inset 0 1px 0 rgba(255,255,255,.04); backdrop-filter:blur(24px); font-family:var(--font-ui); max-height:calc(100dvh - 90px); overflow-y:auto; scrollbar-width:thin; }
 .account-eyebrow { margin:0 8px 2px; color:#cba38c; font:var(--text-label) var(--font-ui); letter-spacing:.18em; }
 .account-identity { margin:0 0 6px; padding:6px 8px; }
-.account-identity strong { display:block; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; color:#f0eee5; font:500 var(--text-body) var(--font-ui); }
-.account-rider-name { display:flex; align-items:center; justify-content:space-between; gap:10px; width:100%; min-height:32px; border:1px solid transparent; border-radius:7px; background:none; text-align:left; cursor:pointer; transition:background .2s,border-color .2s; }
-.account-rider-name:hover,.account-rider-name:focus-visible { background:rgba(239,177,145,.06); border-color:rgba(239,177,145,.13); outline:none; }
-.account-rider-name[aria-disabled="true"] { opacity:.5; cursor:wait; }
-.account-rider-name>svg { width:16px; height:16px; flex:none; color:#cba38c; stroke:currentColor; stroke-width:1.35; stroke-linecap:round; stroke-linejoin:round; }
+.account-identity strong,.account-rider-name strong { display:block; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; color:#f0eee5; font:500 var(--text-body) var(--font-ui); }
+.account-rider-header { display:flex; align-items:center; gap:2px; margin-bottom:6px; }
+.account-rider-name,.account-manage { min-height:34px; padding:6px 8px; border:1px solid transparent; border-radius:7px; background:none; cursor:pointer; transition:background .2s,border-color .2s; }
+.account-rider-name { display:flex; align-items:center; justify-content:space-between; gap:10px; flex:1; min-width:0; text-align:left; }
+.account-manage { display:grid; place-items:center; flex:none; width:34px; }
+.account-rider-name:hover,.account-manage:hover { background:rgba(239,177,145,.06); border-color:rgba(239,177,145,.13); }
+.account-rider-name:focus-visible,.account-manage:focus-visible { outline:1px solid #efb191; outline-offset:-2px; }
+.account-rider-name>svg,.account-manage>svg { width:16px; height:16px; flex:none; color:#cba38c; stroke:currentColor; stroke-width:1.35; stroke-linecap:round; stroke-linejoin:round; }
 .account-guest-identity>span { display:block; margin-top:2px; color:#91a0a4; font-size:var(--text-label); }
 .account-menu { padding:0 0 4px; }
 .account-settings { display:grid; grid-template-columns:64px minmax(0,1fr); align-items:center; gap:4px 6px; padding:8px 0; border-top:1px solid rgba(255,255,255,.08); }
@@ -20,7 +23,7 @@
 .cabin-option>svg { display:block; width:28px; height:28px; flex:none; }
 .cabin-option:hover { background:rgba(239,177,145,.06); border-color:rgba(239,177,145,.13); color:#eee3d4; }
 .cabin-option:focus-visible { outline:1px solid #efb191; outline-offset:-2px; }
-.cabin-option[aria-checked="true"] { color:#f3dccb; background:rgba(239,177,145,.13); border-color:rgba(239,177,145,.32); }
+.cabin-option[aria-pressed="true"] { color:#f3dccb; background:rgba(239,177,145,.13); border-color:rgba(239,177,145,.32); }
 .account-menu-item { display:flex; align-items:center; gap:10px; width:100%; min-height:34px; padding:6px 8px; text-align:left; border:1px solid transparent; border-radius:7px; background:transparent; color:#dce0d9; cursor:pointer; transition:background .2s,border-color .2s; }
 .account-menu-item:hover,.account-menu-item:focus-visible { background:rgba(239,177,145,.06); border-color:rgba(239,177,145,.13); outline:none; }
 .account-menu-item>svg { width:16px; height:16px; flex:none; color:#b8b6ac; stroke:currentColor; stroke-width:1.35; stroke-linecap:round; stroke-linejoin:round; }
@@ -30,8 +33,8 @@
 /* The dev kit switch spans the settings grid and carries its own state chip. */
 .dev-kit-toggle { grid-column:1/-1; margin:4px 4px 0; width:auto; }
 .account-item-state { flex:none; margin-left:auto; padding:3px 8px; border:1px solid rgba(255,255,255,.1); border-radius:20px; background:rgba(3,12,18,.28); color:#b9c1bd; font:var(--text-label) var(--font-ui); letter-spacing:.06em; }
-.dev-kit-toggle[aria-checked="true"] .account-item-state { border-color:rgba(239,177,145,.32); background:rgba(239,177,145,.13); color:#f3dccb; }
-.dev-kit-toggle[aria-checked="true"]>svg { color:#e4b394; }
+.dev-kit-toggle[aria-pressed="true"] .account-item-state { border-color:rgba(239,177,145,.32); background:rgba(239,177,145,.13); color:#f3dccb; }
+.dev-kit-toggle[aria-pressed="true"]>svg { color:#e4b394; }
 .account-menu-item[aria-disabled="true"] { opacity:.5; cursor:wait; }
 .account-panel .form-error { margin:3px 8px 8px; }
 .account-progress { display:flex; flex-wrap:wrap; align-items:baseline; justify-content:space-between; gap:4px 8px; margin:0; padding:9px 8px 10px; border-top:1px solid rgba(255,255,255,.07); color:#92a09f; font:400 var(--text-body) var(--font-ui); }
@@ -79,6 +82,13 @@
 .night-account-section-title { color:#b5bfbe; font:var(--text-label)/1.7 var(--font-ui); letter-spacing:.07em; text-transform:uppercase; }
 .night-account-edit { font-size:var(--text-label); }
 .night-account-badge { color:#c5d0c6; background:rgba(162,188,161,.09); border:1px solid rgba(162,188,161,.15); font:var(--text-label)/1.4 var(--font-ui); }
+.night-account-sign-out { display:grid; justify-items:start; gap:18px; }
+.night-account-sign-out h2 { margin:0; color:#efd1bd; font:400 var(--text-title)/1.15 var(--font-ui); letter-spacing:-.025em; }
+.night-account-sign-out p { margin:0; color:#a4b1b3; font:var(--text-body)/1.7 var(--font-ui); }
+.night-account-sign-out button { padding:0 20px; cursor:pointer; }
+.night-account-sign-out button:disabled { opacity:.55; cursor:wait; }
+.night-account-sign-out button:focus-visible { outline:2px solid #efb191; outline-offset:3px; }
+.night-account-sign-out .form-error { color:#f4bca8; }
 @media(max-width:650px) {
   .account-trigger { width:36px; height:36px; }
   .account-panel { top:calc(100% + 10px); }
@@ -89,5 +99,5 @@
   .night-account-page { padding:24px 20px; }
 }
 @media(prefers-reduced-motion:reduce) {
-  .account-trigger,.account-rider-name,.account-menu-item,.cabin-option,.distance-options button { transition:none; }
+  .account-trigger,.account-rider-name,.account-manage,.account-menu-item,.cabin-option,.distance-options button { transition:none; }
 }

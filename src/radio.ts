@@ -1,4 +1,5 @@
-import type { Environment, EnvironmentWeights } from "./environments.ts";
+import type { EnvironmentSource } from "./environments.ts";
+import type { EnvironmentWeights } from "./environments.ts";
 import type { Station } from "./radio-browser.ts";
 import { requestError } from "./types.ts";
 import { LocalSoundscape } from "./music.ts";
@@ -282,7 +283,7 @@ export class NightRadio {
     this.local.setConductorWhir(level);
   }
 
-  setWeather(weights: EnvironmentWeights, stormRain = 0, forest?: Environment) {
+  setWeather(weights: EnvironmentWeights, stormRain = 0, forest?: EnvironmentSource) {
     this.local.setWeather(weights, stormRain, forest);
   }
 

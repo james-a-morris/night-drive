@@ -1,41 +1,53 @@
+import type { CityAtmosphere } from "../src/city-atmosphere.ts";
+import CityWeatherChecker from "./city-weather.tsx";
 import type { Room } from "./use-room.ts";
-import type { Seat, DistanceUnit } from "../src/types.ts";
+import type { Seat, SeatDirection, DistanceUnit } from "../src/types.ts";
 import Popover from "./popover.tsx";
-import { useAsyncAction } from "./use-async-action.ts";
 import { formatDistance } from "./use-room.ts";
-import { manageAccount, signOut } from "../src/auth.ts";
-import { SeatIcon, WindowIcon } from "./journey-setting-icons.tsx";
+import { manageAccount } from "../src/auth.ts";
+import { SeatIcon, WindowIcon, TrainDirectionIcon, DistanceIcon } from "./journey-setting-icons.tsx";
 
 export default function AccountMenu({
   room,
+  weatherEnabled,
+  onAtmosphere,
+  onCityTimezone,
   seat,
   onSeat,
+  seatDirection,
+  onSeatDirection,
   windowOpen,
   onWindow,
   unit,
   onUnit,
+  devKitEnabled,
   devKit,
   onDevKit,
   onEditName,
   onAuthenticate,
 }: {
   room: Room;
+  weatherEnabled: boolean;
+  onAtmosphere(value: CityAtmosphere | null): void;
+  onCityTimezone(value: string | null): void;
   seat: Seat;
   onSeat(value: Seat): void;
+  seatDirection: SeatDirection;
+  onSeatDirection(value: SeatDirection): void;
   windowOpen: boolean;
   onWindow(): void;
   unit: DistanceUnit;
   onUnit(value: DistanceUnit): void;
+  devKitEnabled: boolean;
   devKit: boolean;
   onDevKit(): void;
   onEditName(): void;
   onAuthenticate(signUp: boolean): void;
 }) {
   const signedIn = Boolean(room.me?.signedIn);
-  const action = useAsyncAction();
   return (
-    <Popover>
-      {({ triggerProps, panelProps, close }) => (
+    <Popover role="dialog">
+      {({ open, triggerProps, panelProps, close }) => (
         <div
           className={`account-control${signedIn ? "" : " is-guest"}`}
           id="user-button"
@@ -47,7 +59,7 @@ export default function AccountMenu({
             type="button"
             aria-label="Settings and account"
             title="Settings and account"
-            aria-controls="account-menu"
+            aria-controls="account-panel"
           >
             <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
               <path
@@ -57,35 +69,49 @@ export default function AccountMenu({
               <circle cx="12" cy="12" r="3" />
             </svg>
           </button>
-          <div {...panelProps} className="account-panel" id="account-panel">
+          <div {...panelProps} className="account-panel" id="account-panel" role="dialog" aria-label="Journey settings and account">
             <p className="account-eyebrow">YOUR NIGHT RAIL</p>
             <div
               className="account-menu"
               id="account-menu"
-              role="menu"
+              role="group"
               aria-label="Journey settings and account"
             >
-              <button
-                className="account-identity account-rider-name"
-                id="rider-name-open"
-                type="button"
-                role="menuitem"
-                aria-label={`Edit rider name: ${room.me?.name || "Your rider name"}`}
-                tabIndex={-1}
-                hidden={!signedIn}
-                onClick={() => {
-                  close(true);
-                  onEditName();
-                }}
-                disabled={action.busy}
-              >
-                <strong id="rider-name-value">
-                  {room.me?.name || "Your rider name"}
-                </strong>
-                <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
-                  <path d="m5 16-1 4 4-1L20 7l-3-3L5 16ZM14 7l3 3" />
-                </svg>
-              </button>
+              <div className="account-rider-header" hidden={!signedIn}>
+                <button
+                  className="account-rider-name"
+                  id="rider-name-open"
+                  type="button"
+                  aria-label={`Edit rider name: ${room.me?.name || "Your rider name"}`}
+                  onClick={() => {
+                    close(true);
+                    onEditName();
+                  }}
+                >
+                  <strong id="rider-name-value">
+                    {room.me?.name || "Your rider name"}
+                  </strong>
+                  <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                    <path d="m5 16-1 4 4-1L20 7l-3-3L5 16ZM14 7l3 3" />
+                  </svg>
+                </button>
+                <button
+                  className="account-manage"
+                  id="manage-account"
+                  type="button"
+                  aria-label="Manage account"
+                  title="Manage account"
+                  onClick={() => {
+                    close(true);
+                    manageAccount();
+                  }}
+                >
+                  <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                    <circle cx="12" cy="8" r="3.5" />
+                    <path d="M5 21v-2a7 7 0 0 1 14 0v2" />
+                  </svg>
+                </button>
+              </div>
               <div
                 className="account-identity account-guest-identity"
                 id="guest-identity"
@@ -110,12 +136,10 @@ export default function AccountMenu({
                       className="cabin-option"
                       id="seat-left"
                       type="button"
-                      role="menuitemradio"
-                      aria-checked={seat === "left"}
+                      aria-pressed={seat === "left"}
                       onClick={() => onSeat("left")}
                       aria-label="Sit on the left side"
                       title="Sit on the left side"
-                      tabIndex={-1}
                     >
                       <SeatIcon side="left" />
                       <span>Left seat</span>
@@ -124,12 +148,10 @@ export default function AccountMenu({
                       className="cabin-option"
                       id="seat-right"
                       type="button"
-                      role="menuitemradio"
-                      aria-checked={seat === "right"}
+                      aria-pressed={seat === "right"}
                       onClick={() => onSeat("right")}
                       aria-label="Sit on the right side"
                       title="Sit on the right side"
-                      tabIndex={-1}
                     >
                       <SeatIcon side="right" />
                       <span>Right seat</span>
@@ -139,7 +161,6 @@ export default function AccountMenu({
                     className="cabin-option"
                     id="window-toggle"
                     type="button"
-                    role="menuitem"
                     aria-label={windowOpen ? "Close window" : "Open window"}
                     title={
                       windowOpen
@@ -147,7 +168,6 @@ export default function AccountMenu({
                         : "Window is closed. Open it to hear the weather."
                     }
                     onClick={onWindow}
-                    tabIndex={-1}
                   >
                     <WindowIcon open={windowOpen} />
                     <span id="window-label">
@@ -155,43 +175,52 @@ export default function AccountMenu({
                     </span>
                   </button>
                 </div>
-                <div className="account-section-label" id="distance-unit-label">
-                  DISTANCE
-                </div>
                 <div
-                  className="distance-options"
+                  className="cabin-options"
                   role="group"
-                  aria-labelledby="distance-unit-label"
+                  aria-label="Facing direction and distance units"
                 >
-                  <button
-                    type="button"
-                    role="menuitemradio"
-                    aria-checked={unit === "mi"}
-                    data-distance-unit="mi"
-                    onClick={() => onUnit("mi")}
-                    tabIndex={-1}
+                  <div
+                    className="seat-options"
+                    role="group"
+                    aria-label="Choose a facing direction"
                   >
-                    Miles
-                  </button>
+                    {(["forward", "backward"] as const).map((direction) => (
+                      <button
+                        key={direction}
+                        className="cabin-option"
+                        id={`seat-${direction}`}
+                        type="button"
+                        aria-pressed={seatDirection === direction}
+                        aria-label={`Face ${direction}`}
+                        title={`Face ${direction}`}
+                        onClick={() => onSeatDirection(direction)}
+                      >
+                        <TrainDirectionIcon direction={direction} />
+                        <span>{direction === "forward" ? "Forward" : "Backward"}</span>
+                      </button>
+                    ))}
+                  </div>
                   <button
+                    className="cabin-option"
+                    id="distance-unit-toggle"
                     type="button"
-                    role="menuitemradio"
-                    aria-checked={unit === "km"}
-                    data-distance-unit="km"
-                    onClick={() => onUnit("km")}
-                    tabIndex={-1}
+                    aria-label={unit === "mi" ? "Distance in miles. Switch to kilometers" : "Distance in kilometers. Switch to miles"}
+                    title={unit === "mi" ? "Switch to kilometers" : "Switch to miles"}
+                    data-distance-unit={unit}
+                    onClick={() => onUnit(unit === "mi" ? "km" : "mi")}
                   >
-                    Kilometers
+                    <DistanceIcon />
+                    <span>{unit === "mi" ? "Mi" : "Km"}</span>
                   </button>
                 </div>
-                <button
+                {weatherEnabled && <CityWeatherChecker room={room} active={open} onAtmosphere={onAtmosphere} onTimezone={onCityTimezone} />}
+                {devKitEnabled && <button
                   className="account-menu-item dev-kit-toggle"
                   id="dev-kit-toggle"
                   type="button"
-                  role="menuitemcheckbox"
-                  aria-checked={devKit}
+                  aria-pressed={devKit}
                   aria-controls={devKit ? "dev-kit" : undefined}
-                  tabIndex={-1}
                   onClick={onDevKit}
                 >
                   <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
@@ -204,55 +233,7 @@ export default function AccountMenu({
                   <span className="account-item-state" aria-hidden="true">
                     {devKit ? "On" : "Off"}
                   </span>
-                </button>
-              </div>
-              <div
-                className="account-actions"
-                id="account-actions"
-                hidden={!signedIn}
-              >
-                <button
-                  className="account-menu-item"
-                  id="manage-account"
-                  type="button"
-                  disabled={action.busy}
-                  onClick={() => {
-                    close(true);
-                    manageAccount();
-                  }}
-                  role="menuitem"
-                  tabIndex={-1}
-                >
-                  <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
-                    <circle cx="12" cy="8" r="3.5" />
-                    <path d="M5 21v-2a7 7 0 0 1 14 0v2" />
-                  </svg>
-                  <span>
-                    <strong>Manage account</strong>
-                    <small>Email &amp; security</small>
-                  </span>
-                  <span className="account-item-arrow" aria-hidden="true">
-                    ↗
-                  </span>
-                </button>
-                <button
-                  className="account-menu-item"
-                  id="account-sign-out"
-                  type="button"
-                  aria-disabled={action.busy}
-                  onClick={() => action.run(signOut, () => close(true))}
-                  role="menuitem"
-                  tabIndex={-1}
-                >
-                  <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
-                    <path d="M9 4H5a1 1 0 0 0-1 1v14a1 1 0 0 0 1 1h4M10 12h10m-4-4 4 4-4 4" />
-                  </svg>
-                  <span>
-                    <strong id="sign-out-label">
-                      {action.busy ? "Signing out…" : "Sign out"}
-                    </strong>
-                  </span>
-                </button>
+                </button>}
               </div>
               <div
                 className="account-actions"
@@ -262,8 +243,6 @@ export default function AccountMenu({
                 <button
                   className="account-menu-item"
                   type="button"
-                  role="menuitem"
-                  tabIndex={-1}
                   data-sign-up
                   onClick={() => {
                     close(true);
@@ -282,8 +261,6 @@ export default function AccountMenu({
                 <button
                   className="account-menu-item"
                   type="button"
-                  role="menuitem"
-                  tabIndex={-1}
                   data-sign-in
                   onClick={() => {
                     close(true);
@@ -299,9 +276,6 @@ export default function AccountMenu({
                 </button>
               </div>
             </div>
-            <p className="form-error" id="account-menu-error" role="alert">
-              {action.error}
-            </p>
             <dl className="account-progress">
               <dt>All-time distance</dt>
               <dd id="account-total-distance">

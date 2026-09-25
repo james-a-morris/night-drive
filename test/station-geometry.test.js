@@ -70,7 +70,7 @@ test("built stations retain their solid canopy, mesh budget and resource cleanup
   try {
     const stations = createStations(new Group(), scope);
     let released = 0;
-    for (const [index, mode] of [[0, "desert"], [1, "forest"], [1, "alpine"], [1, "coast"]]) {
+    for (const [index, mode] of [[0, "desert"], [1, "forest"], [1, "alpine"], [0, "coast"], [1, "coast"]]) {
       const stop = stationAt(index);
       stations.update(stop.at, mode);
       assert.equal(stations.root.children.length, 10);
@@ -84,12 +84,19 @@ test("built stations retain their solid canopy, mesh budget and resource cleanup
         assert.ok(above && below);
         assert.ok(Math.abs(above.point.y - below.point.y - .18) < .002, "roof has a separate underside");
       }
+      if (mode === "coast") {
+        const { x, z } = roadPoint(stop.at - 29, -6);
+        const deck = new Raycaster(new Vector3(x, 2, z), new Vector3(0, -1, 0)).intersectObject(solid)[0];
+        assert.ok(deck && Math.abs(deck.point.y - .8) < .002, "the approach retains its boarding deck");
+        const underDeck = new Raycaster(new Vector3(x, .3, z), new Vector3(0, -1, 0)).intersectObject(solid);
+        assert.equal(underDeck.length, 0, "the coastal slope is not filled with a solid foundation wall");
+      }
       for (const child of stations.root.children) {
         for (const attribute of Object.values(child.geometry.attributes)) assert.ok(attribute.array.every(Number.isFinite));
       }
     }
     scope.dispose();
-    assert.equal(released, 4);
+    assert.equal(released, 5);
     assert.equal(stations.root.children.length, 0);
   } finally {
     scope.dispose();

@@ -1,6 +1,9 @@
 import * as THREE from "./three.ts";
+import { RoundedBoxGeometry } from "three/addons/geometries/RoundedBoxGeometry.js";
 import type { Lifecycle } from "./lifecycle.ts";
 import { mergeStaticMeshes } from "./static-meshes.ts";
+import { createSteamLocomotive } from "./steam-locomotive.ts";
+import { TRAIN_PALETTES, type TrainType } from "./train-types.ts";
 import {
   trainFrames,
   CARRIAGE_LENGTH,
@@ -116,6 +119,7 @@ export function createTrain(scene: THREE.Group, scope: Lifecycle) {
     mergeStaticMeshes(car, [...car.children], scope);
     scene.add(car);
     cars.push(car);
+    car.userData.trainType = "classic";
     bogies.push(carBogies);
 
     // Alternating narrow/wide rings form an accordion. Each end stays attached
@@ -142,9 +146,60 @@ export function createTrain(scene: THREE.Group, scope: Lifecycle) {
     scene.add(gangway);
     gangways.push({ group: gangway, geometry, coupler });
   }
+  const front = cars[cars.length - 1];
+  const originalFrontParts = [...front.children];
+  const locomotive = createSteamLocomotive(scope);
+  front.add(locomotive.group);
+  const metroDetails = cars.map((car, index) => {
+    const group = new THREE.Group();
+    group.name = "metro-carriage-details";
+    group.visible = false;
+    car.add(group);
+    for (const side of [-1, 1]) {
+      box(group, [0.035, 0.22, 10.85], [side * 1.67, 1.39, 0], trimMaterial);
+      for (const z of [-2.5, 2.5]) box(group, [0.42, 0.065, 1.25], [side * 0.63, 3.99, z], darkMaterial);
+    }
+    if (index === cars.length - 1) {
+      const nose = new THREE.Mesh(new RoundedBoxGeometry(3.28, 2.48, 0.26, 3, 0.12), bodyMaterial);
+      nose.position.set(0, 2.2, -5.51);
+      group.add(nose);
+      const windscreen = new THREE.MeshStandardMaterial({
+        color: 0x304d5c, roughness: 0.25, metalness: 0.2,
+        emissive: 0x244b60, emissiveIntensity: 0.2,
+      });
+      box(group, [3.02, 1.22, 0.1], [0, 2.6, -5.66], darkMaterial);
+      box(group, [2.65, 0.91, 0.025], [0, 2.62, -5.725], windscreen);
+      box(group, [0.065, 1.16, 0.045], [0, 2.62, -5.745], roofMaterial);
+      box(group, [3.15, 0.22, 0.025], [0, 1.39, -5.66], trimMaterial);
+      box(group, [0.3, 0.16, 0.25], [0, 0.96, -5.72], darkMaterial);
+      const lamp = new THREE.MeshBasicMaterial({ color: 0xffeed2 });
+      for (const side of [-1, 1]) box(group, [0.35, 0.095, 0.035], [side * 1.15, 1.84, -5.67], lamp);
+    }
+    mergeStaticMeshes(group, [...group.children], scope);
+    return group;
+  });
+  let currentType: TrainType = "classic";
   return {
     cars,
-    update(progress: number) {
+    setTrainType(type: TrainType) {
+      if (type === currentType) return;
+      currentType = type;
+      const palette = TRAIN_PALETTES[type];
+      bodyMaterial.color.set(palette.exterior);
+      bodyMaterial.metalness = type === "metro" ? 0.45 : 0;
+      bodyMaterial.roughness = type === "metro" ? 0.45 : 0.8;
+      roofMaterial.color.set(palette.roof);
+      trimMaterial.color.set(palette.trim);
+      endMaterial.color.set(palette.end);
+      windowMaterial.color.set(type === "metro" ? 0xb3ced2 : 0xc6b888);
+      windowMaterial.emissive.set(type === "metro" ? 0x648da1 : 0x8e682e);
+      for (const car of cars) car.userData.trainType = type;
+      for (const object of originalFrontParts) object.visible = type !== "steam";
+      locomotive.group.visible = type === "steam";
+      for (const group of metroDetails) group.visible = type === "metro";
+    },
+    update(progress: number, dt = 0, reducedMotion = false) {
+      locomotive.update(progress, dt, reducedMotion);
       const frames = trainFrames(progress, cars.length);
       cars.forEach((car, index) => {
         const at = frames.cars[index];

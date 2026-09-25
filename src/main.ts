@@ -1,12 +1,19 @@
+import { canSyncWeather, cityEnvironments, isThunderstorm, type CityAtmosphere } from "./city-atmosphere.ts";
 import type { TreeGardenController } from "./tree-garden.ts";
 import type { DiagnosticsProbe } from "./diagnostics.ts";
 import type { Drive } from "./drive.ts";
 import type { NightRadio } from "./radio.ts";
 import type { EnvironmentName, SceneryMode } from "./environments.ts";
-import type { DistanceUnit, Seat } from "./types.ts";
+import type { DistanceUnit, Seat, SeatDirection } from "./types.ts";
+import { seatOnTrain } from "./seating.ts";
+import type { TrainType } from "./train-types.ts";
 export interface SceneSettings {
+  trainType: TrainType;
   mode: SceneryMode;
+  cityAtmosphere?: CityAtmosphere | null;
+  cityTimezone?: string | null;
   seat: Seat;
+  seatDirection: SeatDirection;
   windowOpen: boolean;
   gardenView?: boolean;
   distanceUnit: DistanceUnit;
@@ -87,6 +94,8 @@ export function mountScene(
     const mileMarkers = createMileMarkers(scenery.world);
     const stormClock = createStormClock();
     const pineWeather = createPineWeather();
+    let cachedAtmosphere: CityAtmosphere | null | undefined;
+    let cityPalette: ReturnType<typeof cityEnvironments> | undefined;
     let previousPineWeather: PineWeather | undefined;
     const lightning = createLightning(scene);
     scope.defer(() => radio.setStorm(false, false));
@@ -145,6 +154,7 @@ export function mountScene(
       lastWeatherUpdate = 0;
     let last = performance.now();
     const motion = reducedMotion();
+    let activeTrainType: TrainType | undefined;
     scope.defer(() => cancelAnimationFrame(frameId));
     function animate(now: number) {
       frameId = requestAnimationFrame(animate);
@@ -152,8 +162,20 @@ export function mountScene(
       const elapsed = now - last;
       const dt = Math.min(elapsed / 1000, 0.05);
       last = now;
+      const { trainType } = getSettings();
+      if (trainType !== activeTrainType) {
+        cabin.setTrainType(trainType);
+        train.setTrainType(trainType);
+        activeTrainType = trainType;
+      }
       const weatherChoice = pineWeather.update(drive.progress, getSettings().mode);
-      const forest = pineEnvironment(weatherChoice);
+      const requestedAtmosphere = getSettings().cityAtmosphere;
+      const atmosphere = requestedAtmosphere && canSyncWeather(requestedAtmosphere.weather, Date.now()) ? requestedAtmosphere : null;
+      if (atmosphere !== cachedAtmosphere) {
+        cachedAtmosphere = atmosphere;
+        cityPalette = atmosphere ? cityEnvironments(atmosphere) : undefined;
+      }
+      const forest = cityPalette ?? pineEnvironment(weatherChoice);
       if (weatherChoice !== previousPineWeather) { previousPineWeather = weatherChoice; onPineWeather(weatherChoice); }
       const departures = drive.departures;
       const movement = advanceDrive(drive, dt, getSettings().mode);
@@ -165,7 +187,7 @@ export function mountScene(
         : null;
       if (stationStatus !== currentStation) { currentStation = stationStatus; onStation(stationStatus); }
       const frame = roadFrame(drive.progress);
-      const cabinFrame = train.update(drive.progress);
+      const cabinFrame = train.update(drive.progress, dt, motion.matches);
       cabin.rig.position.set(frame.x, 0, frame.z);
       cabin.rig.rotation.y = cabinFrame.heading;
       cabin.rig.rotation.z = motion.matches
@@ -177,14 +199,15 @@ export function mountScene(
         movement,
         dt,
         getSettings().mode,
+        getSettings().cityTimezone ?? undefined,
       );
-      const { journey, currentMiles, distanceUnit, seat } = getSettings();
+      const { journey, currentMiles, distanceUnit, seat, seatDirection } = getSettings();
       mileMarkers.update(
         drive.progress,
         drive.started ? journey : null,
         currentMiles,
         distanceUnit,
-        seat,
+        seatOnTrain(seat, seatDirection),
       );
       // Update the world transform before the camera and shelter use it.
       scenery.world.updateMatrixWorld(true);
@@ -217,9 +240,9 @@ export function mountScene(
       const storm = stormClock.update(
         dt,
         drive.started &&
-          weatherChoice === "rain" &&
-          weights.forest > 0.9 &&
-          (mode === "auto" || mode === "forest"),
+          (atmosphere
+            ? isThunderstorm(atmosphere.weather.current.code) && weights.tunnel < .1
+            : weatherChoice === "rain" && weights.forest > 0.9 && (mode === "auto" || mode === "forest")),
       );
       lightning.update(
         storm.flash,

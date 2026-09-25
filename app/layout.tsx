@@ -9,6 +9,8 @@ import "../src/welcome.css";
 import "../src/about.css";
 import "../src/dev-kit.css";
 import "../src/anki.css";
+import "../src/city-weather.css";
+import "../src/train-picker.css";
 
 const title = "Night Rail: a little room for your thoughts";
 const description =

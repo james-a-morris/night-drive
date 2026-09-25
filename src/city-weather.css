@@ -1,0 +1,31 @@
+.city-weather-control { grid-column:1/-1; min-width:0; margin:4px 4px 0; letter-spacing:normal; }
+.city-weather-row { display:flex; align-items:center; gap:10px; min-height:48px; padding:6px 8px; }
+.city-weather-control svg { width:20px; height:20px; stroke:currentColor; stroke-width:1.35; stroke-linecap:round; stroke-linejoin:round; }
+.city-weather-icon { display:flex; flex:none; color:#b8b6ac; }
+.city-weather-copy { flex:1; min-width:0; }
+.city-weather-city { display:flex; align-items:center; gap:6px; width:100%; padding:0; background:none; border:0; color:#dce0d9; font:500 var(--text-body)/1.5 var(--font-ui); text-align:left; cursor:pointer; }
+.city-weather-city>span { overflow:hidden; white-space:nowrap; text-overflow:ellipsis; }
+.city-weather-city .city-weather-chevron { width:11px; height:11px; flex:none; color:#91a0a4; }
+.city-weather-city[aria-expanded=true] .city-weather-chevron { transform:rotate(180deg); }
+.city-weather-meta { display:flex; align-items:center; gap:3px; margin-top:2px; color:#91a0a4; font:var(--text-label)/1.5 var(--font-ui); font-variant-numeric:tabular-nums; }
+.city-temperature { border:0; padding:0; background:none; color:inherit; font:inherit; cursor:pointer; }
+.city-temperature:hover,.city-weather-city:hover { color:#efd1bd; }
+.city-sync { display:grid; place-items:center; flex:none; width:32px; height:32px; padding:3px; background:none; border:0; color:#758481; border-radius:5px; cursor:pointer; }
+.city-sync[aria-pressed=true] { color:#e4b394; }
+.city-sync:hover { background:#efb1910f; }
+.city-sync:disabled { opacity:.4; cursor:default; }
+.city-sync svg { width:26px; height:26px; stroke-width:1.4; }
+.city-weather-search { padding:2px 8px 8px; }
+.city-weather-search input { width:100%; height:32px; padding:7px 9px; border:1px solid #cfdad52b; border-radius:6px; background:#030c1247; color:#dce0d9; font:12px var(--font-ui); outline:none; }
+.city-weather-search input:focus { border-color:#efb19180; }
+.city-search-status { color:#91a0a4; font-size:10px; margin:6px 0 0; }
+.city-search-status:empty { display:none; }
+.city-search-results { list-style:none; padding:0; margin:6px 0 0; max-height:165px; overflow-y:auto; }
+.city-search-results button { display:flex; flex-direction:column; gap:2px; width:100%; text-align:left; padding:7px 6px; border:0; border-radius:5px; background:none; color:#dce0d9; font:var(--text-body) var(--font-ui); cursor:pointer; }
+.city-search-results button:hover,.city-search-results button:focus-visible { background:#efb1910f; }
+.city-search-results span { color:#91a0a4; font-size:9px; }
+.city-search-footer { display:flex; justify-content:space-between; align-items:center; margin-top:7px; color:#91a0a4; font-size:8px; }
+.city-search-footer a { color:inherit; text-decoration:none; }
+.city-search-footer a:hover { text-decoration:underline; }
+.city-search-footer button,.city-weather-retry { color:#cba38c; background:none; border:0; padding:4px 0; font:10px var(--font-ui); cursor:pointer; }
+.city-weather-retry { margin-left:8px; }

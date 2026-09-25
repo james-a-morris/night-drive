@@ -1,9 +1,12 @@
-import type { DistanceUnit, Seat } from "./types.ts";
+import type { DistanceUnit, Seat, SeatDirection } from "./types.ts";
+import { isTrainType, type TrainType } from "./train-types.ts";
 import { DEFAULT_AUDIO_MIX, validAudioMix, type AudioMix } from "./audio-mix.ts";
 
 interface PreferenceValues {
+  train: TrainType;
   audioMix: AudioMix;
   seat: Seat;
+  seatDirection: SeatDirection;
   window: "open" | "closed";
   distanceUnit: DistanceUnit;
   devKit: "on" | "off";
@@ -23,6 +26,11 @@ type Preference<T> = {
 export const PREFERENCES: {
   [K in PreferenceName]: Preference<PreferenceValues[K]>;
 } = {
+  train: {
+    key: "night-rail:train-type",
+    fallback: "classic",
+    valid: isTrainType,
+  },
   audioMix: {
     key: "night-rail:audio-mix",
     fallback: DEFAULT_AUDIO_MIX,
@@ -33,6 +41,11 @@ export const PREFERENCES: {
     key: "night-train:seat",
     fallback: "left",
     valid: (value) => value === "left" || value === "right",
+  },
+  seatDirection: {
+    key: "night-rail:seat-direction",
+    fallback: "forward",
+    valid: (value) => value === "forward" || value === "backward",
   },
   window: {
     key: "night-train:window",

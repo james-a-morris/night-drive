@@ -6,7 +6,16 @@ export interface ClerkBrowser {
   session?: { getToken(): Promise<string | null> } | null;
   openSignUp(): void;
   openSignIn(): void;
-  openUserProfile(): void;
+  openUserProfile(options?: {
+    customPages: Array<{ label: "account" | "security" } | {
+      label: string;
+      url: string;
+      mount(element: HTMLDivElement): void;
+      unmount(element: HTMLDivElement): void;
+      mountIcon(element: HTMLDivElement): void;
+      unmountIcon(element: HTMLDivElement): void;
+    }>;
+  }): void;
   closeSignIn?(): void;
   closeSignUp?(): void;
   closeUserProfile?(): void;

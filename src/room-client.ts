@@ -182,10 +182,14 @@ export function createRoomClient(
       .catch(() => report("Reconnecting to the shared carriage…"));
 
   async function changeProfile(body: ProfileAction) {
+    const owner = me?.id;
     const data = await request<ProfileResult>(body);
-    updateMe(data.me, data.serverTime);
-    emit();
-    void refresh();
+    if (me?.id === owner) {
+      updateMe(data.me, data.serverTime);
+      emit();
+      void refresh();
+    }
+    return data.me;
   }
   async function harvestTree() {
     const tree = garden?.getSnapshot().garden;

@@ -1,5 +1,6 @@
+import type { EnvironmentSource } from "./environments.ts";
 import * as THREE from "./three.ts";
-import { blendEnvironment, type Environment, type EnvironmentWeights } from "./environments.ts";
+import { blendEnvironment, type EnvironmentWeights } from "./environments.ts";
 import { intersectsCabin } from "./weather-shelter.ts";
 import { radialTexture } from "./textures.ts";
 interface Particles {
@@ -85,7 +86,7 @@ export function createWeather(scene: THREE.Scene) {
       heading: number,
       weights: EnvironmentWeights,
       stormRain = 0,
-      forest?: Environment,
+      forest?: EnvironmentSource,
     ) {
       elapsed += dt;
       group.rotation.y = heading;
