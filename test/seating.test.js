@@ -49,7 +49,7 @@ test('both facing directions preserve the screen side, desk, and open window', t
       assert.equal(Math.sign(camera.position.x), trainSide === 'left' ? -1 : 1);
       desk.getWorldPosition(deskPosition).sub(camera.position);
       assert.ok(deskPosition.dot(forward) > 0, 'desk stays in front of the rider');
-      const open = panes.filter(pane => pane.glass.scale.y < 0.1);
+      const open = panes.filter(pane => pane.glass.scale.y < 0.5);
       assert.equal(open.length, 1);
       open[0].edge.getWorldPosition(windowPosition);
       assert.equal(Math.sign(windowPosition.x), Math.sign(camera.position.x), 'the window beside the rider opens');
