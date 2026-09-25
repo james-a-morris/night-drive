@@ -110,6 +110,26 @@ test('a background tab that keeps reporting without moving leaves the board unti
   assert.equal(board[0].currentMiles, 400 / 1609.344, 'the same journey resumes with its miles');
 });
 
+test('a check-in saves distance and returns the room in one request', async t => {
+  const { visitor, advance } = await setup(t);
+  const rider = visitor(), viewer = visitor();
+  const { journeyId } = (await rider.request({ action: 'start' })).body;
+  advance(10000);
+  const { status, body } = await rider.request({ action: 'check-in', journeyId, sequence: 1, metres: 200 });
+  assert.equal(status, 200);
+  assert.equal(body.mileage.acceptedMetres, 200);
+  assert.equal(body.me.totalMiles, 200 / 1609.344, 'the profile includes the distance just saved');
+  assert.equal(body.leaderboard[0].you, true);
+  assert.equal(body.leaderboard[0].currentMiles, 200 / 1609.344);
+  assert.equal(body.garden.seconds, 0, 'the first check-in starts the plant clock');
+  advance(10000);
+  const next = (await rider.request({ action: 'check-in', journeyId, sequence: 2, metres: 300 })).body;
+  assert.equal(next.garden.seconds, 10);
+  assert.equal(next.me.totalMiles, 300 / 1609.344);
+  assert.equal((await viewer.request()).body.othersCount, 1);
+  assert.equal((await rider.request({ action: 'check-in', journeyId: 'someone-else', sequence: 2, metres: 300 })).status, 404);
+});
+
 test('the leaderboard contains only the top five drivers, including when the viewer ranks below them', async t => {
   const { visitor, advance } = await setup(t);
   const drivers = Array.from({ length: 7 }, () => visitor());
@@ -150,6 +170,19 @@ test('live presence includes new guests, excludes self, deduplicates tabs and ex
   assert.equal((await first.request()).body.othersCount, 0);
   assert.equal((await second.request()).body.othersCount, 1);
   assert.equal((await first.request(null, { user: 'alice' })).body.activeCount, 2);
+});
+
+test('signing out does not leave your account counted as another rider', async t => {
+  const { visitor, advance } = await setup(t);
+  const rider = visitor(), elsewhere = visitor();
+  await rider.request();
+  assert.equal((await rider.request(null, { user: 'alice' })).body.othersCount, 0);
+  await elsewhere.request();
+  advance(1000);
+  const signedOut = (await rider.request()).body;
+  assert.equal(signedOut.me.signedIn, false);
+  assert.equal(signedOut.othersCount, 1, 'only the other rider, not the account just left');
+  assert.equal((await rider.request(null, { user: 'alice' })).body.othersCount, 1);
 });
 
 test('forged totals, other guests journeys and impossible speeds cannot grant arbitrary miles', async t => {

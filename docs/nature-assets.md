@@ -17,10 +17,13 @@ counts. Reduced motion disables sway and completes transfers immediately.
 
 `tree_gardens` stores the current specimen, variety and elapsed growth;
 `collected_trees` stores each completed specimen with its owner and collection
-time. Saves run every 15 seconds and when hiding/leaving the page. Reset is a
-transaction: only a mature current plant can be collected, and retrying an old
-specimen ID returns the current state without duplicating it. Offline growth
-can lose unacknowledged time; the server caps catch-up at 90 seconds per save.
+time. Growth follows the server's clock: each check-in from a visible tab
+(every 15 seconds, and when hiding/leaving the page) adds the time since the
+previous check-in, if that was at most 90 seconds earlier. The first check-in
+after returning to the tab only restarts the clock. Reset is a transaction: it
+counts the time since the last check-in, only a mature current plant can be
+collected, and retrying an old specimen ID returns the current state without
+duplicating it.
 Guest collections transfer on sign-in; the active plant with more accrued growth time is retained
 when both profiles already have one. Signing out starts a fresh guest garden.
 The obsolete `night-line:tree-age` browser preference is no longer used.

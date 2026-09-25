@@ -6,19 +6,19 @@ import { createRoomClient } from '../src/room-client.ts';
 
 const settle = () => new Promise(resolve => setImmediate(resolve));
 
-test('room client establishes identity before starting, saves cumulative mileage, and cancels stale results', async t => {
+test('room client establishes identity before starting, checks in only while visible, and cancels stale results', async t => {
   t.mock.timers.enable({ apis: ['setInterval'] });
   const oldWindow = globalThis.window, oldDocument = globalThis.document;
   globalThis.window = new EventTarget();
   globalThis.document = Object.assign(new EventTarget(), { hidden: false });
   t.after(() => { globalThis.window = oldWindow; globalThis.document = oldDocument; });
   const requests = [], snapshots = [];
-  let releaseInitial, releaseRefresh, holdRefresh = false, currentMiles = 0, currentJourneyId = null, sequence = 0;
+  let releaseConfig, releaseInitial, releaseRefresh, holdRefresh = false, currentMiles = 0, currentJourneyId = null, sequence = 0;
   let serverTime = 1790200000000;
   const profile = () => ({ id: 'guest', name: 'Guest', signedIn: false, intention: null, intentionExpiresAt: null, totalMiles: currentMiles, currentMiles, currentJourneyId });
   const room = () => ({ me: profile(), leaderboard: [], activeCount: 1, othersCount: 0, serverTime: ++serverTime });
   t.mock.method(globalThis, 'fetch', async (url, options) => {
-    if (url === '/api/config') return Response.json({ clerkPublishableKey: null });
+    if (url === '/api/config') return new Promise(resolve => { releaseConfig = () => resolve(Response.json({ clerkPublishableKey: null })); });
     const body = options.body ? JSON.parse(options.body) : null;
     requests.push({ body, keepalive: options.keepalive });
     if (!body) {
@@ -27,19 +27,23 @@ test('room client establishes identity before starting, saves cumulative mileage
       return Response.json(room());
     }
     if (body.action === 'start') { currentJourneyId = 'journey-1'; return Response.json({ journeyId: currentJourneyId, me: profile(), serverTime: ++serverTime }); }
-    assert.equal(body.action, 'mileage');
+    assert.equal(body.action, 'check-in');
     assert.equal(body.journeyId, currentJourneyId);
     assert.ok(body.sequence > sequence, 'each cumulative report advances its sequence');
     sequence = body.sequence;
     currentMiles = body.metres / 1609.344;
-    return Response.json({ totalMiles: currentMiles, currentMiles, acceptedMetres: body.metres, serverTime: ++serverTime });
+    return Response.json({ ...room(), mileage: { totalMiles: currentMiles, currentMiles, acceptedMetres: body.metres } });
   });
+  const checkIns = () => requests.filter(item => item.body?.action === 'check-in');
   const drive = { ...createDrive(), started: true };
   const scope = createLifecycle();
   t.after(() => scope.dispose());
   const client = createRoomClient(drive, scope, snapshot => snapshots.push(snapshot));
   const starting = client.startJourney();
   await settle();
+  assert.equal(requests.length, 0, 'a signed-in reload is not mistaken for a new guest before sign-in loads');
+  releaseConfig();
+  for (let i = 0; i < 5 && !requests.length; i++) await settle();
   assert.equal(requests.length, 1, 'wait for the guest cookie before sending start');
   drive.distance = 50;
   releaseInitial();
@@ -47,11 +51,24 @@ test('room client establishes identity before starting, saves cumulative mileage
   await settle();
   await client.startJourney();
   assert.equal(requests.filter(item => item.body?.action === 'start').length, 1);
+  assert.deepEqual(checkIns().map(item => item.body.resumed), [true], 'boarding checks in at once and starts a fresh stretch');
   drive.distance = 150;
-  t.mock.timers.tick(10000);
+  t.mock.timers.tick(15000);
   await settle();
-  assert.equal(requests.find(item => item.body?.action === 'mileage').body.metres, 100);
+  assert.equal(checkIns().length, 2, 'one request per interval carries distance, plant time and the board');
+  assert.equal(checkIns().at(-1).body.metres, 100);
+  assert.equal(checkIns().at(-1).body.resumed, undefined);
   assert.equal(snapshots.at(-1).currentMiles, 100 / 1609.344, 'acknowledged miles are not also counted as pending');
+  document.hidden = true;
+  document.dispatchEvent(new Event('visibilitychange'));
+  await settle();
+  t.mock.timers.tick(60000);
+  await settle();
+  assert.equal(checkIns().length, 3, 'a hidden tab checks in once as it leaves, then stays quiet');
+  document.hidden = false;
+  document.dispatchEvent(new Event('visibilitychange'));
+  await settle();
+  assert.equal(checkIns().at(-1).body.resumed, true, 'time away does not grow the plant');
   holdRefresh = true;
   const refreshing = client.refresh();
   await settle();
@@ -64,6 +81,7 @@ test('room client establishes identity before starting, saves cumulative mileage
   t.mock.timers.tick(30000);
   assert.equal(snapshots.length, count, 'late replies and stopped polling cannot update the unmounted UI');
   const flushed = requests.find(item => item.keepalive);
+  assert.equal(flushed.body.action, 'check-in');
   assert.equal(flushed.body.metres, 125);
-  assert.equal(flushed.body.sequence, 2);
+  assert.equal(flushed.body.sequence, 5);
 });
