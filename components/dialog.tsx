@@ -3,23 +3,27 @@ import type {
   ReactNode,
   MouseEvent,
   PointerEvent,
+  Ref,
 } from "react";
-import { useLayoutEffect, useRef } from "react";
+import { useImperativeHandle, useLayoutEffect, useRef } from "react";
 
 export default function Dialog({
   open,
   onClose,
   busy = false,
   children,
+  ref,
   ...props
 }: Omit<DialogHTMLAttributes<HTMLDialogElement>, "open" | "onClose"> & {
   open: boolean;
   onClose(): void;
   busy?: boolean;
   children: ReactNode;
+  ref?: Ref<HTMLDialogElement>;
 }) {
   const dialog = useRef<HTMLDialogElement | null>(null),
     backdropPressed = useRef(false);
+  useImperativeHandle(ref, () => dialog.current!, []);
   useLayoutEffect(() => {
     const element = dialog.current!;
     if (open && !element.open) element.showModal();

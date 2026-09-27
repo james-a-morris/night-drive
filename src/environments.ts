@@ -3,6 +3,7 @@ export type EnvironmentName =
   | "alpine"
   | "desert"
   | "coast"
+  | "pnw"
   | "tunnel"
   | "bridge";
 export type WildlifeSpecies = "deer" | "stag" | "wolf" | "fox";
@@ -23,11 +24,13 @@ export interface Environment {
   light: number;
   fogDensity: number;
   particles: { rain: number; snow: number; dust: number };
+  precipitation?: "snow" | "none";
   starOpacity: number;
   daylight?: number;
   cloudCover?: number;
+  haze?: number;
   windowRain: number;
-  audio: { weatherGain: number; filterHz: number; surfGain: number };
+  audio: { weatherGain: number; filterHz: number; surfGain: number; riverGain?: number };
   wildlife: string;
   snowRoof: boolean;
   windmill: boolean;
@@ -66,6 +69,7 @@ export const ENVIRONMENTS: Record<EnvironmentName, Environment> = {
     fogDensity: 0.008,
   },
   alpine: {
+    precipitation: "snow",
     particles: { rain: 0, snow: 0.9, dust: 0 },
     starOpacity: 0.55,
     windowRain: 0,
@@ -87,6 +91,7 @@ export const ENVIRONMENTS: Record<EnvironmentName, Environment> = {
     fogDensity: 0.0085,
   },
   desert: {
+    precipitation: "none",
     particles: { rain: 0, snow: 0, dust: 0.26 },
     starOpacity: 0.9,
     windowRain: 0,
@@ -136,7 +141,30 @@ export const ENVIRONMENTS: Record<EnvironmentName, Environment> = {
     light: 0xffdeba,
     fogDensity: 0.0028,
   },
+  pnw: {
+    name: "PACIFIC NORTHWEST",
+    weather: "DEEP FOREST · RUSHING RIVER",
+    ground: 0x365b45,
+    pine: 0x28533e,
+    rock: 0x697f79,
+    sky: 0x3a6478,
+    horizon: 0xb3cdc8,
+    fog: 0x88aaa8,
+    light: 0xd8e7d1,
+    fogDensity: 0.0026,
+    particles: { rain: 0, snow: 0, dust: 0 },
+    starOpacity: 0,
+    windowRain: 0,
+    audio: { weatherGain: 0.014, filterHz: 1100, surfGain: 0, riverGain: 0.16 },
+    wildlife: "forest",
+    snowRoof: false,
+    windmill: false,
+    landSide: -1,
+    pond: { water: 0x508e89, shore: 0x4a6b52 },
+    vegetation: { pine: true, cactus: false, minHeight: -2.8 },
+  },
   tunnel: {
+    precipitation: "none",
     name: "THE TUNNEL",
     weather: "WARM LIGHTS · UNDER THE MOUNTAIN",
     ground: 0x343637,
@@ -211,7 +239,7 @@ export function tunnelSpan(station: number, mode: SceneryMode) {
   const origin = Math.floor(station / cycle) * cycle;
   // Manual selection tiles adjoining sections indefinitely; only auto has portals.
   if (mode === "tunnel") return { start: origin, end: origin + cycle };
-  const start = origin + 4 * REGION_LENGTH + 48;
+  const start = origin + routeRegions.find(region => region.name === "tunnel")!.start + 48;
   return { start, end: start + TUNNEL_REGION_LENGTH - 96 };
 }
 
@@ -242,6 +270,7 @@ export function environmentWeights(
     alpine: 0,
     desert: 0,
     coast: 0,
+    pnw: 0,
     tunnel: 0,
     bridge: 0,
   };

@@ -27,7 +27,7 @@ import { createScenery } from "./scenery.ts";
 import { createStudyCabin, createCabinView } from "./cabin.ts";
 import { createTrain } from "./train.ts";
 import { createMileMarkers } from "./mile-markers.ts";
-import { dominantEnvironment } from "./environments.ts";
+import { blendEnvironment, dominantEnvironment } from "./environments.ts";
 import { createLifecycle } from "./lifecycle.ts";
 import { reducedMotion } from "./motion.ts";
 import { createStormClock } from "./storm.ts";
@@ -245,7 +245,8 @@ export function mountScene(
         dt,
         drive.started &&
           (atmosphere
-            ? isThunderstorm(atmosphere.weather.current.code) && weights.tunnel < .1
+            ? isThunderstorm(atmosphere.weather.current.code) &&
+              blendEnvironment(weights, environment => environment.particles.rain > 0 ? 1 : 0, forest) > .9
             : weatherChoice === "rain" && weights.forest > 0.9 && (mode === "auto" || mode === "forest")),
       );
       lightning.update(

@@ -5,6 +5,8 @@
 .account-trigger>svg { width:18px; height:18px; stroke:currentColor; stroke-width:1.4; stroke-linecap:round; stroke-linejoin:round; }
 .account-panel { position:absolute; z-index:2; right:0; top:calc(100% + 10px); width:260px; max-width:calc(100vw - 32px); padding:12px 8px 0; border:1px solid rgba(207,218,213,.17); border-radius:12px; background:linear-gradient(145deg,rgba(29,43,49,.97),rgba(12,25,33,.97)); box-shadow:0 18px 55px rgba(0,0,0,.32),inset 0 1px 0 rgba(255,255,255,.04); backdrop-filter:blur(24px); font-family:var(--font-ui); max-height:calc(100dvh - 90px); overflow-y:auto; scrollbar-width:thin; }
 .account-eyebrow { margin:0 8px 2px; color:#cba38c; font:var(--text-label) var(--font-ui); letter-spacing:.18em; }
+.account-panel-heading { display:flex; align-items:center; justify-content:space-between; gap:8px; margin:0 4px 2px 8px; }
+.account-panel-heading .account-eyebrow { margin:0; }
 .account-identity { margin:0 0 6px; padding:6px 8px; }
 .account-identity strong,.account-rider-name strong { display:block; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; color:#f0eee5; font:500 var(--text-body) var(--font-ui); }
 .account-rider-header { display:flex; align-items:center; gap:2px; margin-bottom:6px; }
@@ -30,6 +32,8 @@
 .account-menu-item strong { display:block; font-size:var(--text-body); font-weight:500; }
 .account-menu-item small { display:block; margin-top:2px; font-size:var(--text-label); color:#91a0a4; }
 .account-item-arrow { margin-left:auto; font-size:var(--text-body); font-weight:400; color:#d4a58a; }
+.fullscreen-control { position:relative; flex:none; }
+.fullscreen-control>button:disabled { opacity:.5; cursor:wait; }
 /* The dev kit switch spans the settings grid and carries its own state chip. */
 .dev-kit-toggle { grid-column:1/-1; margin:4px 4px 0; width:auto; }
 .account-item-state { flex:none; margin-left:auto; padding:3px 8px; border:1px solid rgba(255,255,255,.1); border-radius:20px; background:rgba(3,12,18,.28); color:#b9c1bd; font:var(--text-label) var(--font-ui); letter-spacing:.06em; }
@@ -37,6 +41,7 @@
 .dev-kit-toggle[aria-pressed="true"]>svg { color:#e4b394; }
 .account-menu-item[aria-disabled="true"] { opacity:.5; cursor:wait; }
 .account-panel .form-error { margin:3px 8px 8px; }
+.fullscreen-control .fullscreen-error { position:absolute; z-index:1; top:100%; right:0; width:220px; margin:4px 0 0; padding:10px 12px; border:1px solid #dce1dc33; border-radius:10px; background:#17272f; }
 .account-progress { display:flex; flex-wrap:wrap; align-items:baseline; justify-content:space-between; gap:4px 8px; margin:0; padding:9px 8px 10px; border-top:1px solid rgba(255,255,255,.07); color:#92a09f; font:400 var(--text-body) var(--font-ui); }
 .account-progress dd { margin:0; color:#efd1bd; font-variant-numeric:tabular-nums; white-space:nowrap; }
 /* Guests use the same menu for their seat, with sign-in choices. */

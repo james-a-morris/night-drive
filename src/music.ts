@@ -37,6 +37,7 @@ export class LocalSoundscape {
   windowFilter!: BiquadFilterNode;
   outsideGain!: GainNode;
   surfGain!: GainNode;
+  riverGain!: GainNode;
   thunder?: ReturnType<typeof createThunder>;
   conductorWhir?: ReturnType<typeof createConductorWhir>;
   trainAmbience?: ReturnType<typeof createTrainAmbience>;
@@ -140,6 +141,21 @@ export class LocalSoundscape {
       .connect(this.windowFilter);
     surf.start(0.3);
     tide.start();
+    // A steady, brighter current on the right is distinct from the coast's
+    // slow surf. It shares window muffling and the outside ambience control.
+    const river = audio.createBufferSource();
+    river.buffer = this.noise;
+    river.loop = true;
+    const riverFilter = audio.createBiquadFilter();
+    riverFilter.type = "lowpass";
+    riverFilter.frequency.value = 2400;
+    riverFilter.Q.value = .35;
+    const riverPan = audio.createStereoPanner();
+    riverPan.pan.value = .55;
+    this.riverGain = audio.createGain();
+    this.riverGain.gain.value = 0;
+    river.connect(riverFilter).connect(riverPan).connect(this.riverGain).connect(this.windowFilter);
+    river.start(.7);
     this.trainAmbience = createTrainAmbience(audio, this.ambienceVolume);
     this.trainAmbience.setSpeed(this.trainSpeed);
     this.conductorWhir = createConductorWhir(audio, this.ambienceVolume);
@@ -261,6 +277,11 @@ export class LocalSoundscape {
     );
     this.surfGain.gain.setTargetAtTime(
       blendEnvironment(weights, (environment) => environment.audio.surfGain),
+      time,
+      1,
+    );
+    this.riverGain.gain.setTargetAtTime(
+      blendEnvironment(weights, environment => environment.audio.riverGain ?? 0),
       time,
       1,
     );

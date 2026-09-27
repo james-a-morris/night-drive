@@ -1,5 +1,6 @@
 import { SCENERY_DISTANCE } from "./view-distance.ts";
-import type { EnvironmentWeights, SceneryMode } from "./environments.ts";
+import type { Environment, EnvironmentWeights, SceneryMode } from "./environments.ts";
+import { atmosphereLighting } from "./atmosphere-lighting.ts";
 import type { Lifecycle } from "./lifecycle.ts";
 import { reducedMotion } from "./motion.ts";
 import { recycleStation } from "./recycle.ts";
@@ -7,8 +8,9 @@ import * as THREE from "./three.ts";
 import { roadPoint, roadFrame, TRACK_GLSL } from "./drive.ts";
 import {
   ROUTE_LENGTH,
+  ENVIRONMENTS,
   environmentWeights,
-  REGION_LENGTH,
+  routeRegions,
   TRANSITION_LENGTH,
 } from "./environments.ts";
 import { SEA_LEVEL, terrainSurfaceHeight } from "./terrain.ts";
@@ -22,6 +24,7 @@ export function createCoast(world: THREE.Group, scope: Lifecycle) {
   root.name = "pacific-coast";
   world.add(root);
   const sunDirection = new THREE.Vector3(-110, 22, -220).normalize();
+  const region = routeRegions.find(region => region.name === "coast")!;
   const waterMaterial = new THREE.ShaderMaterial({
     transparent: true,
     depthWrite: false,
@@ -34,7 +37,11 @@ export function createCoast(world: THREE.Group, scope: Lifecycle) {
       nearWater: { value: new THREE.Color(0x4bada4) },
       deepWater: { value: new THREE.Color(0x285a78) },
       horizon: { value: new THREE.Color(0xb9c9c7) },
-      sunDirection: { value: sunDirection },
+      foamColor: { value: new THREE.Color().setRGB(.72, .85, .78) },
+      reflectionColor: { value: new THREE.Color().setRGB(1, .76, .43) },
+      reflectionStrength: { value: 1 },
+      synced: { value: false },
+      sunDirection: { value: sunDirection.clone() },
     },
     vertexShader: `
       uniform float time;
@@ -57,7 +64,10 @@ export function createCoast(world: THREE.Group, scope: Lifecycle) {
       uniform float time;
       uniform float strength;
       uniform bool automatic;
+      uniform bool synced;
       uniform vec3 nearWater, deepWater, horizon, sunDirection;
+      uniform vec3 foamColor, reflectionColor;
+      uniform float reflectionStrength;
       varying vec3 surfacePosition, routePosition, surfaceNormal;
       ${TRACK_GLSL}
       float lateral(vec2 p) {
@@ -74,8 +84,8 @@ export function createCoast(world: THREE.Group, scope: Lifecycle) {
         float coast = strength;
         if (automatic) {
           float position = mod(s, ${ROUTE_LENGTH.toFixed(1)});
-          coast = smoothstep(${(3 * REGION_LENGTH - TRANSITION_LENGTH).toFixed(1)}, ${(3 * REGION_LENGTH).toFixed(1)}, position)
-            * (1. - smoothstep(${(4 * REGION_LENGTH - TRANSITION_LENGTH).toFixed(1)}, ${(4 * REGION_LENGTH).toFixed(1)}, position));
+          coast = smoothstep(${(region.start - TRANSITION_LENGTH).toFixed(1)}, ${region.start.toFixed(1)}, position)
+            * (1. - smoothstep(${(region.start + region.length - TRANSITION_LENGTH).toFixed(1)}, ${(region.start + region.length).toFixed(1)}, position));
         }
         float across = lateral(routePosition.xz);
         if (coast < .005 || across > -6.) discard;
@@ -91,18 +101,20 @@ export function createCoast(world: THREE.Group, scope: Lifecycle) {
         vec3 color = mix(nearWater, deepWater, smoothstep(0., 160., offshore));
         color = mix(color, horizon, fresnel * .55);
         float reflected = max(dot(reflect(-sunDirection, normal), view), 0.);
-        color += vec3(1., .76, .43) * (pow(reflected, 80.) * .8 + pow(reflected, 12.) * .13);
+        color += reflectionColor * reflectionStrength * (pow(reflected, 80.) * .8 + pow(reflected, 12.) * .13);
         float wash = .5 + .5 * sin(offshore * .8 - time * .65 + sin(s * .065) * .5);
         float foam = (1. - smoothstep(.5, 2.8, offshore)) * .55
           + pow(wash, 14.) * exp(-max(offshore, 0.) * .15) * .45;
-        color = mix(color, vec3(.72, .85, .78), clamp(foam, 0., .75));
+        color = mix(color, foamColor, clamp(foam, 0., .75));
         float distance = length(cameraPosition.xz - surfacePosition.xz);
-        color = mix(color, horizon, smoothstep(180., 570., distance) * .86);
+        float distanceFog = smoothstep(180., 570., distance);
+        if (!synced) color = mix(color, horizon, distanceFog * .86);
         // Nearshore water reveals submerged silhouettes; the horizon stays dense.
         float opacity = mix(.68, .98, smoothstep(10., 120., offshore));
         opacity = mix(opacity, 1., fresnel * .55);
         gl_FragColor = vec4(color, coast * opacity);
         #include <tonemapping_fragment>
+        if (synced) gl_FragColor.rgb = mix(gl_FragColor.rgb, horizon, distanceFog);
         #include <colorspace_fragment>
       }
     `,
@@ -220,6 +232,20 @@ export function createCoast(world: THREE.Group, scope: Lifecycle) {
     root,
     water,
     sites,
+    updateLighting(environment: Environment = ENVIRONMENTS.coast, direction = sunDirection) {
+      const synced = environment.daylight !== undefined;
+      const illumination = atmosphereLighting(environment.daylight, environment.cloudCover);
+      const uniforms = waterMaterial.uniforms;
+      uniforms.nearWater.value.setHex(0x4bada4).multiplyScalar(illumination.waterBrightness);
+      uniforms.deepWater.value.setHex(0x285a78).multiplyScalar(illumination.waterBrightness);
+      uniforms.foamColor.value.setRGB(.72, .85, .78).multiplyScalar(illumination.waterBrightness);
+      uniforms.horizon.value.setHex(synced ? environment.horizon : 0xb9c9c7);
+      if (synced) uniforms.reflectionColor.value.setHex(environment.light);
+      else uniforms.reflectionColor.value.setRGB(1, .76, .43);
+      uniforms.reflectionStrength.value = illumination.reflection;
+      uniforms.synced.value = synced;
+      uniforms.sunDirection.value.copy(direction).normalize();
+    },
     update(
       progress: number,
       dt: number,

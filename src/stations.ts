@@ -3,7 +3,7 @@ import * as THREE from "./three.ts";
 import { mergeGeometries } from "three/addons/utils/BufferGeometryUtils.js";
 import { roadFrame, roadPoint } from "./drive.ts";
 import { stationAvailable, stationsNear, type StationStop } from "./station-route.ts";
-import { environmentWeights, type SceneryMode } from "./environments.ts";
+import { ENVIRONMENTS, dominantEnvironment, environmentWeights, type SceneryMode } from "./environments.ts";
 import type { Lifecycle } from "./lifecycle.ts";
 import { stationClockHands } from "./station-clock.ts";
 import { stationPrism } from "./station-geometry.ts";
@@ -33,7 +33,7 @@ export function createStations(world: THREE.Group, scope: Lifecycle) {
     const solid: THREE.BufferGeometry[] = [], glowing: THREE.BufferGeometry[] = [];
     const weights = environmentWeights(stop.at, mode);
     const snow = weights.alpine > 0.5;
-    const coast = weights.coast > 0.5;
+    const landSide = ENVIRONMENTS[dominantEnvironment(weights)].landSide;
     const roof = snow ? 0xcbd6d2 : 0x485e58, wood = 0x7b7057, cream = 0xc0b799;
     function paint(geometry: THREE.BufferGeometry, hex: number, bucket = solid) {
       const color = new THREE.Color(hex), colors = new Float32Array(geometry.attributes.position.count * 3);
@@ -70,7 +70,7 @@ export function createStations(world: THREE.Group, scope: Lifecycle) {
     for (const side of [-1, 1]) {
       // Keep the seaside halt on the shoulder, before the land falls away.
       // A full-width platform here reads as a concrete pier over the beach.
-      const seaside = coast && side === -1;
+      const seaside = landSide !== undefined && side !== landSide;
       const outer = seaside ? 9.8 : 16.5;
       // Bury the retaining walls in the actual bank, including the coastal slope.
       let foundation = -.35;
@@ -185,7 +185,7 @@ export function createStations(world: THREE.Group, scope: Lifecycle) {
     }
     // Brick booking hall beside the boarding window, with a second hall on
     // the inland platform. Pitched roofs, cream quoins and tall sash windows.
-    const sides = coast ? [1] : [-1, 1];
+    const sides = landSide !== undefined ? [landSide] : [-1, 1];
     for (const side of sides) {
       const at = stop.at + 15;
       const frame = roadFrame(at), origin = roadPoint(at, side * 12.1);

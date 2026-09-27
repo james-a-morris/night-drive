@@ -2,9 +2,13 @@ import type { SceneryMode } from "./environments.ts";
 type Point = { x: number; y: number; z: number };
 import { roadFrame } from "./drive.ts";
 import { environmentWeights } from "./environments.ts";
+import { pnwRiverBanks } from "./pnw-river-layout.ts";
 
 export const TERRAIN_OFFSETS = [
   5.5, 7.5, 10, 13, 17, 22, 28, 36, 46, 59, 75, 95, 119, 147, 179, 215, 256,
+  // Continue beyond the visible ridgeline. Ending at 256 m exposed the mesh's
+  // outer edge as a sliced mountain, especially against a cloudy night sky.
+  305, 365, 440, 530, 640, 840,
 ];
 export const TERRAIN_ROW_LENGTH = 3;
 export const SEA_LEVEL = -8;
@@ -79,7 +83,8 @@ export function terrainHeight(
   if (
     bank === 0 &&
     weights.bridge === 0 &&
-    (weights.coast === 0 || lateral >= -8)
+    (weights.coast === 0 || lateral >= -8) &&
+    (weights.pnw === 0 || lateral <= 8)
   )
     return 0;
   const warp = fractal(x * 0.006 + 24, z * 0.006 - 11, 3);
@@ -102,11 +107,16 @@ export function terrainHeight(
     lateral < 0
       ? -16 * smoothstep(8, coastalShoreDistance(-z) * 2 - 8, distance)
       : stone * 0.65 + bank * rolling * 3;
+  const river = pnwRiverBanks(-z);
+  const channel = smoothstep(8, river.near + 4, lateral) *
+    (1 - smoothstep(river.far - 4, river.far + 10, lateral));
+  const pnw = (stone * 0.65 + peaks * 0.4) * (1 - channel) - 8.5 * channel;
   return (
     stone * weights.forest +
     (stone * 1.3 + peaks * ridge * 0.18) * weights.alpine +
     dunes * weights.desert +
     coast * weights.coast +
+    pnw * weights.pnw +
     (stone * 1.4 + bank * 12) * weights.tunnel +
     (stone * 0.8 - 34 * smoothstep(0, 5.5, distance)) * weights.bridge
   );

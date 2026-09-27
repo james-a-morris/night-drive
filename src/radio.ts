@@ -58,6 +58,7 @@ export class NightRadio {
   error: string | null = null;
   connectionTimer?: ReturnType<typeof setTimeout>;
   cleanup: (() => void) | null = null;
+  private artworkMetadata: MediaMetadata | null = null;
   constructor(
     onChange: (enabled: boolean, error?: unknown) => void,
     {
@@ -132,6 +133,19 @@ export class NightRadio {
       return;
     }
     this.started = true;
+    const session = globalThis.navigator?.mediaSession;
+    if (session && typeof MediaMetadata !== "undefined") {
+      // Supply full-size artwork so the lock screen doesn't enlarge the favicon.
+      this.artworkMetadata ??= new MediaMetadata({
+        title: "Night Rail: a little room for your thoughts",
+        artwork: [{
+          src: "/assets/night-rail-artwork.png",
+          sizes: "1024x1024",
+          type: "image/png",
+        }],
+      });
+      session.metadata = this.artworkMetadata;
+    }
     // Resume weather synchronously from the user's gesture as well.
     const resumed = this.local.setEnabled(true);
     this.notify();
@@ -161,6 +175,9 @@ export class NightRadio {
     this.onChange = () => {};
     this.stopStream();
     this.local.dispose();
+    const session = globalThis.navigator?.mediaSession;
+    if (session && this.artworkMetadata && session.metadata === this.artworkMetadata)
+      session.metadata = null;
   }
 
   async tune(request: number, start: number, direction = 1): Promise<void> {

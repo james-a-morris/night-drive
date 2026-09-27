@@ -1,10 +1,11 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import Dialog from "./dialog.tsx";
 import AnkiIcon from "./anki-icon.tsx";
 import { AnkiError, ankiGrades, type AnkiCard, type AnkiClient } from "../src/anki-connect.ts";
 import type { AnkiState } from "./anki-study.tsx";
 import type { prepareAnkiCard } from "../src/anki-card.ts";
 import { ankiShortcut, readAnkiKey, type AnkiKey } from "../src/anki-shortcuts.ts";
+import useAnkiWindow, { ANKI_CARD_WIDTH, ANKI_CARD_HEIGHT } from "./use-anki-window.ts";
 
 function CardView({ card, answer, client, onReady, onShortcut }: {
   card: AnkiCard; answer: boolean; client: AnkiClient; onReady(): void; onShortcut(key: AnkiKey): void;
@@ -14,6 +15,18 @@ function CardView({ card, answer, client, onReady, onShortcut }: {
   const ready = useRef(onReady); ready.current = onReady;
   const shortcut = useRef(onShortcut); shortcut.current = onShortcut;
   const frame = useRef<HTMLIFrameElement | null>(null);
+  const screen = useRef<HTMLDivElement | null>(null);
+  useLayoutEffect(() => {
+    const element = screen.current!;
+    const fit = () => {
+      const scale = Math.min(element.clientWidth / ANKI_CARD_WIDTH, element.clientHeight / ANKI_CARD_HEIGHT, 1);
+      element.style.setProperty("--anki-card-scale", String(scale));
+    };
+    fit();
+    const observer = new ResizeObserver(fit);
+    observer.observe(element);
+    return () => observer.disconnect();
+  }, []);
   useEffect(() => {
     if (!view) return;
     const relay = (event: MessageEvent) => {
@@ -39,11 +52,14 @@ function CardView({ card, answer, client, onReady, onShortcut }: {
     });
     return () => { controller.abort(); prepared?.dispose(); };
   }, [card, answer, client]);
-  if (error) return <p className="anki-message" role="alert">{error}</p>;
   return <>
-    {!view && <p className="anki-message" role="status">Opening your card…</p>}
-    {view && <iframe ref={frame} className="anki-card-frame" title={answer ? "Anki answer" : "Anki question"}
-      sandbox="allow-scripts" referrerPolicy="no-referrer" srcDoc={view.srcDoc} onLoad={() => ready.current()} />}
+    <div ref={screen} className="anki-card-viewport">
+      {error ? <p className="anki-message" role="alert">{error}</p>
+        : !view ? <p className="anki-message" role="status">Opening your card…</p>
+        : <iframe ref={frame} className="anki-card-frame" title={answer ? "Anki answer" : "Anki question"}
+          width={ANKI_CARD_WIDTH} height={ANKI_CARD_HEIGHT}
+          sandbox="allow-scripts" referrerPolicy="no-referrer" srcDoc={view.srcDoc} onLoad={() => ready.current()} />}
+    </div>
     {view?.missing && <p className="anki-media-note">Some media couldn’t be loaded. You can view it in Anki.</p>}
   </>;
 }
@@ -66,6 +82,7 @@ export default function AnkiPanel({ client, connection, onConnect, onClose, onUn
   const operation = useRef<AbortController | null>(null);
   const reviewArea = useRef<HTMLDivElement | null>(null);
   const ready = connection.status === "ready";
+  const floating = useAnkiWindow();
 
   function display(next: AnkiCard | null) {
     setCard(next); setRevealed(false); setCardReady(false);
@@ -176,13 +193,24 @@ export default function AnkiPanel({ client, connection, onConnect, onClose, onUn
     return () => window.removeEventListener("keydown", keydown);
   });
 
-  return <Dialog open onClose={onClose} busy={grading} className="anki-panel" id="anki-panel" aria-labelledby="anki-title">
-    <header className="anki-panel-header">
+  return <Dialog ref={floating.panel} open onClose={onClose} busy={grading} className="anki-panel" id="anki-panel" aria-labelledby="anki-title"
+    data-ready={ready} data-expanded={floating.expanded} data-dragging={floating.dragging}>
+    <header className="anki-panel-header" {...floating.handle} tabIndex={0} role="group"
+      aria-label="Move Anki window. Drag or use arrow keys to move; Home to center." title="Drag to move">
       <AnkiIcon size={23} />
       <h2 id="anki-title">Anki</h2>
-      <button className="anki-close" type="button" aria-label="Close Anki" onClick={onClose} disabled={grading}>
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="m6 6 12 12M6 18 18 6" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" /></svg>
-      </button>
+      <div className="anki-window-controls">
+        <button className="anki-expand" type="button" aria-label={floating.expanded ? "Collapse Anki window" : "Expand Anki window"}
+          aria-expanded={floating.expanded} title={floating.expanded ? "Collapse window" : "Expand window"} onClick={floating.toggle}>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+            <path d={floating.expanded ? "M4 9h5V4m11 11h-5v5M9 9 3 3m12 12 6 6" : "M14 4h6v6M10 20H4v-6M20 4l-7 7M4 20l7-7"}
+              stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+        </button>
+        <button className="anki-close" type="button" aria-label="Close Anki" onClick={onClose} disabled={grading}>
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="m6 6 12 12M6 18 18 6" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" /></svg>
+        </button>
+      </div>
     </header>
     {ready ? <>
       <div className="anki-deck-row">
@@ -208,17 +236,6 @@ export default function AnkiPanel({ client, connection, onConnect, onClose, onUn
       </div>
       {error && <p className="anki-error" role="alert">{error}</p>}
       {notice && <p className="anki-notice" role="status">{notice}</p>}
-      <div className="anki-review-actions">
-        {card ? revealed ? <div className="anki-grades">
-          {ankiGrades(card).map(option => <button key={option.ease} type="button" data-grade={option.label.toLowerCase()}
-            disabled={busy || !cardReady} onClick={() => grade(option.ease)}>
-            <strong>{option.label}</strong><span>{option.interval || "—"}</span>
-          </button>)}
-        </div> : <button className="anki-primary" type="button" disabled={busy || !cardReady} onClick={reveal}>Show answer</button>
-          : <button className="anki-primary" type="button" disabled={busy || !deck} onClick={error ? () => run(load) : start}>
-            {error ? "Load current card" : reviewing ? "Check for more cards" : "Study this deck"}
-          </button>}
-      </div>
     </> : <div className="anki-connection">
       <h3>{connection.status === "checking" ? "Looking for Anki…" : connection.status === "key" ? "Your Anki has a key" : connection.status === "denied" ? "Anki is here" : "Connect your Anki"}</h3>
       <p>{connection.status === "checking" ? "If prompted, allow this site in your browser and in the Anki desktop app." : connection.status === "key" ? "Enter your AnkiConnect API key to open your decks. It stays in memory for this visit." : connection.status === "denied" ? "Allow this website in Anki to bring your review into the carriage." : "Keep Anki open with AnkiConnect enabled, then connect. Allow access to this device if your browser asks."}</p>
@@ -240,8 +257,21 @@ export default function AnkiPanel({ client, connection, onConnect, onClose, onUn
       </details>}
     </div>}
     <footer className="anki-panel-footer"><span className="anki-connection-status"><i data-connected={ready} aria-hidden="true" />{ready ? "Connected" : "Not connected"}</span>
+      {ready && <div className="anki-review-actions">
+        {card ? revealed ? <div className="anki-grades">
+          {ankiGrades(card).map(option => <button key={option.ease} type="button" data-grade={option.label.toLowerCase()}
+            disabled={busy || !cardReady} onClick={() => grade(option.ease)}>
+            <strong>{option.label}</strong><span>{option.interval || "—"}</span>
+            {option.label === "Good" && <kbd>Space / Enter</kbd>}
+          </button>)}
+        </div> : <button className="anki-primary anki-show-answer" type="button" disabled={busy || !cardReady} onClick={reveal}>
+          <strong>Show answer</strong><kbd>Space / Enter</kbd>
+        </button>
+          : <button className="anki-primary" type="button" disabled={busy || !deck} onClick={error ? () => run(load) : start}>
+            {error ? "Load current card" : reviewing ? "Check for more cards" : "Study this deck"}
+          </button>}
+      </div>}
       {ready && <div className="anki-shortcuts" aria-label="Keyboard shortcuts">
-        <span title="Show answer, then grade Good" aria-label="Space or Enter: show answer, then grade Good"><kbd>Space / Enter</kbd></span>
         <span title="Again, Hard, Good, Easy" aria-label="1, 2, 3, 4: Again, Hard, Good, Easy"><kbd>1–4</kbd></span>
         <span title="Shift + 2"><kbd>@</kbd> Suspend</span>
         <span><kbd>*</kbd> Mark / unmark</span>

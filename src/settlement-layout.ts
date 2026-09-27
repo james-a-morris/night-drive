@@ -1,5 +1,5 @@
 import { roadFrame, roadPoint } from "./drive.ts";
-import { environmentWeights, type SceneryMode } from "./environments.ts";
+import { ENVIRONMENTS, dominantEnvironment, environmentWeights, type SceneryMode } from "./environments.ts";
 import { terrainSurfaceHeight } from "./terrain.ts";
 
 export const SETTLEMENT_SPACING = 172;
@@ -49,7 +49,8 @@ export function settlementLayout(cell: number, mode: SceneryMode) {
   const cached = layouts.get(key);
   if (cached) return cached;
   const station = cell * SETTLEMENT_SPACING + 139;
-  const side = environmentWeights(station, mode).coast > 0.5 ? 1 : cell % 2 === 0 ? -1 : 1;
+  const environment = ENVIRONMENTS[dominantEnvironment(environmentWeights(station, mode))];
+  const side = environment.landSide ?? (cell % 2 === 0 ? -1 : 1);
   const sites: BuildingSite[] = [];
   for (const slot of [0, 1, 2]) {
     const kind = types[((cell + slot) % types.length + types.length) % types.length];

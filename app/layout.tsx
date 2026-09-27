@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import "../src/style.css";
 import "../src/scenery-picker.css";
 import "../src/cabin.css";
@@ -11,6 +11,7 @@ import "../src/dev-kit.css";
 import "../src/anki.css";
 import "../src/city-weather.css";
 import "../src/train-picker.css";
+import "../src/listening.css";
 
 const title = "Night Rail: a little room for your thoughts";
 const description =
@@ -49,7 +50,7 @@ export const metadata: Metadata = {
   },
 };
 
-export const viewport = { themeColor: "#21352f" };
+export const viewport: Viewport = { themeColor: "#101914", viewportFit: "cover" };
 
 export default function RootLayout({ children }: { children: ReactNode }) {
   return (

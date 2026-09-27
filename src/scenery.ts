@@ -29,6 +29,9 @@ import { recycleStation } from "./recycle.ts";
 import { createLandmarks } from "./landmarks.ts";
 import { createRailStructures } from "./rail-structures.ts";
 import { createCoast } from "./coast.ts";
+import { createPacificNorthwest } from "./pnw.ts";
+import { createPnwMountains } from "./pnw-mountains.ts";
+import { PNW_RIVER_LEVEL } from "./pnw-river-layout.ts";
 import { createStylizedNature } from "./stylized-nature.ts";
 import { createSettlements } from "./settlements.ts";
 import { createStations } from "./stations.ts";
@@ -37,6 +40,8 @@ import { natureClearing } from "./nature-layout.ts";
 import { createFirFairyLights } from "./fir-fairy-lights.ts";
 import { createTumbleweeds } from "./tumbleweeds.ts";
 import { createTunnelLighting } from "./tunnel-lighting.ts";
+import { atmosphereLighting } from "./atmosphere-lighting.ts";
+import { createSky } from "./sky.ts";
 
 interface Decoration {
   object: THREE.Group;
@@ -238,12 +243,12 @@ function updateTerrain(
       blendColor(rock, weights, "rock");
       ground.lerp(
         rock,
-        smoothstep(0.25, 0.9, slope) * (1 - weights.desert * 0.55),
+        smoothstep(0.25, 0.9, slope) * (1 - weights.desert * 0.55 - weights.pnw * 0.4),
       );
       ground.lerp(
         snow,
-        weights.alpine *
-          smoothstep(18, 48, point.y) *
+        (weights.alpine * smoothstep(18, 48, point.y) +
+          weights.pnw * smoothstep(85, 135, point.y)) *
           (1 - smoothstep(0.65, 1.4, slope)),
       );
       if (side < 0)
@@ -510,6 +515,10 @@ export function createScenery(scene: THREE.Scene, scope: Lifecycle) {
       )
         item.object.visible = false;
       const localWeights = environmentWeights(start + item.offset, mode);
+      if (item.object.userData.pnwOnly && localWeights.pnw < .5)
+        item.object.visible = false;
+      if (localWeights.pnw > .5 && item.object.position.y < PNW_RIVER_LEVEL + 1)
+        item.object.visible = false;
       if (localWeights.tunnel > 0.15 || localWeights.bridge > 0.15)
         item.object.visible = false;
       const localForest = localWeights.forest;
@@ -630,6 +639,14 @@ export function createScenery(scene: THREE.Scene, scope: Lifecycle) {
         addItem(makePine(pineMaterial, scale), offset, lateral, "pine");
         if (i < 3) addItem(makeCactus(scale), offset, lateral, "desert");
       }
+      // Tall, closely layered conifers line the PNW's inland slope and far
+      // riverbank, leaving the water and distant ridge open from the carriage.
+      for (let i = 0; i < 7; i++) {
+        const pine = makePine(pineMaterial, 1.05 + Math.random() * .85);
+        pine.userData.pnwOnly = true;
+        const lateral = side < 0 ? -(16 + i * 9 + Math.random() * 7) : 54 + i * 8 + Math.random() * 7;
+        addItem(pine, Math.random() * SEGMENT_LENGTH, lateral, "pine");
+      }
       for (let i = 0; i < 4; i++) {
         const rock = new THREE.Group();
         rock.add(
@@ -748,47 +765,31 @@ export function createScenery(scene: THREE.Scene, scope: Lifecycle) {
   const moonlight = new THREE.DirectionalLight(0xb6cfde, 1.8);
   moonlight.position.set(-30, 50, -40);
   scene.add(hemisphere, moonlight);
-  const skyMaterial = new THREE.ShaderMaterial({
-    side: THREE.BackSide,
-    depthWrite: false,
-    uniforms: {
-      top: { value: new THREE.Color() },
-      horizon: { value: new THREE.Color() },
-    },
-    vertexShader:
-      "varying vec3 direction; void main() { direction = position; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }",
-    fragmentShader: `
-      uniform vec3 top;
-      uniform vec3 horizon;
-      varying vec3 direction;
-      void main() {
-        float height = normalize(direction).y;
-        gl_FragColor = vec4(mix(horizon, top, smoothstep(-0.04, 0.65, height)), 1.0);
-        #include <tonemapping_fragment>
-        #include <colorspace_fragment>
-      }
-    `,
-  });
-  const sky = new THREE.Mesh(
-    new THREE.SphereGeometry(450, 24, 16),
-    skyMaterial,
-  );
-  sky.renderOrder = -2;
-  scene.add(sky);
+  const sky = createSky();
+  const skyMaterial = sky.material;
+  scene.add(sky.mesh);
+  const pnwMountains = createPnwMountains(scene);
   const moonMaterial = new THREE.MeshBasicMaterial({
     color: 0xf2dfc5,
     fog: false,
+    depthTest: false,
+    depthWrite: false,
   });
   const moon = new THREE.Mesh(
     new THREE.SphereGeometry(4.5, 24, 16),
     moonMaterial,
   );
   moon.position.set(50, 42, -160);
+  // The sun/moon belongs to the sky, even when terrain is beyond its mesh.
+  // Draw after the sky dome and before scenery, without blocking its depth.
+  moon.renderOrder = -1;
   scene.add(moon);
   const moonPosition = moon.position.clone(),
-    coastSunPosition = new THREE.Vector3(-110, 22, -220);
+    coastSunPosition = new THREE.Vector3(-110, 22, -220),
+    daytimeSunPosition = new THREE.Vector3(-90, 170, -220);
   const nightMoonColor = moonMaterial.color.clone(),
-    coastSunColor = new THREE.Color(0xffd5a1);
+    coastSunColor = new THREE.Color(0xffd5a1),
+    daytimeSunColor = new THREE.Color(0xffedcf);
   const nightLightPosition = moonlight.position.clone();
   const stars = new Float32Array(1600 * 3);
   for (let i = 0; i < stars.length; i += 3) {
@@ -822,6 +823,7 @@ export function createScenery(scene: THREE.Scene, scope: Lifecycle) {
   const weather = createWeather(scene);
   const landmarks = createLandmarks(world, scope);
   const coast = createCoast(world, scope);
+  const pnw = createPacificNorthwest(world, scope);
   const structures = createRailStructures(world);
   const lighting = createTunnelLighting();
   let previousMode: SceneryMode | undefined;
@@ -863,6 +865,7 @@ export function createScenery(scene: THREE.Scene, scope: Lifecycle) {
     for (const name of environmentNames)
       weights[name] += (target[name] - weights[name]) * ease;
     coast.update(progress, dt, mode, weights, modeChanged);
+    pnw.update(progress, dt, mode, weights);
     blendColor(horizonMaterial.color, weights, "ground");
     return weights;
   }
@@ -884,6 +887,9 @@ export function createScenery(scene: THREE.Scene, scope: Lifecycle) {
     (scene.background as THREE.Color).copy(scene.fog!.color);
     blendColor(moonlight.color, weights, "light", forest);
     hemisphere.color.copy(blendColor(targetColor, weights, "light", forest));
+    if ("forest" in forest) {
+      blendColor(hemisphere.groundColor, weights, "ground", forest).multiplyScalar(.45);
+    } else hemisphere.groundColor.setHex(0x26342f);
     (scene.fog as THREE.FogExp2).density = blendEnvironment(
       weights,
       (environment) => environment.fogDensity,
@@ -897,22 +903,31 @@ export function createScenery(scene: THREE.Scene, scope: Lifecycle) {
       (environment) => environment.starOpacity,
       forest,
     );
-    const daylight = blendEnvironment(weights, environment => environment.daylight ?? 0, forest);
-    const cloudCover = blendEnvironment(weights, environment => environment.cloudCover ?? 0, forest);
     const citySynced = "forest" in forest;
-    const sunBlend = citySynced ? daylight : weights.coast;
-    hemisphere.intensity = (1.6 + daylight * .6) * (1 - enclosure * 0.84);
-    moonlight.intensity = (1.8 + daylight * 1.2) * (1 - cloudCover * .65) * (1 - enclosure);
+    // The city's weather remains the same at a tunnel portal. Blending its
+    // cloud cover with the tunnel's zero would briefly reveal a sun in rain.
+    const daylight = citySynced ? forest.forest.daylight ?? 0 : 0;
+    const cloudCover = citySynced ? forest.forest.cloudCover ?? 0 : 0;
+    const sunBlend = citySynced ? daylight : weights.coast + weights.pnw;
+    sky.update(cloudCover, blendEnvironment(weights, environment => environment.haze ?? 0, forest), dt, citySynced);
+    const illumination = atmosphereLighting(citySynced ? daylight : undefined, cloudCover);
+    hemisphere.intensity = (illumination.ambient + (1.6 - illumination.ambient) * weights.tunnel) * (1 - enclosure * 0.84);
+    moonlight.intensity = illumination.directional * (1 - enclosure);
     moon.visible = enclosure < 0.05 && cloudCover < .7;
     starMaterial.opacity *= 1 - enclosure;
-    moon.position.lerpVectors(moonPosition, coastSunPosition, sunBlend);
+    moon.position.lerpVectors(moonPosition, citySynced ? daytimeSunPosition : coastSunPosition, sunBlend);
     moon.scale.setScalar(1 + sunBlend * 0.45);
-    moonMaterial.color.copy(nightMoonColor).lerp(coastSunColor, sunBlend);
+    moonMaterial.color.copy(nightMoonColor).lerp(citySynced ? daytimeSunColor : coastSunColor, sunBlend);
     moonlight.position.lerpVectors(
-      nightLightPosition,
-      coastSunPosition,
+      citySynced ? moonPosition : nightLightPosition,
+      citySynced ? daytimeSunPosition : coastSunPosition,
       sunBlend,
     );
+    coast.updateLighting(environmentFrom("coast", forest), citySynced ? moonlight.position : coastSunPosition);
+    const pnwAtmosphere = environmentFrom("pnw", forest);
+    pnw.updateLighting(pnwAtmosphere, moonlight.position);
+    pnwMountains.update(weights.pnw * (1 - enclosure), pnwAtmosphere,
+      skyMaterial.uniforms.top.value, skyMaterial.uniforms.horizon.value);
   }
 
   return {
@@ -924,6 +939,7 @@ export function createScenery(scene: THREE.Scene, scope: Lifecycle) {
     weather,
     landmarks,
     coast,
+    pnw,
     nature,
     settlements,
   };

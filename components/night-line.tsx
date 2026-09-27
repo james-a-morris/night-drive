@@ -17,10 +17,11 @@ import {
 import { createDiagnostics } from "../src/diagnostics.ts";
 import { createDrive } from "../src/drive.ts";
 import { pineEnvironment, type PineWeather } from "../src/pine-weather.ts";
-import { ENVIRONMENTS } from "../src/environments.ts";
+import { ENVIRONMENTS, environmentWeights, dominantEnvironment } from "../src/environments.ts";
+import { createListeningClock } from "../src/listening-mode.ts";
 import { openAuth } from "../src/auth.ts";
 import { readPreference, savePreference } from "../src/prefs.ts";
-import Brand from "./brand.tsx";
+import Brand, { BrandEmblem } from "./brand.tsx";
 import AboutPanel from "./about-panel.tsx";
 import SceneryPicker from "./scenery-picker.tsx";
 import TrainPicker from "./train-picker.tsx";
@@ -35,10 +36,20 @@ import { usePreference } from "./use-preference.ts";
 import { useAsyncAction } from "./use-async-action.ts";
 import AnkiStudy from "./anki-study.tsx";
 import AnkiIcon from "./anki-icon.tsx";
+import { useListeningView } from "./use-listening-view.ts";
+import ListeningViewPicker from "./listening-view-picker.tsx";
+import Popover from "./popover.tsx";
 
 const devKitEnabled = process.env.NEXT_PUBLIC_ENABLE_DEV_KIT === "true";
 
 export default function NightLine() {
+  const { view, mobile, setView } = useListeningView();
+  const simpleView = view !== "carriage";
+  const preferencesReady = view !== null;
+  const [controlsOpen, setControlsOpen] = useState(true);
+  useEffect(() => {
+    if (view) setControlsOpen(true);
+  }, [view, mobile]);
   const [garden] = useState(createTreeGarden);
   const [gardenView, setGardenView] = useState(false);
   const treeState = useSyncExternalStore(
@@ -122,21 +133,63 @@ export default function NightLine() {
     radio?.setWindowOpen(windowState === "open");
   }, [radio, windowState]);
   useEffect(() => {
+    if (!preferencesReady) return;
     const controller = new AbortController();
-    let scene: ReturnType<typeof mountScene> | undefined,
-      sound: NightRadio | undefined;
-    setReady(false);
-    setError(false);
-    Promise.all([import("../src/main.ts"), import("../src/radio.ts")])
-      .then(([{ mountScene }, { NightRadio }]) => {
+    let sound: NightRadio | undefined;
+    import("../src/radio.ts")
+      .then(({ NightRadio }) => {
         if (controller.signal.aborted) return;
         sound = new NightRadio(() => {});
         sound.setWindowOpen(settings.current.windowOpen);
+        setRadio(sound);
+      })
+      .catch((error) => {
+        if (controller.signal.aborted) return;
+        console.error("The radio could not start", error);
+        setError(true);
+      });
+    return () => {
+      controller.abort();
+      sound?.dispose();
+    };
+  }, [preferencesReady]);
+  useEffect(() => {
+    if (!radio || !view) return;
+    setReady(false);
+    setError(false);
+    if (view !== "carriage") {
+      const tick = createListeningClock(drive);
+      const update = () => {
+        const now = performance.now();
+        tick(now, !document.hidden, settings.current.mode);
+        garden.update(now, drive.started && !document.hidden);
+        if (document.hidden) return;
+        const weights = environmentWeights(drive.progress, settings.current.mode);
+        radio.setWeather(weights);
+        radio.setTrainSpeed(drive.speed);
+        setRoute(dominantEnvironment(weights));
+      };
+      update();
+      setStationStatus(null);
+      setReady(true);
+      const interval = setInterval(update, 250);
+      document.addEventListener("visibilitychange", update);
+      return () => {
+        clearInterval(interval);
+        document.removeEventListener("visibilitychange", update);
+        garden.update(performance.now(), false);
+      };
+    }
+    const controller = new AbortController();
+    let scene: ReturnType<typeof mountScene> | undefined;
+    import("../src/main.ts")
+      .then(({ mountScene }) => {
+        if (controller.signal.aborted) return;
         scene = mountScene(canvas.current!, {
           drive,
           garden,
           treeLabel: treeLabel.current!,
-          radio: sound,
+          radio,
           diagnostics,
           getSettings: () => settings.current,
           onRoute: setRoute,
@@ -144,20 +197,17 @@ export default function NightLine() {
           onPineWeather: setPineWeather,
           onReady: () => setReady(true),
         });
-        setRadio(sound);
       })
       .catch((error) => {
         if (controller.signal.aborted) return;
-        sound?.dispose();
         console.error("The carriage could not start", error);
         setError(true);
       });
     return () => {
       controller.abort();
       scene?.dispose();
-      sound?.dispose();
     };
-  }, [drive, diagnostics, garden]);
+  }, [drive, diagnostics, garden, radio, view]);
   // Resume an intention after Clerk returns from a full-page social sign-in.
   useEffect(() => {
     if (
@@ -178,8 +228,10 @@ export default function NightLine() {
     setStarted(true);
   }
   useEffect(() => {
-    if (started) canvas.current?.focus({ preventScroll: true });
-  }, [started]);
+    if (!started) return;
+    if (simpleView) document.getElementById("sound-toggle")?.focus({ preventScroll: true });
+    else canvas.current?.focus({ preventScroll: true });
+  }, [started, simpleView]);
   function requireAccount() {
     savePreference("pendingIntention", "1");
     setDialog("account");
@@ -209,13 +261,22 @@ export default function NightLine() {
       id="app"
       className={started ? undefined : "is-welcoming"}
       data-seat={seat}
+      data-listening-view={view ?? "pending"}
+      data-controls-open={controlsOpen}
+      data-ready={ready}
+      data-mobile={mobile}
     >
+      {view === "calm" && <div className="listening-art" aria-hidden="true">
+        <BrandEmblem emblemWidth={88} emblemHeight={110} />
+        <span className="listening-wordmark">Night Rail</span>
+      </div>}
       <canvas
         id="world"
         ref={canvas}
         tabIndex={0}
         aria-label="A window seat on a nighttime train. Drag to look around, or use the arrow keys when focused. Click the ticket button on the desk or press C to call the Roomba conductor. Hover over the conductor for a spin; click it or press Enter for a choo choo."
-        inert={!started}
+        inert={!started || simpleView}
+        hidden={simpleView}
         data-ready={ready ? "true" : undefined}
       />
       <div
@@ -309,7 +370,14 @@ export default function NightLine() {
         >
           <Brand />
         </button>
-        <nav
+        {mobile && <ListeningViewPicker view={view} onChange={setView} />}
+        <Popover role="dialog">
+          {({ open, triggerProps, panelProps }) => <>
+        <button {...triggerProps} {...journeyProps} className="journey-menu-trigger" type="button"
+          aria-label="Journey options" aria-controls="journey-menu">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="5" cy="12" r="1.5" /><circle cx="12" cy="12" r="1.5" /><circle cx="19" cy="12" r="1.5" /></svg>
+        </button>
+        <nav {...panelProps} hidden={undefined} id="journey-menu" data-mobile-open={open}
           aria-label="Journey settings and account"
           {...journeyProps}
           data-journey-tile
@@ -324,10 +392,13 @@ export default function NightLine() {
             value={mode}
             pineWeather={pineWeather}
             cityWeather={cityAtmosphere ? `${weatherDescription(cityAtmosphere.weather.current.code)} · ${cityAtmosphere.city.name}` : undefined}
+            cityWeatherCode={cityAtmosphere?.weather.current.code}
+            cityIsDay={cityAtmosphere?.weather.current.isDay}
             onChange={setMode}
           />
           <AccountMenu
-            weatherEnabled={started}
+            calm={view === "calm"}
+            weatherEnabled={started && view === "carriage"}
             onAtmosphere={setCityAtmosphere}
             onCityTimezone={setCityTimezone}
             room={room}
@@ -348,13 +419,15 @@ export default function NightLine() {
             onAuthenticate={authenticate}
           />
         </nav>
+          </>}
+        </Popover>
       </header>
       <div className="welcome-shade" aria-hidden="true" />
       <section
         className="welcome"
         id="intro"
         aria-labelledby="welcome-title"
-        inert={started}
+        inert={started || !ready}
         aria-hidden={started || undefined}
       >
         <h1 id="welcome-title">
@@ -370,7 +443,7 @@ export default function NightLine() {
           disabled={!ready || started}
           onClick={startJourney}
         >
-          <span>Settle In</span>
+          <span>{ready ? simpleView ? "Press play. Stay a while." : "Settle In" : "Getting comfortable…"}</span>
           <svg
             width={18}
             height={18}
@@ -388,13 +461,29 @@ export default function NightLine() {
           </svg>
         </button>
       </section>
-      <div className="journey-controls" {...journeyProps}>
+      <button {...journeyProps} className="listening-tools" type="button"
+        hidden={!mobile}
+        aria-controls="journey-tools" aria-expanded={controlsOpen}
+        aria-label={controlsOpen ? "Hide focus and journey" : "Show focus and journey"}
+        title={controlsOpen ? "Hide focus and journey" : "Show focus and journey"}
+        onClick={() => setControlsOpen(!controlsOpen)}>
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d={controlsOpen ? "m6 9 6 6 6-6" : "m6 15 6-6 6 6"} /></svg>
+        <span className="listening-tools-label">Focus & journey</span>
+      </button>
+      <div className="journey-controls" id="journey-tools" {...journeyProps}
+        hidden={!controlsOpen} aria-label="Focus timer and journey">
+        <div className="journey-summary">
         {started && stationStatus && (
           <p className="station-status" role="status">
             {stationStatus}
           </p>
         )}
         <JourneyMeter room={room} unit={unit} onIntention={openIntention} />
+        <button type="button" className="listening-intention" onClick={openIntention}
+          aria-label={intention ? "Edit your intention" : "Set an intention"}>
+          <span>My intention</span><strong>{intention || "+ Set an intention"}</strong>
+        </button>
+        </div>
         <FocusTimer />
       </div>
       <section
@@ -472,12 +561,12 @@ export default function NightLine() {
       />
       <AboutPanel open={aboutOpen} onClose={() => setAboutOpen(false)} />
       {started && <AnkiStudy open={ankiOpen} onClose={() => setAnkiOpen(false)} />}
-      {devKitEnabled && started && devKit === "on" && (
+      {devKitEnabled && started && view === "carriage" && devKit === "on" && (
         <DevKit probe={diagnostics} onClose={() => setDevKit("off")} />
       )}
       {error && (
         <p className="journey-load-error" role="alert">
-          Your carriage couldn’t load. <a href="/">Refresh to try again.</a>
+          Your carriage couldn’t load. {mobile && <><button type="button" onClick={() => setView("calm")}>Try Calm mode</button> or </>}<a href="/">refresh to try again.</a>
         </p>
       )}
       <div className="vignette" />
