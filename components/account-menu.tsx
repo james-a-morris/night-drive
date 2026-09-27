@@ -1,5 +1,6 @@
 import type { CityAtmosphere } from "../src/city-atmosphere.ts";
 import CityWeatherChecker from "./city-weather.tsx";
+import FullscreenButton from "./fullscreen-button.tsx";
 import type { Room } from "./use-room.ts";
 import type { Seat, SeatDirection, DistanceUnit } from "../src/types.ts";
 import Popover from "./popover.tsx";
@@ -9,6 +10,7 @@ import { SeatIcon, WindowIcon, TrainDirectionIcon, DistanceIcon } from "./journe
 
 export default function AccountMenu({
   room,
+  calm = false,
   weatherEnabled,
   onAtmosphere,
   onCityTimezone,
@@ -27,6 +29,7 @@ export default function AccountMenu({
   onAuthenticate,
 }: {
   room: Room;
+  calm?: boolean;
   weatherEnabled: boolean;
   onAtmosphere(value: CityAtmosphere | null): void;
   onCityTimezone(value: string | null): void;
@@ -70,7 +73,10 @@ export default function AccountMenu({
             </svg>
           </button>
           <div {...panelProps} className="account-panel" id="account-panel" role="dialog" aria-label="Journey settings and account">
-            <p className="account-eyebrow">YOUR NIGHT RAIL</p>
+            <div className="account-panel-heading">
+              <p className="account-eyebrow">YOUR NIGHT RAIL</p>
+              {!calm && <FullscreenButton />}
+            </div>
             <div
               className="account-menu"
               id="account-menu"
@@ -122,6 +128,7 @@ export default function AccountMenu({
                 <span>Your progress stays in this browser.</span>
               </div>
               <div className="account-settings">
+                {!calm && <>
                 <div
                   className="cabin-options"
                   role="group"
@@ -214,8 +221,18 @@ export default function AccountMenu({
                     <span>{unit === "mi" ? "Mi" : "Km"}</span>
                   </button>
                 </div>
+                </>}
+                {calm && <div className="calm-distance-setting">
+                  <span>Distance units</span>
+                  <div role="group" aria-label="Distance units">
+                    {(["mi", "km"] as const).map((value) => <button key={value} type="button"
+                      aria-pressed={unit === value} onClick={() => onUnit(value)}>
+                      {value === "mi" ? "Miles" : "Kilometers"}
+                    </button>)}
+                  </div>
+                </div>}
                 {weatherEnabled && <CityWeatherChecker room={room} active={open} onAtmosphere={onAtmosphere} onTimezone={onCityTimezone} />}
-                {devKitEnabled && <button
+                {devKitEnabled && !calm && <button
                   className="account-menu-item dev-kit-toggle"
                   id="dev-kit-toggle"
                   type="button"

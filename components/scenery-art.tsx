@@ -144,6 +144,21 @@ const artwork = {
       </g>
     </>
   ),
+  pnw: (
+    <>
+      <rect width={64} height={48} fill="#91abae" />
+      <path d="M0 31 17 8 29 23 42 5 64 29V48H0Z" fill="#617e86" />
+      <path d="m10 18 7-10 7 10-7-3Zm25-3 7-10 9 12-9-4-4 3Z" fill="#d2dfdb" />
+      <path d="M0 30 14 23 31 34 46 24 64 30V48H0Z" fill="#3d685d" />
+      <path d="M46 28Q30 34 40 39T45 48H64Q41 39 50 35T53 28Z" fill="#72b4b1" />
+      <g className="scenery-wind" fill="none" stroke="#e1eee5" strokeWidth="1.2" strokeLinecap="round">
+        <path d="m46 32-5 2m0 5 7 3m2 3 5 2" />
+      </g>
+      <path d="m9 15-8 20h5l-5 10h17l-6-10h5Zm18 6-7 16h4l-5 11h17l-6-11h4Z" fill="#1f4b3d" />
+      <path d="m61 18-7 16h4l-5 9h15l-5-9h4Z" fill="#2a5947" />
+      <path d="M0 46q14-8 30 2H0Z" fill="#557956" />
+    </>
+  ),
   coast: (
     <>
       <rect width={64} height={48} fill="#ceafa0" />

@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { terrainHeight, terrainPoint, terrainSurfaceHeight, SEA_LEVEL, TERRAIN_OFFSETS, TERRAIN_ROW_LENGTH } from '../src/terrain.ts';
 import { roadPoint } from '../src/drive.ts';
+import { ENVIRONMENTS } from '../src/environments.ts';
 
 test('hills never cover the drivable road, in any scenery', () => {
   for (const mode of ['auto', 'forest', 'alpine', 'desert', 'coast']) {
@@ -27,6 +28,14 @@ test('terrain is deterministic, continuous at section boundaries, and has varied
   }
   assert.ok(Math.max(...heights) > 50);
   assert.ok(Math.min(...heights) < 20);
+});
+
+test('the lateral terrain boundary lies beyond the visible ridgeline in every route atmosphere', () => {
+  const edge = TERRAIN_OFFSETS.at(-1);
+  for (const [name, environment] of Object.entries(ENVIRONMENTS)) {
+    const transmission = Math.exp(-((edge * environment.fogDensity) ** 2));
+    assert.ok(transmission < .01, `${name}: a visible terrain edge would slice off distant mountains`);
+  }
 });
 
 test('roadside props rest on the rendered triangles, including slopes and bends', () => {

@@ -40,8 +40,8 @@ test('city atmosphere applies rain, snow, fog and daylight across routes without
   let environments = cityEnvironments({ city, weather });
   for (const route of ['forest', 'alpine', 'desert', 'coast', 'bridge']) {
     const weights = environmentWeights(0, route);
-    assert.ok(blendEnvironment(weights, e => e.particles.rain, environments) > 0);
-    assert.equal(blendEnvironment(weights, e => e.particles.snow, environments), 0);
+    assert.equal(blendEnvironment(weights, e => e.particles.rain, environments) > 0, !['alpine', 'desert'].includes(route));
+    assert.equal(blendEnvironment(weights, e => e.particles.snow, environments) > 0, route === 'alpine');
     assert.equal(blendEnvironment(weights, e => e.starOpacity, environments), 0);
     assert.equal(environments[route].daylight, 1);
   }
@@ -49,7 +49,8 @@ test('city atmosphere applies rain, snow, fog and daylight across routes without
   weather.current.code = 75;
   environments = cityEnvironments({ city, weather });
   assert.equal(environments.desert.particles.rain, 0);
-  assert.ok(environments.desert.particles.snow > 0);
+  assert.equal(environments.desert.particles.snow, 0);
+  assert.ok(environments.alpine.particles.snow > 0);
   weather.current.code = 45;
   assert.ok(cityEnvironments({ city, weather }).forest.fogDensity > .02);
   weather.current.code = 0; weather.current.isDay = false; weather.current.cloudCover = 0;
@@ -70,6 +71,44 @@ test('API validation rejects bad coordinates and zones before contacting the pro
   }
   assert.equal((await searchCities(new Request('http://localhost/api/cities?q=a'))).status, 400);
   assert.equal(fetch.mock.callCount(), 0);
+});
+
+test('wet and obscured city skies suppress celestial light even with missing or contradictory cloud readings', () => {
+  for (const code of [3, 45, 48, 51, 61, 65, 71, 75, 80, 85, 95, 99]) {
+    for (const cloudCover of [null, 0, 40, 100]) {
+      for (const isDay of [false, true]) {
+        const weather = parseWeather(raw);
+        Object.assign(weather.current, { code, cloudCover, isDay });
+        const environments = cityEnvironments({ city, weather });
+        for (const route of ['forest', 'alpine', 'desert', 'coast', 'bridge']) {
+          assert.equal(environments[route].cloudCover, 1, `${route}: code ${code}, cloud cover ${cloudCover}`);
+          assert.equal(environments[route].starOpacity, 0);
+          assert.equal(environments[route].fog, environments[route].horizon, 'distant terrain must merge into the sky');
+        }
+        assert.equal(environments.tunnel, ENVIRONMENTS.tunnel);
+      }
+    }
+  }
+});
+
+test('deserts stay dry and winter converts all wet weather to snow without rain on windows or storm eligibility', () => {
+  for (const code of [51, 53, 55, 56, 57, 61, 63, 65, 66, 67, 71, 73, 75, 77, 80, 81, 82, 85, 86, 95, 96, 97, 99]) {
+    const weather = parseWeather(raw);
+    weather.current.code = code;
+    const environments = cityEnvironments({ city, weather });
+    assert.deepEqual(environments.desert.particles, ENVIRONMENTS.desert.particles);
+    assert.deepEqual(environments.alpine.particles, { rain: 0, snow: .85, dust: 0 });
+    for (const route of ['desert', 'alpine', 'tunnel']) {
+      assert.equal(environments[route].windowRain, 0);
+      assert.equal(environments[route].audio.weatherGain, ENVIRONMENTS[route].audio.weatherGain);
+      assert.equal(environments[route].audio.filterHz, ENVIRONMENTS[route].audio.filterHz);
+      const weights = environmentWeights(0, route);
+      assert.equal(blendEnvironment(weights, e => e.particles.rain > 0 ? 1 : 0, environments), 0,
+        `${route} must not activate rainstorm effects for code ${code}`);
+    }
+    assert.equal(environments.desert.daylight, 1, 'biome limits must retain city time');
+    assert.equal(environments.alpine.sky, environments.coast.sky, 'biomes share the city sky');
+  }
 });
 
 test('city search preserves regions and filters unusable places; outages are retryable', async t => {

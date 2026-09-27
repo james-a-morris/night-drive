@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { useCityPreferences } from "./use-city-preferences.ts";
 import type { Room } from "./use-room.ts";
 import { CitySyncIcon } from "./journey-setting-icons.tsx";
+import WeatherIcon from "./weather-icon.tsx";
 import { canSyncWeather, type CityAtmosphere } from "../src/city-atmosphere.ts";
 
 import { cityLabel, localTime, temperature, weatherDescription, type City, type CityWeather } from "../src/city-weather.ts";
@@ -12,18 +13,6 @@ async function readJson(url: string, signal: AbortSignal) {
   const response = await fetch(url, { signal });
   if (!response.ok) throw new Error("Service unavailable");
   return response.json();
-}
-
-function WeatherIcon({ code, day }: { code: number | null; day: boolean | null }) {
-  const snow = code !== null && [71, 73, 75, 77, 85, 86].includes(code);
-  const rain = code !== null && code >= 51 && !snow;
-  return <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
-    {code === null ? <><circle cx="12" cy="12" r="8.5" /><ellipse cx="12" cy="12" rx="3.5" ry="8.5" /><path d="M4 9h16M4 15h16" /></>
-      : code <= 1 ? day ? <><circle cx="12" cy="12" r="4" /><path d="M12 2v2m0 16v2M2 12h2m16 0h2M5 5l1.4 1.4m11.2 11.2L19 19M5 19l1.4-1.4M17.6 6.4 19 5" /></> : <path d="M20 14.2A8.4 8.4 0 0 1 9.8 4a8.4 8.4 0 1 0 10.2 10.2Z" />
-      : code === 45 || code === 48 ? <path d="M5 7h14M3 12h18M5 17h14" />
-      : <><path d="M6 15a4 4 0 1 1 .8-7.9A5.5 5.5 0 0 1 17.5 9a3 3 0 0 1 .5 6H6Z" />
-        {snow ? <path d="M8 18v4m-2-2h4m6-2v4m-2-2h4" /> : code >= 95 ? <path d="m13 16-3 4h4l-2 3" /> : rain ? <path d="m8 18-1 3m6-3-1 3m6-3-1 3" /> : null}</>}
-  </svg>;
 }
 
 export default function CityWeatherChecker({ room, active, onAtmosphere, onTimezone }: { room: Room; active: boolean; onAtmosphere(value: CityAtmosphere | null): void; onTimezone(value: string | null): void }) {

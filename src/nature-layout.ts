@@ -1,10 +1,11 @@
 import { NATURE_CELL_LENGTH, NATURE_CELL_COUNT, NATURE_HALF_CELLS, DETAIL_HALF_CELLS, firstNatureCell } from "./view-distance.ts";
 import { cottageSite } from "./cottage-layout.ts";
-import { environmentWeights, type SceneryMode } from "./environments.ts";
+import { ENVIRONMENTS, dominantEnvironment, environmentWeights, type SceneryMode } from "./environments.ts";
 import { roadFrame, roadPoint } from "./drive.ts";
 import { settlementClearing } from "./settlement-layout.ts";
 import { stationClearing } from "./station-route.ts";
 import { SEA_LEVEL, terrainSurfaceHeight } from "./terrain.ts";
+import { PNW_RIVER_LEVEL } from "./pnw-river-layout.ts";
 
 export const NATURE_CAPACITY = {
   birch: NATURE_CELL_COUNT * 16,
@@ -54,8 +55,8 @@ export function natureClearing(
   for (let i = nearest - 1; i <= nearest + 1; i++) {
     const at = 96 + i * 86;
     const kind = ((i % 3) + 3) % 3;
-    const coast = environmentWeights(at, mode).coast > 0.5;
-    const side = coast ? 1 : Math.floor(at / 86) % 2 === 1 ? -1 : 1;
+    const environment = ENVIRONMENTS[dominantEnvironment(environmentWeights(at, mode))];
+    const side = environment.landSide ?? (Math.floor(at / 86) % 2 === 1 ? -1 : 1);
     const cottage = kind === 1 ? cottageSite(at, mode) : null;
     if (kind === 1 && !cottage) continue;
     const origin = cottage ?? roadPoint(at, side * (kind === 2 ? 14 : 15));
@@ -85,12 +86,13 @@ export function naturePlacements(progress: number, mode: SceneryMode) {
     if (stationClearing(station, lateral, mode)) return;
     const point = roadPoint(station, lateral);
     const weights = environmentWeights(-point.z, mode);
-    const abundance = weights.forest + (lateral > 0 ? weights.coast * 0.6 : 0);
+    const abundance = weights.forest + weights.pnw + (lateral > 0 ? weights.coast * 0.6 : 0);
     if (random(cell, seed + 301) > abundance || abundance < 0.05) return;
     if (kind === "maple" && weights.forest < 0.5) return;
     if (natureClearing(point.x, point.z, station, tree, mode)) return;
     const height = terrainSurfaceHeight(point.x, point.z, mode);
     if (height < SEA_LEVEL + 2 || (lateral < 0 && weights.coast > 0.65)) return;
+    if (weights.pnw > .5 && height < PNW_RIVER_LEVEL + .8) return;
     // Keep soft ground cover off steep rock faces.
     const slope = Math.hypot(
       terrainSurfaceHeight(point.x + 0.5, point.z, mode) - height,
@@ -99,9 +101,9 @@ export function naturePlacements(progress: number, mode: SceneryMode) {
     if (slope > (tree ? 0.95 : 0.55)) return;
     placements.push({
       kind, station, lateral, x: point.x, y: height - (tree ? 0.09 : 0.035), z: point.z,
-      scale: (tree ? (Math.abs(lateral) > 36 ? 1.15 : 0.88) : kind === "bush" ? 1.25 : 0.9) + random(cell, seed + 13) * 0.55,
+      scale: ((tree ? (Math.abs(lateral) > 36 ? 1.15 : 0.88) : kind === "bush" ? 1.25 : 0.9) + random(cell, seed + 13) * 0.55) * (1 + weights.pnw * (tree ? .18 : .3)),
       yaw: random(cell, seed + 17) * Math.PI * 2,
-      shade: 0.84 + random(cell, seed + 19) * 0.16,
+      shade: 0.84 + random(cell, seed + 19) * 0.16 - weights.pnw * .12,
     });
   }
   for (let cell = first; cell < first + NATURE_CELL_COUNT; cell++) {

@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { roadFrame, roadPoint } from '../src/drive.ts';
-import { tunnelSpan, environmentWeights, TUNNEL_CYCLE_LENGTH } from '../src/environments.ts';
+import { tunnelSpan, environmentWeights, TUNNEL_CYCLE_LENGTH, routeRegions } from '../src/environments.ts';
 import { createTunnelLighting, viewpointInsideTunnel } from '../src/tunnel-lighting.ts';
 
 function update(lighting, progress, mode, dt = 1) {
@@ -12,12 +12,13 @@ function update(lighting, progress, mode, dt = 1) {
 test('automatic tunnel approach preserves exterior lighting until the passenger crosses the portal', () => {
   const lighting = createTunnelLighting();
   const { start } = tunnelSpan(0, 'auto');
+  const approach = routeRegions[routeRegions.findIndex(region => region.name === 'tunnel') - 1].name;
   update(lighting, start - 400, 'auto', 100);
   for (let progress = start - 300; progress < start; progress += 0.5) {
     const state = update(lighting, progress, 'auto');
     assert.equal(state.enclosure, 0);
     assert.equal(state.weights.tunnel, 0);
-    assert.equal(state.weights.coast, 1);
+    assert.equal(state.weights[approach], 1);
   }
   const inside = update(lighting, start + 0.01, 'auto', 0.05);
   assert.ok(inside.enclosure > 0 && inside.enclosure < 1, 'dimming eases in after entry');

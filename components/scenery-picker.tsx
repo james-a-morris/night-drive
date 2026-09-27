@@ -2,9 +2,10 @@ import type { SceneryMode } from "../src/environments.ts";
 import { ENVIRONMENTS } from "../src/environments.ts";
 import Popover from "./popover.tsx";
 import SceneryArt from "./scenery-art.tsx";
+import WeatherIcon from "./weather-icon.tsx";
 import { pineEnvironment, type PineWeather } from "../src/pine-weather.ts";
 
-const title = (text: string) => text[0] + text.slice(1).toLowerCase();
+const title = (text: string) => text === "PACIFIC NORTHWEST" ? "Pacific Northwest" : text[0] + text.slice(1).toLowerCase();
 const routes = {
   auto: { name: "The long way", weather: "Every landscape. No destination." },
   ...ENVIRONMENTS,
@@ -15,15 +16,22 @@ export default function SceneryPicker({
   onChange,
   pineWeather,
   cityWeather,
+  cityWeatherCode,
+  cityIsDay,
 }: {
   value: SceneryMode;
   pineWeather: PineWeather;
   cityWeather?: string;
+  cityWeatherCode?: number | null;
+  cityIsDay?: boolean | null;
   onChange(mode: SceneryMode): void;
 }) {
   const options = { ...routes, forest: { ...pineEnvironment(pineWeather), ...(cityWeather ? { name: "THE PINES" } : {}) } };
-  const description = (mode: string, fallback: string) => cityWeather && mode !== "tunnel" ? cityWeather : fallback;
   const name = title(options[value].name);
+  const synced = !!cityWeather && value !== "tunnel";
+  const [condition, location] = (synced ? cityWeather : title(options[value].weather)).split(" · ");
+  const landscape = synced ? undefined : value === "pnw" ? "river" : value === "coast" || value === "desert" ? "wind" : value !== "forest" && value !== "alpine" ? "route" : undefined;
+  const weatherCode = synced ? cityWeatherCode ?? null : value === "alpine" ? 73 : pineWeather === "rain" ? 53 : 0;
   return (
     <Popover role="listbox">
       {({ triggerProps, panelProps, close }) => (
@@ -66,7 +74,8 @@ export default function SceneryPicker({
                   data-value={mode}
                   role="option"
                   aria-selected={value === mode}
-                  aria-label={`${title(route.name)}, ${title(description(mode, route.weather))}`}
+                  aria-label={`${title(route.name)}, ${title(route.weather)}`}
+                  title={title(route.weather)}
                   tabIndex={-1}
                   onClick={() => {
                     onChange(mode as SceneryMode);
@@ -83,9 +92,6 @@ export default function SceneryPicker({
                         <span className="scenery-auto">AUTO</span>
                       )}
                     </span>
-                    <span className="scenery-option-description">
-                      {title(description(mode, route.weather))}
-                    </span>
                   </span>
                   <svg
                     className="scenery-check"
@@ -97,6 +103,16 @@ export default function SceneryPicker({
                   </svg>
                 </button>
               ))}
+            </div>
+            <div className="scenery-menu-weather" key={`${value}:${condition}`}>
+              <span className="scenery-weather-icon">
+                <WeatherIcon code={weatherCode} day={synced ? cityIsDay ?? null : false} landscape={landscape} />
+              </span>
+              <p className="scenery-weather-copy">
+                <span className="scenery-weather-condition">{condition}</span>
+                {location && <span className="scenery-weather-location">{location}</span>}
+              </p>
+              {synced && <span className="scenery-weather-sync" title="Weather synced to your city" aria-label="Weather synced to your city" />}
             </div>
           </div>
         </div>

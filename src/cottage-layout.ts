@@ -1,5 +1,5 @@
 import { roadFrame, roadPoint } from "./drive.ts";
-import { environmentWeights, type SceneryMode } from "./environments.ts";
+import { ENVIRONMENTS, dominantEnvironment, environmentWeights, type SceneryMode } from "./environments.ts";
 import { buildingGround, MAX_BUILDING_RELIEF, settlementClearing } from "./settlement-layout.ts";
 import { stationClearing } from "./station-route.ts";
 
@@ -7,7 +7,7 @@ import { stationClearing } from "./station-route.ts";
 const cache = new Map<string, ReturnType<typeof chooseSite>>();
 function chooseSite(station: number, mode: SceneryMode) {
   const weights = environmentWeights(station, mode);
-  const side = weights.coast > 0.5 ? 1 : Math.floor(station / 86) % 2 === 1 ? -1 : 1;
+  const side = ENVIRONMENTS[dominantEnvironment(weights)].landSide ?? (Math.floor(station / 86) % 2 === 1 ? -1 : 1);
   for (const lateral of [31, 23, 19]) for (const shift of [0, -8, 8]) {
     const at = station + shift;
     const point = roadPoint(at, side * lateral);

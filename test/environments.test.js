@@ -10,6 +10,7 @@ test('landscape weather, windows, audio and wildlife agree at each selected dest
     assert.equal(blendEnvironment(weights, env => env.particles.rain), mode === 'forest' ? .32 : 0);
     assert.equal(blendEnvironment(weights, env => env.particles.snow), mode === 'alpine' ? .9 : 0);
     assert.equal(blendEnvironment(weights, env => env.audio.surfGain), mode === 'coast' ? .13 : 0);
+    assert.equal(blendEnvironment(weights, env => env.audio.riverGain ?? 0), mode === 'pnw' ? .16 : 0);
     assert.ok(WILDLIFE_FAMILIES[environment.wildlife]?.length);
     assert.equal(environment.vegetation.cactus, mode === 'desert');
   }
