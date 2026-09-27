@@ -133,10 +133,12 @@ export default function JourneyMeter({
   room,
   unit,
   onIntention,
+  calm = false,
 }: {
   room: Room;
   unit: DistanceUnit;
   onIntention(): void;
+  calm?: boolean;
 }) {
   const count = room.board?.othersCount;
   return (
@@ -173,6 +175,7 @@ export default function JourneyMeter({
                 />
               </strong>
               <span className="miles-arrow" aria-hidden="true">
+                {calm && <span>View journey</span>}
                 ↗
               </span>
             </button>

@@ -72,8 +72,7 @@ export function createConductor({
       (-(y - bounds.top) / bounds.height) * 2 + 1,
     );
     ray.setFromCamera(pointer, camera);
-    // Include furniture so neither target can be activated through a chair or table.
-    const solid = ({ object }: THREE.Intersection) => {
+    const solid = (object: THREE.Object3D) => {
       if (!(object instanceof THREE.Mesh) || object === shadow) return false;
       for (let at: THREE.Object3D | null = object; at; at = at.parent)
         if (!at.visible) return false;
@@ -85,9 +84,25 @@ export function createConductor({
         (material) => material.visible && material.opacity >= 0.5,
       );
     };
-    if (!ray.intersectObjects([roomba, button], true).some(solid)) return null;
-    const nearest = ray.intersectObject(parent, true).find(solid);
-    return nearest ? targetOf(nearest.object) : null;
+    // Skip the hidden conductor before testing any of its triangles.
+    const nearest = ray
+      .intersectObjects(roomba.visible ? [roomba, button] : [button], true)
+      .find(({ object }) => solid(object));
+    if (!nearest) return null;
+    // Only furniture in front of the target can block a click. Skip hidden
+    // and non-solid parts, and stop testing as soon as one blocker is found.
+    let blocked = false;
+    const far = ray.far;
+    try {
+      ray.far = nearest.distance;
+      parent.traverseVisible((object) => {
+        if (blocked || targetOf(object) || !solid(object)) return;
+        blocked = ray.intersectObject(object, false).length > 0;
+      });
+    } finally {
+      ray.far = far;
+    }
+    return blocked ? null : targetOf(nearest.object);
   }
   function setHovered(target: Target) {
     hovered = target;
@@ -190,6 +205,32 @@ export function createConductor({
   scope.defer(() => onWhir(0));
 
   return {
+    warmup(renderer: THREE.WebGLRenderer, scene: THREE.Scene) {
+      // Use the real scene's lighting, fog and output settings to prepare the
+      // exact shaders, textures and geometry the first visit will need. A tiny
+      // scissor keeps this loading-only draw out of view; the normal frame
+      // immediately overwrites it. Include parts outside the camera frustum.
+      const scissor = renderer.getScissor(new THREE.Vector4());
+      const scissorTest = renderer.getScissorTest();
+      const visible = roomba.visible;
+      const culling = new Map<THREE.Object3D, boolean>();
+      try {
+        roomba.visible = true;
+        roomba.traverse((object) => {
+          culling.set(object, object.frustumCulled);
+          object.frustumCulled = false;
+        });
+        renderer.setScissor(0, 0, 1, 1);
+        renderer.setScissorTest(true);
+        renderer.render(scene, camera);
+      } finally {
+        roomba.visible = visible;
+        for (const [object, frustumCulled] of culling)
+          object.frustumCulled = frustumCulled;
+        renderer.setScissor(scissor);
+        renderer.setScissorTest(scissorTest);
+      }
+    },
     // Called with the index of each station as the train leaves it.
     depart(station: number) {
       if (rounds.depart(station)) visit.summon();

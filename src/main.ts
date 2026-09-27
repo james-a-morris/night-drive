@@ -269,6 +269,10 @@ export function mountScene(
         lastWeatherUpdate = now;
       }
       scenery.updateVisibility(camera);
+      if (!ready) {
+        conductor.warmup(renderer, scene);
+        renderer.info.reset();
+      }
       cabin.windowRain.render(renderer, scene, camera);
       diagnostics.sample(now, elapsed, renderer);
       if (!ready) {

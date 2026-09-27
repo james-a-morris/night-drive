@@ -137,9 +137,9 @@ export class NightRadio {
     if (session && typeof MediaMetadata !== "undefined") {
       // Supply full-size artwork so the lock screen doesn't enlarge the favicon.
       this.artworkMetadata ??= new MediaMetadata({
-        title: "Night Rail: a little room for your thoughts",
+        title: "Night Rail: LoFi + Vibes",
         artwork: [{
-          src: "/assets/night-rail-artwork.png",
+          src: "/assets/night-rail-artwork.png?v=2",
           sizes: "1024x1024",
           type: "image/png",
         }],
