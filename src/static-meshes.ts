@@ -28,6 +28,14 @@ export function mergeStaticMeshes(root: THREE.Object3D, sources: THREE.Object3D[
       return geometry;
     });
     const geometry = mergeGeometries(parts);
+    let start = 0;
+    const regions = geometry ? parts.map(part => {
+      part.computeBoundingBox();
+      const count = part.getAttribute("position").count;
+      const region = { bounds: part.boundingBox!, start, count };
+      start += count;
+      return region;
+    }) : [];
     parts.forEach(part => part.dispose());
     if (!geometry) continue;
     geometry.computeBoundingSphere();
@@ -36,6 +44,26 @@ export function mergeStaticMeshes(root: THREE.Object3D, sources: THREE.Object3D[
     batch.layers.mask = first.layers.mask; batch.renderOrder = first.renderOrder;
     batch.castShadow = first.castShadow; batch.receiveShadow = first.receiveShadow;
     batch.matrixAutoUpdate = false;
+    // A batch can span both sides of the carriage. Its single bounding sphere
+    // admits rays through the aisle, making hover checks scan every triangle.
+    // Keep each source's bounds and test only the crossed pieces of the batch.
+    const localRay = new THREE.Ray(), inverseWorld = new THREE.Matrix4();
+    batch.raycast = (raycaster, intersections) => {
+      localRay.copy(raycaster.ray).applyMatrix4(inverseWorld.copy(batch.matrixWorld).invert());
+      const { start, count } = geometry.drawRange;
+      try {
+        for (const region of regions) {
+          if (!localRay.intersectsBox(region.bounds)) continue;
+          const from = Math.max(start, region.start);
+          const to = Math.min(start + count, region.start + region.count);
+          if (to <= from) continue;
+          geometry.setDrawRange(from, to - from);
+          THREE.Mesh.prototype.raycast.call(batch, raycaster, intersections);
+        }
+      } finally {
+        geometry.setDrawRange(start, count);
+      }
+    };
     for (const mesh of meshes) { retired.add(mesh.geometry); mesh.removeFromParent(); }
     root.add(batch);
   }

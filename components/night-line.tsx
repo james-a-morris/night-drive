@@ -47,6 +47,7 @@ export default function NightLine() {
   const simpleView = view !== "carriage";
   const preferencesReady = view !== null;
   const [controlsOpen, setControlsOpen] = useState(true);
+  const [calmPanel, setCalmPanel] = useState<"focus" | "journey" | null>("focus");
   useEffect(() => {
     if (view) setControlsOpen(true);
   }, [view, mobile]);
@@ -262,7 +263,8 @@ export default function NightLine() {
       className={started ? undefined : "is-welcoming"}
       data-seat={seat}
       data-listening-view={view ?? "pending"}
-      data-controls-open={controlsOpen}
+      data-controls-open={view === "calm" ? calmPanel !== null : controlsOpen}
+      data-calm-panel={view === "calm" ? calmPanel ?? "none" : undefined}
       data-ready={ready}
       data-mobile={mobile}
     >
@@ -371,6 +373,25 @@ export default function NightLine() {
           <Brand />
         </button>
         {mobile && <ListeningViewPicker view={view} onChange={setView} />}
+        {view === "calm" && <>
+          <button {...journeyProps} className="calm-panel-trigger" id="calm-focus-toggle" type="button"
+            aria-label="Focus timer" title="Focus timer" aria-controls="focus-timer"
+            aria-expanded={calmPanel === "focus"}
+            onClick={() => setCalmPanel(calmPanel === "focus" ? null : "focus")}>
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+              <circle cx="12" cy="13" r="8" /><path d="M12 9v4l3 2M9 2h6m-3 0v3m6 1 1.5-1.5" />
+            </svg>
+          </button>
+          <button {...journeyProps} className="calm-panel-trigger" id="calm-journey-toggle" type="button"
+            aria-label="Journey and intention" title="Journey and intention" aria-controls="journey-summary"
+            aria-expanded={calmPanel === "journey"}
+            onClick={() => setCalmPanel(calmPanel === "journey" ? null : "journey")}>
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+              <circle cx="6" cy="18" r="2" /><circle cx="18" cy="6" r="2" />
+              <path d="M6 16v-3a3 3 0 0 1 3-3h6a3 3 0 0 0 3-3M10 18h9m-2-2 2 2-2 2" />
+            </svg>
+          </button>
+        </>}
         <Popover role="dialog">
           {({ open, triggerProps, panelProps }) => <>
         <button {...triggerProps} {...journeyProps} className="journey-menu-trigger" type="button"
@@ -427,6 +448,7 @@ export default function NightLine() {
         className="welcome"
         id="intro"
         aria-labelledby="welcome-title"
+        hidden={view === "calm"}
         inert={started || !ready}
         aria-hidden={started || undefined}
       >
@@ -443,7 +465,7 @@ export default function NightLine() {
           disabled={!ready || started}
           onClick={startJourney}
         >
-          <span>{ready ? simpleView ? "Press play. Stay a while." : "Settle In" : "Getting comfortable…"}</span>
+          <span>{ready ? "Settle In" : "Getting comfortable…"}</span>
           <svg
             width={18}
             height={18}
@@ -462,7 +484,7 @@ export default function NightLine() {
         </button>
       </section>
       <button {...journeyProps} className="listening-tools" type="button"
-        hidden={!mobile}
+        hidden={!mobile || view === "calm"}
         aria-controls="journey-tools" aria-expanded={controlsOpen}
         aria-label={controlsOpen ? "Hide focus and journey" : "Show focus and journey"}
         title={controlsOpen ? "Hide focus and journey" : "Show focus and journey"}
@@ -471,17 +493,18 @@ export default function NightLine() {
         <span className="listening-tools-label">Focus & journey</span>
       </button>
       <div className="journey-controls" id="journey-tools" {...journeyProps}
-        hidden={!controlsOpen} aria-label="Focus timer and journey">
-        <div className="journey-summary">
+        hidden={!started || (view === "calm" ? calmPanel === null : !controlsOpen)} aria-label="Focus timer and journey">
+        <div className="journey-summary" id="journey-summary">
         {started && stationStatus && (
           <p className="station-status" role="status">
             {stationStatus}
           </p>
         )}
-        <JourneyMeter room={room} unit={unit} onIntention={openIntention} />
+        <JourneyMeter room={room} unit={unit} onIntention={openIntention} calm={view === "calm"} />
         <button type="button" className="listening-intention" onClick={openIntention}
           aria-label={intention ? "Edit your intention" : "Set an intention"}>
           <span>My intention</span><strong>{intention || "+ Set an intention"}</strong>
+          {view === "calm" && <span className="intention-action" aria-hidden="true">{intention ? "Edit" : "Set"} ↗</span>}
         </button>
         </div>
         <FocusTimer />
@@ -491,6 +514,8 @@ export default function NightLine() {
         id="hud"
         aria-label="Music and intention"
         {...journeyProps}
+        inert={!started && view !== "calm"}
+        aria-hidden={(!started && view !== "calm") || undefined}
       >
         <div className="media-console" aria-label="Your study corner">
           <div className="study-intention-row" data-journey-tile>
@@ -529,7 +554,8 @@ export default function NightLine() {
               </div>
             </div>
           </div>
-          <RadioPlayer radio={radio} />
+          <RadioPlayer radio={radio} calm={view === "calm"}
+            onStart={view === "calm" && !started ? startJourney : undefined} ready={ready} />
         </div>
         <div className="dash-route">
           <span id="route-name">

@@ -27,7 +27,12 @@ const idle: NowPlaying = {
   canPrevious: false,
 };
 
-export default function RadioPlayer({ radio }: { radio: NightRadio | null }) {
+export default function RadioPlayer({ radio, calm = false, onStart, ready = true }: {
+  radio: NightRadio | null;
+  calm?: boolean;
+  onStart?(): void;
+  ready?: boolean;
+}) {
   const [track, setTrack] = useState(idle);
   const [mix, setMix] = useState<AudioMix>(DEFAULT_AUDIO_MIX);
   useEffect(() => {
@@ -43,6 +48,7 @@ export default function RadioPlayer({ radio }: { radio: NightRadio | null }) {
       className="radio-widget"
       aria-label="Night Rail Radio"
       data-journey-tile
+      data-onboarding={Boolean(onStart)}
     >
       <div className="playback-row">
         <div
@@ -52,11 +58,11 @@ export default function RadioPlayer({ radio }: { radio: NightRadio | null }) {
         >
           <p className="track-status">
             <i aria-hidden="true"></i>
-            <span id="track-status">{STATUS[track.state]}</span>
+            <span id="track-status">{onStart ? "LO-FI RADIO" : STATUS[track.state]}</span>
           </p>
           <div className="track-name" aria-live="polite" aria-atomic="true">
-            <strong id="track-title" title={track.title}>
-              {track.title}
+            <strong id="track-title" title={onStart ? undefined : track.title}>
+              {onStart ? ready ? "Stay a little while." : "Getting ready…" : track.title}
             </strong>
             <span id="track-japanese" lang={track.local ? "ja" : undefined}>
               {track.local || track.state === "blocked"
@@ -75,6 +81,7 @@ export default function RadioPlayer({ radio }: { radio: NightRadio | null }) {
             type="button"
             aria-label="Previous station"
             title="Previous station"
+            hidden={Boolean(onStart)}
             disabled={!track.canPrevious}
             onClick={() => radio?.previousStation()}
           >
@@ -94,13 +101,13 @@ export default function RadioPlayer({ radio }: { radio: NightRadio | null }) {
             type="button"
             className={radio?.enabled ? "sound-on" : undefined}
             aria-label={
-              radio?.enabled
+              onStart ? "Start listening" : radio?.enabled
                 ? "Mute music and ambience"
                 : "Play music and ambience"
             }
             aria-pressed={Boolean(radio?.enabled)}
-            disabled={!radio}
-            onClick={() => void radio?.setEnabled(!radio.enabled)}
+            disabled={!radio || Boolean(onStart && !ready)}
+            onClick={() => onStart ? onStart() : void radio?.setEnabled(!radio.enabled)}
           >
             <svg
               className="play-icon"
@@ -135,6 +142,7 @@ export default function RadioPlayer({ radio }: { radio: NightRadio | null }) {
             type="button"
             aria-label={track.local ? "Retry live stations" : "Next station"}
             title={track.local ? "Retry live stations" : "Next station"}
+            hidden={Boolean(onStart)}
             disabled={!track.canSkip}
             onClick={() => radio?.nextStation()}
           >
@@ -154,15 +162,16 @@ export default function RadioPlayer({ radio }: { radio: NightRadio | null }) {
       <div className="track-timeline">
         <a
           id="radio-source"
-          hidden={track.local}
+          hidden={track.local || Boolean(onStart)}
           href="https://www.radio-browser.info/"
           target="_blank"
           rel="noopener noreferrer"
         >
           via Radio Browser ↗
         </a>
+        {onStart && <span className="radio-start-hint">A little lo-fi. Nowhere to rush.</span>}
         <div className="track-visual">
-          <Waveform playing={track.playing} />
+          <Waveform playing={track.playing} train={calm} />
           <progress
             id="track-progress"
             max={track.duration || 120}
@@ -171,7 +180,7 @@ export default function RadioPlayer({ radio }: { radio: NightRadio | null }) {
             hidden={!track.local}
           ></progress>
         </div>
-        <small id="track-time" aria-hidden="true">
+        <small id="track-time" aria-hidden="true" hidden={Boolean(onStart)}>
           {track.local
             ? `${timeLabel(track.elapsed)} / ${timeLabel(track.duration || 0)}`
             : track.playing
@@ -193,6 +202,7 @@ export default function RadioPlayer({ radio }: { radio: NightRadio | null }) {
                 aria-expanded={mixerOpen}
                 aria-controls="audio-mixer"
                 disabled={!radio}
+                hidden={Boolean(onStart)}
               >
                 <svg width={14} height={14} viewBox="0 0 16 16" fill="none" aria-hidden="true">
                   <path d="M3 2v3m0 4v5m5-12v7m0 4v1m5-12v1m0 4v7M1 5h4v4H1zm5 4h4v4H6zm5-6h4v4h-4z" />

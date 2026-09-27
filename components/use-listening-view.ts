@@ -22,6 +22,15 @@ export function useListeningView() {
       window.removeEventListener("storage", storage);
     };
   }, []);
+  useEffect(() => {
+    if (!state?.view) return;
+    const theme = document.querySelector<HTMLMetaElement>('meta[name="theme-color"]');
+    if (!theme) return;
+    const previous = theme.content;
+    // Resolve the CSS palette for browsers that use a theme-color hint.
+    theme.content = getComputedStyle(document.documentElement).backgroundColor;
+    return () => { theme.content = previous; };
+  }, [state?.view]);
   return {
     view: state?.view ?? null,
     mobile: state?.mobile ?? false,
