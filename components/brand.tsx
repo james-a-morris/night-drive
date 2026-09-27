@@ -1,3 +1,12 @@
+// Shared by the page metadata, the install manifest and the generated images.
+export const SITE_DESCRIPTION =
+  "A cozy train cabin for study and quiet thoughts. Pick a window seat, put on some lo-fi, and let the world pass by.";
+// The first paint, matching --page-background in src/style.css.
+export const PAGE_BACKGROUND = "#081119";
+// The emblem's moonlit card, for the social preview and home screen icons.
+export const EMBLEM_BACKDROP = "radial-gradient(ellipse at center, #2c443b 0%, #192e28 100%)";
+export const EMBLEM_INK = "#e6d8bc";
+
 export function BrandEmblem({
   emblemWidth = 29,
   emblemHeight = 36,
