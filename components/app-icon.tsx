@@ -1,5 +1,5 @@
 import { ImageResponse } from "next/og";
-import { BrandEmblem } from "./brand.tsx";
+import { BrandEmblem, EMBLEM_BACKDROP, EMBLEM_INK } from "./brand.tsx";
 
 // The sizes Android and desktop browsers require before offering to install.
 export const APP_ICON_SIZES = [192, 512] as const;
@@ -17,8 +17,8 @@ export function renderAppIcon(size: number) {
           justifyContent: "center",
           width: "100%",
           height: "100%",
-          background: "radial-gradient(ellipse at center, #2c443b 0%, #192e28 100%)",
-          color: "#e6d8bc",
+          background: EMBLEM_BACKDROP,
+          color: EMBLEM_INK,
         }}
       >
         <BrandEmblem

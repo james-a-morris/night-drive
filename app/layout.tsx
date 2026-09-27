@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 import type { Metadata, Viewport } from "next";
+import { PAGE_BACKGROUND, SITE_DESCRIPTION } from "../components/brand.tsx";
 import "../src/style.css";
 import "../src/scenery-picker.css";
 import "../src/cabin.css";
@@ -14,8 +15,6 @@ import "../src/train-picker.css";
 import "../src/listening.css";
 
 const title = "Night Rail: a little room for your thoughts";
-const description =
-  "A cozy train cabin for study and quiet thoughts. Pick a window seat, put on some lo-fi, and let the world pass by.";
 const deploymentHost =
   process.env.VERCEL_PROJECT_PRODUCTION_URL || process.env.VERCEL_URL;
 
@@ -27,27 +26,31 @@ export const metadata: Metadata = {
         : `http://localhost:${process.env.PORT || 5173}`),
   ),
   title,
-  description,
+  description: SITE_DESCRIPTION,
   applicationName: "Night Rail",
-  // Launch from the iOS home screen without Safari's bars. The cabin already
-  // pads its controls by the safe-area insets, so it can sit under the status bar.
+  // The manifest opens the home screen app without browser bars; these set its
+  // iOS title and a translucent status bar, which the controls clear with the
+  // safe-area insets.
   appleWebApp: {
     capable: true,
     title: "Night Rail",
     statusBarStyle: "black-translucent",
   },
+  // Next.js now emits only mobile-web-app-capable, but Safari still keys the
+  // status bar style and splash screens off Apple's older tag.
+  other: { "apple-mobile-web-app-capable": "yes" },
   openGraph: {
     type: "website",
     siteName: "Night Rail",
     title,
-    description,
+    description: SITE_DESCRIPTION,
     url: "/",
     locale: "en_US",
   },
   twitter: {
     card: "summary_large_image",
     title,
-    description,
+    description: SITE_DESCRIPTION,
     images: [{
       url: "/opengraph-image",
       width: 1200,
@@ -58,7 +61,7 @@ export const metadata: Metadata = {
 };
 
 export const viewport: Viewport = {
-  themeColor: "#081119",
+  themeColor: PAGE_BACKGROUND,
   colorScheme: "dark",
   viewportFit: "cover",
 };

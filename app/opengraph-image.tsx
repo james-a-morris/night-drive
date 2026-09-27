@@ -1,7 +1,7 @@
 import { ImageResponse } from "next/og";
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
-import { BrandEmblem } from "../components/brand.tsx";
+import { BrandEmblem, EMBLEM_BACKDROP, EMBLEM_INK } from "../components/brand.tsx";
 
 export const alt = "Night Rail. Lo-fi + coffee. Let’s ride together. A moonlit window above the name on forest green.";
 export const size = { width: 1200, height: 630 };
@@ -23,8 +23,8 @@ export default function OpenGraphImage() {
           justifyContent: "center",
           width: "100%",
           height: "100%",
-          background: "radial-gradient(ellipse at center, #2c443b 0%, #192e28 100%)",
-          color: "#e6d8bc",
+          background: EMBLEM_BACKDROP,
+          color: EMBLEM_INK,
           fontFamily: "Byline",
         }}
       >

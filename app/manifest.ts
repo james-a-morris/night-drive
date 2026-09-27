@@ -1,19 +1,19 @@
 import type { MetadataRoute } from "next";
 import { APP_ICON_SIZES } from "../components/app-icon.tsx";
+import { PAGE_BACKGROUND, SITE_DESCRIPTION } from "../components/brand.tsx";
 
 export default function manifest(): MetadataRoute.Manifest {
   return {
     id: "/",
     name: "Night Rail",
     short_name: "Night Rail",
-    description:
-      "A cozy train cabin for study and quiet thoughts. Pick a window seat, put on some lo-fi, and let the world pass by.",
+    description: SITE_DESCRIPTION,
     start_url: "/",
     scope: "/",
     display: "standalone",
     // Match the first paint so the launch splash fades straight into the cabin.
-    background_color: "#081119",
-    theme_color: "#081119",
+    background_color: PAGE_BACKGROUND,
+    theme_color: PAGE_BACKGROUND,
     lang: "en",
     // The square PNGs rather than the tall favicon SVG, which launchers would letterbox.
     icons: APP_ICON_SIZES.flatMap((size) => (["any", "maskable"] as const).map((purpose) => ({
