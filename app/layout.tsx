@@ -28,7 +28,14 @@ export const metadata: Metadata = {
   ),
   title,
   description,
-  icons: { icon: "/icon.svg" },
+  applicationName: "Night Rail",
+  // Launch from the iOS home screen without Safari's bars. The cabin already
+  // pads its controls by the safe-area insets, so it can sit under the status bar.
+  appleWebApp: {
+    capable: true,
+    title: "Night Rail",
+    statusBarStyle: "black-translucent",
+  },
   openGraph: {
     type: "website",
     siteName: "Night Rail",
