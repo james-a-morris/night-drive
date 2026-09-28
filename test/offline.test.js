@@ -12,6 +12,8 @@ const manifest = { version: 'new', shell: '/offline-shell-new.html', assets: ['/
 
 function worker() {
   const handlers = new Map(), stores = new Map(), requests = [];
+  const windows = new Map();
+  let activations = 0;
   const urlOf = value => new URL(typeof value === 'string' ? value : value.url, origin).href;
   let fetcher = async value => new Response(`build:${new URL(urlOf(value)).pathname}`);
   const network = async (...args) => { requests.push(urlOf(args[0])); return fetcher(...args); };
@@ -36,13 +38,19 @@ function worker() {
     async delete(key) { return stores.delete(key); },
   };
   const navigator = { onLine: true };
-  const self = { location: { origin }, navigator, clients: { claim: async () => {} }, addEventListener(type, callback) { handlers.set(type, callback); } };
+  const self = {
+    location: { origin }, navigator,
+    skipWaiting: async () => { activations++; },
+    clients: { claim: async () => {}, matchAll: async () => [...windows.values()] },
+    addEventListener(type, callback) { handlers.set(type, callback); },
+  };
   class RelativeRequest extends Request { constructor(url, options) { super(urlOf(url), options); } }
   vm.runInNewContext(`const OFFLINE = ${JSON.stringify(manifest)};\n${source}`, {
     self, caches, Request: RelativeRequest, URL, fetch: network, AbortController, setTimeout, clearTimeout,
   });
   return {
-    stores, caches, navigator, requests,
+    stores, caches, navigator, requests, windows,
+    get activations() { return activations; },
     network(fn) { fetcher = fn; },
     async dispatch(type, data = {}) {
       const work = [];
@@ -59,14 +67,26 @@ function worker() {
       await this.dispatch('message', { data: { type: 'PREPARE_OFFLINE' }, ports: [{ postMessage(value) { result = value.ready; } }] });
       return result;
     },
+    async checkClient(id, assets) {
+      let result;
+      await this.dispatch('message', {
+        source: { id }, data: { type: 'PREPARE_OFFLINE', assets },
+        ports: [{ postMessage(value) { result = value; } }],
+      });
+      return result;
+    },
   };
 }
 
 test('offline cold loads use a matching shell and lazy assets; online loads get fresh HTML', async () => {
   const app = worker();
   await app.dispatch('install');
+  assert.equal(app.activations, 1, 'a complete update activates without waiting for the PWA window to close');
   assert.equal(await app.prepare(), true);
-  app.network(async () => new Response('newest online HTML'));
+  app.network(async (_request, options) => {
+    assert.equal(options.cache, 'no-store');
+    return new Response('newest online HTML');
+  });
   assert.equal(await (await app.fetch('/', 'GET', 'navigate')).text(), 'newest online HTML');
   app.navigator.onLine = false;
   app.network(async () => { throw new TypeError('Disconnected'); });
@@ -80,6 +100,7 @@ test('failed and interrupted downloads preserve the previous copy and can retry'
   await app.caches.open('night-rail-offline-old');
   app.network(async value => new Response('', { status: value.url.endsWith('wolf.glb') ? 503 : 200 }));
   await assert.rejects(app.dispatch('install'), /Download failed/);
+  assert.equal(app.activations, 0, 'an incomplete download cannot replace the installed copy');
   assert.equal(await app.prepare(), false);
   assert.ok(app.stores.has('night-rail-offline-old'));
   app.network(async () => new Response('downloaded'));
@@ -89,6 +110,32 @@ test('failed and interrupted downloads preserve the previous copy and can retry'
   assert.ok(app.stores.has('night-rail-offline-new'));
   assert.ok(app.stores.has('unrelated-cache'));
   assert.ok(!app.stores.has('night-rail-offline-old'));
+});
+
+test('an update preserves old pages and music until all open pages use the current build', async () => {
+  const app = worker();
+  const old = await app.caches.open('night-rail-offline-old');
+  await old.addAll(['/_next/static/old-player.js', '/assets/music/old-track.mp3']);
+  app.windows.set('playing', { id: 'playing' });
+  await app.dispatch('install');
+  await app.dispatch('activate');
+  assert.ok(app.stores.has('night-rail-offline-old'), 'activation leaves a playing page intact');
+  app.network(async () => { throw new TypeError('Disconnected'); });
+  assert.equal(await (await app.fetch('/_next/static/old-player.js')).text(), 'build:/_next/static/old-player.js');
+  assert.equal(await (await app.fetch('/assets/music/old-track.mp3')).text(), 'build:/assets/music/old-track.mp3');
+  const previous = await app.checkClient('playing', ['/_next/static/old-player.js']);
+  assert.equal(previous.ready, true);
+  assert.equal(previous.current, false);
+  assert.equal(previous.version, 'new');
+  app.windows.set('fresh', { id: 'fresh' });
+  const paths = manifest.assets.filter(path => path.startsWith('/_next/static/'));
+  assert.equal((await app.checkClient('fresh', paths)).current, true);
+  assert.ok(app.stores.has('night-rail-offline-old'), 'another old page still needs its assets');
+  await app.caches.open('night-rail-offline-next-download');
+  app.windows.delete('playing');
+  await app.checkClient('fresh', paths);
+  assert.ok(!app.stores.has('night-rail-offline-old'), 'old caches are removed after the last old page closes');
+  assert.ok(app.stores.has('night-rail-offline-next-download'), 'cleanup cannot delete a newer worker’s download');
 });
 
 test('API state, auth, writes, external streams and unknown pages bypass the worker', () => {

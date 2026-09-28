@@ -3,6 +3,22 @@ const CACHE_PREFIX = 'night-rail-offline-';
 const CACHE_NAME = `${CACHE_PREFIX}${OFFLINE.version}`;
 const ASSETS = new Set(OFFLINE.assets);
 let preparing;
+const currentClients = new Set();
+
+async function pruneOldCaches() {
+  const windows = await self.clients.matchAll({ type: 'window' });
+  // A page can still be playing the previous build. Keep its lazy chunks and
+  // local tracks until every open page has confirmed it uses this build.
+  if (windows.some(client => !currentClients.has(client.id))) return;
+  const names = await caches.keys();
+  // Cache names are returned in creation order. A newer worker may already be
+  // downloading its next copy, so never prune caches created after our own.
+  const current = names.indexOf(CACHE_NAME);
+  if (current < 0) return;
+  for (const name of names.slice(0, current)) {
+    if (name.startsWith(CACHE_PREFIX)) await caches.delete(name);
+  }
+}
 
 function prepare() {
   return preparing ||= (async () => {
@@ -16,24 +32,32 @@ function prepare() {
 }
 
 self.addEventListener('install', event => {
-  event.waitUntil(prepare());
-  // Let an existing journey finish before activating an update. Never reload
-  // a listener's page or stop their audio to replace the offline copy.
+  // Publish the complete offline copy immediately. An installed iOS app can
+  // keep its old window alive across launches, leaving updates waiting forever.
+  event.waitUntil(prepare().then(() => self.skipWaiting()));
 });
 
 self.addEventListener('activate', event => {
   event.waitUntil((async () => {
-    for (const name of await caches.keys()) {
-      if (name.startsWith(CACHE_PREFIX) && name !== CACHE_NAME) await caches.delete(name);
-    }
     await self.clients.claim();
+    await pruneOldCaches();
   })());
 });
 
 self.addEventListener('message', event => {
   if (event.data?.type !== 'PREPARE_OFFLINE' || !event.ports[0]) return;
   event.waitUntil(prepare().then(
-    () => event.ports[0].postMessage({ ready: true }),
+    async () => {
+      const paths = event.data.assets;
+      const current = Array.isArray(paths) && paths.length > 0 && paths.every(path =>
+        typeof path === 'string' && path.startsWith('/_next/static/') && ASSETS.has(path));
+      if (event.source?.id) {
+        if (current) currentClients.add(event.source.id);
+        else currentClients.delete(event.source.id);
+      }
+      event.ports[0].postMessage({ ready: true, current, version: OFFLINE.version });
+      await pruneOldCaches();
+    },
     () => event.ports[0].postMessage({ ready: false }),
   ));
 });
@@ -45,7 +69,7 @@ async function navigation(request) {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 3000);
   try {
-    const response = await fetch(request, { signal: controller.signal });
+    const response = await fetch(request, { signal: controller.signal, cache: 'no-store' });
     if (response.status >= 500 && saved) return saved;
     return response;
   } catch (error) {
@@ -60,9 +84,9 @@ async function asset(request, path) {
   const current = await caches.open(CACHE_NAME);
   const saved = await current.match(path);
   if (saved) return saved;
-  // An online navigation can load a newer page while its worker is waiting.
-  // Its hashed chunks may already be downloaded in that waiting worker's cache.
-  if (path.startsWith('/_next/static/')) {
+  // Keep both newer chunks and the previous page's audio available across an
+  // update, including while an existing listening session is offline.
+  if (path.startsWith('/_next/static/') || path.startsWith('/assets/')) {
     for (const name of await caches.keys()) {
       if (!name.startsWith(CACHE_PREFIX) || name === CACHE_NAME) continue;
       const cached = await (await caches.open(name)).match(path);
@@ -80,7 +104,7 @@ self.addEventListener('fetch', event => {
   if (request.method !== 'GET' || url.origin !== self.location.origin) return;
   if (request.mode === 'navigate' && (url.pathname === '/' || url.pathname === '/index.html')) {
     event.respondWith(navigation(request));
-  } else if (ASSETS.has(url.pathname) || url.pathname.startsWith('/_next/static/')) {
+  } else if (ASSETS.has(url.pathname) || url.pathname.startsWith('/_next/static/') || url.pathname.startsWith('/assets/')) {
     event.respondWith(asset(request, url.pathname));
   }
 });
