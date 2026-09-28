@@ -2,9 +2,11 @@ import type { DistanceUnit, Seat, SeatDirection } from "./types.ts";
 import { isTrainType, type TrainType } from "./train-types.ts";
 import { DEFAULT_AUDIO_MIX, validAudioMix, type AudioMix } from "./audio-mix.ts";
 import type { ListeningPreference } from "./listening-mode.ts";
+import { ENVIRONMENTS, type SceneryMode } from "./environments.ts";
 
 interface PreferenceValues {
   listeningView: ListeningPreference;
+  scenery: SceneryMode;
   train: TrainType;
   audioMix: AudioMix;
   seat: Seat;
@@ -28,6 +30,11 @@ type Preference<T> = {
 export const PREFERENCES: {
   [K in PreferenceName]: Preference<PreferenceValues[K]>;
 } = {
+  scenery: {
+    key: "night-rail:scenery",
+    fallback: "auto",
+    valid: (value) => value === "auto" || typeof value === "string" && Object.hasOwn(ENVIRONMENTS, value),
+  },
   listeningView: {
     key: "night-rail:listening-view",
     fallback: "auto",

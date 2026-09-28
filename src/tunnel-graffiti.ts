@@ -113,14 +113,22 @@ const FONT_FAMILY =
   '"Permanent Marker", "Marker Felt", "Comic Sans MS", cursive';
 export const GRAFFITI_FONT = `72px ${FONT_FAMILY}`;
 
+function markerFont() {
+  const family = typeof document !== "undefined"
+    ? getComputedStyle(document.documentElement).getPropertyValue("--font-marker").trim()
+    : "";
+  // FontFaceSet.load also tries generated system fallback faces. Wait only for
+  // the bundled face before baking text into the canvas texture.
+  return family ? `72px ${family.split(",")[0]}` : GRAFFITI_FONT;
+}
+
 function paintPhrase(phrase: string, index: number) {
   if (typeof document === "undefined") return null;
   const canvas = document.createElement("canvas");
   const context = canvas.getContext("2d");
   if (!context) return null;
   const text = phrase.toUpperCase();
-  const size = 72;
-  const font = `${size}px ${FONT_FAMILY}`;
+  const font = markerFont();
   context.font = font;
   const advance = (glyph: string) =>
     context.measureText(glyph).width * (glyph === " " ? 0.7 : 0.98);
@@ -207,7 +215,7 @@ export function createTunnelGraffiti(world: THREE.Group) {
     if (fonts?.load) {
       const timeout = setTimeout(paint, 4000);
       fonts
-        .load(GRAFFITI_FONT)
+        .load(markerFont())
         .then(paint, paint)
         .finally(() => clearTimeout(timeout));
     } else paint();

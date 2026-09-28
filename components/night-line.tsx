@@ -1,7 +1,7 @@
 "use client";
 import type { CityAtmosphere } from "../src/city-atmosphere.ts";
 import { localTime, weatherDescription } from "../src/city-weather.ts";
-import type { EnvironmentName, SceneryMode } from "../src/environments.ts";
+import type { EnvironmentName } from "../src/environments.ts";
 import type { JourneyDialog } from "../src/types.ts";
 import type { NightRadio } from "../src/radio.ts";
 import type { mountScene, SceneSettings } from "../src/main.ts";
@@ -69,10 +69,10 @@ export default function NightLine() {
   const [started, setStarted] = useState(false),
     [ready, setReady] = useState(false),
     [error, setError] = useState(false);
-  const [mode, setMode] = useState<SceneryMode>("auto"),
-    [route, setRoute] = useState<EnvironmentName>("forest"),
+  const [route, setRoute] = useState<EnvironmentName>("forest"),
     [radio, setRadio] = useState<NightRadio | null>(null);
-  const [seat, setSeat] = usePreference("seat"),
+  const [mode, setMode] = usePreference("scenery"),
+    [seat, setSeat] = usePreference("seat"),
     [trainType, setTrainType] = usePreference("train"),
     [seatDirection, setSeatDirection] = usePreference("seatDirection"),
     [windowState, setWindow] = usePreference("window"),

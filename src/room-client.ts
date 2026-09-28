@@ -58,11 +58,14 @@ export function createRoomClient(
     });
   }
   const report = (message: string) => {
-    status = message;
+    status = globalThis.navigator?.onLine === false
+      ? "Offline · music and timer still work. Connect to sync your journey."
+      : message;
     emit();
   };
   async function request<T>(body?: RoomAction): Promise<T> {
     scope.signal.throwIfAborted();
+    if (globalThis.navigator?.onLine === false) throw new Error("Connect to sync your journey.");
     await authSettled();
     const headers = await authHeaders();
     scope.signal.throwIfAborted();
@@ -206,7 +209,7 @@ export function createRoomClient(
   }
   if (garden) scope.defer(garden.bind(harvestTree));
   function flush() {
-    if (!journey || !drive.started) return;
+    if (!journey || !drive.started || globalThis.navigator?.onLine === false) return;
     const body = JSON.stringify({
       action: "check-in",
       ...(resumeNext ? { resumed: true } : {}),

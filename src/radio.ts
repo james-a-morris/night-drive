@@ -9,6 +9,7 @@ import { readPreference, savePreference } from "./prefs.ts";
 
 const CONNECTION_TIMEOUT = 12000;
 const MAX_FAILURES = 3;
+const isOffline = () => globalThis.navigator?.onLine === false;
 
 // Streams use a plain media element: many stations don't allow the CORS access
 // required by Web Audio. The local audio engine keeps weather playing beneath it.
@@ -59,6 +60,9 @@ export class NightRadio {
   connectionTimer?: ReturnType<typeof setTimeout>;
   cleanup: (() => void) | null = null;
   private artworkMetadata: MediaMetadata | null = null;
+  private readonly onOffline = () => {
+    if (this.enabled) this.useLocal(++this.request);
+  };
   constructor(
     onChange: (enabled: boolean, error?: unknown) => void,
     {
@@ -71,6 +75,8 @@ export class NightRadio {
     this.onChange = onChange;
     this.audio = audio;
     this.directory = directory;
+    // Source selection lasts for this listening session; new launches try live.
+    this.mode = "stream";
     this.local = local || new LocalSoundscape(() => this.notify());
     this.local.setMusicEnabled(false);
     this.mix = { ...readPreference("audioMix") };
@@ -80,7 +86,6 @@ export class NightRadio {
     this.timeout = timeout;
     this.enabled = false;
     this.started = false;
-    this.mode = "stream";
     this.state = "idle";
     this.request = 0;
     this.attempt = 0;
@@ -88,11 +93,13 @@ export class NightRadio {
     this.station = null;
     this.stations = null;
     this.failed = new Set();
+    globalThis.window?.addEventListener("offline", this.onOffline);
     // Discover early so the first play() can happen within the start gesture.
     this.loadStations();
   }
 
   loadStations() {
+    if (isOffline()) return Promise.resolve(null);
     if (!this.loading) {
       this.loading = this.directory
         .load((type) => this.audio.canPlayType(type))
@@ -119,6 +126,26 @@ export class NightRadio {
     this.local.setMix(mix);
     savePreference("audioMix", this.mix);
     this.notify();
+  }
+
+  setSource(source: "stream" | "local") {
+    if (source !== "stream" && source !== "local") return;
+    // Changing source cancels pending directory and stream callbacks without
+    // restarting the carriage/weather or unpausing a paused listening session.
+    const request = ++this.request;
+    this.stopStream();
+    this.failed.clear();
+    this.error = null;
+    this.mode = source;
+    this.local.setMusicEnabled(source === "local");
+    this.state = this.enabled
+      ? source === "local" ? "fallback" : "loading"
+      : this.started ? "paused" : "idle";
+    this.notify();
+    if (source === "stream") {
+      if (this.enabled) void this.tune(request, Math.max(0, this.index));
+      else void this.loadStations();
+    }
   }
 
   async setEnabled(enabled: boolean) {
@@ -172,6 +199,7 @@ export class NightRadio {
   dispose() {
     this.request++;
     this.enabled = false;
+    globalThis.window?.removeEventListener("offline", this.onOffline);
     this.onChange = () => {};
     this.stopStream();
     this.local.dispose();
@@ -181,11 +209,13 @@ export class NightRadio {
   }
 
   async tune(request: number, start: number, direction = 1): Promise<void> {
+    if (isOffline()) return this.useLocal(request);
     if (!this.stations) {
       this.state = "loading";
       await this.loadStations();
     }
     if (request !== this.request || !this.enabled) return;
+    if (isOffline()) return this.useLocal(request);
     if (!this.stations?.length || this.failed.size >= MAX_FAILURES)
       return this.useLocal(request);
     const stations = this.stations;
@@ -275,7 +305,11 @@ export class NightRadio {
   }
 
   nextStation() {
-    this.changeStation(1);
+    if (!this.enabled) return;
+    if (this.mode === "local") {
+      this.local.nextTrack();
+      this.notify();
+    } else this.changeStation(1);
   }
 
   previousStation() {
@@ -315,22 +349,24 @@ export class NightRadio {
   }
 
   nowPlaying(): NowPlaying {
-    const local = this.mode === "local" ? this.local.nowPlaying() : null;
+    const localMode = this.mode === "local";
+    const local = localMode ? this.local.nowPlaying() : null;
     return {
-      title:
-        local?.title ||
-        this.station?.title ||
+      title: localMode
+        ? local?.title || "Night Rail local mix"
+        : this.station?.title ||
         (this.state === "loading"
           ? "Finding a quiet station…"
           : "A little music for your thoughts."),
       subtitle:
         this.error ||
-        local?.japanese ||
+        local?.error ||
+        local?.artist ||
         this.station?.subtitle ||
         "Lo-fi for a little while.",
       state: this.state,
-      local: Boolean(local),
-      playing: this.enabled && (local ? local.playing : this.state === "live"),
+      local: localMode,
+      playing: this.enabled && (localMode ? Boolean(local?.playing) : this.state === "live"),
       elapsed: local?.elapsed ?? this.audio.currentTime ?? 0,
       duration: local?.duration ?? null,
       canSkip: this.enabled && this.state !== "loading",

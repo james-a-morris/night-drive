@@ -1,0 +1,22 @@
+Original music composed and arranged for Night Rail.
+
+Windowlight
+After the Rain
+Blue Hour
+
+Performed using individual CC0 instrument recordings:
+
+Upright Piano KW, FreePats, version 2022-02-21.
+Recorded by Gonzalo and Roberto in January 2017; edited by Roberto.
+https://freepats.zenvoid.org/Piano/acoustic-grand-piano.html#UprightKW
+
+Acoustic drum hits recorded by menegass, distributed with Sonic Pi.
+https://github.com/sonic-pi-net/sonic-pi/blob/008e53c05fa247b674b042737dde3acd981d32d1/etc/samples/README.md
+
+Sample license: CC0 1.0 Universal
+https://creativecommons.org/publicdomain/zero/1.0/
+
+No existing songs, melody transcriptions or musical loops are used.
+Score and production: scripts/render-local-music.py
+Individual source URLs and SHA-256 hashes: scripts/music-samples/manifest.json
+Authoring and playback notes: docs/music-assets.md

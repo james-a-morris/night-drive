@@ -115,13 +115,14 @@ class FakeAudio extends EventTarget {
 function setup(t, { load = async () => stations } = {}) {
   const audio = new FakeAudio();
   const local = {
-    enabled: false, musicEnabled: false,
+    enabled: false, musicEnabled: false, skips: 0,
     setMix(mix) { this.mix = { ...mix }; },
     setEnabled(enabled) { this.enabled = enabled; return Promise.resolve(); },
     setMusicEnabled(enabled) { this.musicEnabled = enabled; },
+    nextTrack() { this.skips++; },
     dispose() { this.enabled = false; this.disposed = true; },
     setWeather(weights) { this.weights = weights; },
-    nowPlaying() { return this.musicEnabled ? { title: 'Local song', japanese: '夜', duration: 120, elapsed: 2, playing: this.enabled } : null; },
+    nowPlaying() { return this.musicEnabled ? { title: 'Local song', artist: 'Local artist', duration: 120, elapsed: 2, playing: this.enabled } : null; },
   };
   const clicks = [];
   const changes = [];
@@ -130,6 +131,43 @@ function setup(t, { load = async () => stations } = {}) {
   t.after(() => radio.setEnabled(false));
   return { radio, audio, local, clicks, changes };
 }
+
+test('an offline cold start plays local music immediately without discovering stations', async t => {
+  const previous = Object.getOwnPropertyDescriptor(navigator, 'onLine');
+  Object.defineProperty(navigator, 'onLine', { configurable: true, value: false });
+  t.after(() => { if (previous) Object.defineProperty(navigator, 'onLine', previous); else delete navigator.onLine; });
+  let discoveries = 0;
+  const { radio, audio, local } = setup(t, { load: async () => { discoveries++; return stations; } });
+  await radio.setEnabled(true);
+  assert.equal(discoveries, 0);
+  assert.equal(audio.plays.length, 0);
+  assert.equal(local.enabled, true);
+  assert.equal(radio.nowPlaying().state, 'fallback');
+  radio.nextStation();
+  assert.equal(discoveries, 0);
+  assert.equal(radio.nowPlaying().playing, true);
+});
+
+test('losing connectivity switches a live stream to local audio and cleans up on dispose', async t => {
+  const previous = globalThis.window;
+  globalThis.window = new EventTarget();
+  t.after(() => { if (previous) globalThis.window = previous; else delete globalThis.window; });
+  const { radio, audio, local } = setup(t);
+  await radio.loading;
+  await radio.setEnabled(true);
+  audio.emit('playing');
+  window.dispatchEvent(new Event('offline'));
+  assert.equal(audio.src, '');
+  assert.equal(local.enabled, true);
+  assert.equal(radio.nowPlaying().state, 'fallback');
+  await radio.setEnabled(false);
+  window.dispatchEvent(new Event('offline'));
+  assert.equal(local.enabled, false);
+  assert.equal(radio.nowPlaying().state, 'paused');
+  radio.dispose();
+  window.dispatchEvent(new Event('offline'));
+  assert.equal(radio.nowPlaying().playing, false);
+});
 
 test('the mixer scales streams and preserves independent channels through pause and fallback', async t => {
   const { radio, audio, local } = setup(t);
@@ -203,7 +241,7 @@ test('prefetch stays silent; live playback, next, pause and resume preserve weat
   assert.equal(local.weights.forest, 1);
 });
 
-test('three failed streams switch to local music and Tune In can restore live playback', async t => {
+test('three failed streams switch to local music and choosing live radio restores the stream', async t => {
   const { radio, audio, local } = setup(t);
   await radio.loading;
   await radio.setEnabled(true);
@@ -222,7 +260,7 @@ test('three failed streams switch to local music and Tune In can restore live pl
   assert.equal(local.enabled, false);
   await radio.setEnabled(true);
   assert.equal(radio.nowPlaying().state, 'fallback');
-  radio.nextStation();
+  radio.setSource('stream');
   await setImmediate();
   assert.equal(local.musicEnabled, false);
   audio.emit('playing');
@@ -302,13 +340,120 @@ test('an unavailable directory uses local music, and a cancelled retry stays pau
   assert.equal(local.musicEnabled, true);
   let resolve;
   load = () => new Promise(done => { resolve = done; });
-  radio.nextStation();
+  radio.setSource('stream');
   await radio.setEnabled(false);
   resolve(stations);
   await setImmediate();
   assert.equal(radio.nowPlaying().state, 'paused');
   assert.equal(audio.plays.length, 0);
   assert.equal(local.enabled, false);
+});
+
+function sourceStorage(t, source) {
+  const previous = Object.getOwnPropertyDescriptor(globalThis, 'localStorage');
+  const values = new Map(source ? [['night-rail:music-source', source]] : []);
+  Object.defineProperty(globalThis, 'localStorage', { configurable: true, value: {
+    getItem: key => values.get(key) ?? null,
+    setItem: (key, value) => values.set(key, value),
+  } });
+  t.after(() => {
+    if (previous) Object.defineProperty(globalThis, 'localStorage', previous);
+    else delete globalThis.localStorage;
+  });
+  return values;
+}
+
+test('choosing local music online stops the stream without saving the source and ignores stale failures', async t => {
+  const values = sourceStorage(t);
+  const { radio, audio, local } = setup(t);
+  await radio.loading;
+  await radio.setEnabled(true);
+  const pending = audio.plays[0];
+  audio.emit('playing');
+  radio.setSource('local');
+  assert.equal(audio.paused, true);
+  assert.equal(audio.src, '');
+  assert.equal(local.enabled, true, 'ambience remains enabled');
+  assert.equal(local.musicEnabled, true);
+  assert.equal(radio.nowPlaying().state, 'fallback');
+  assert.equal(values.has('night-rail:music-source'), false);
+  pending.reject(new Error('Old stream failed'));
+  audio.emit('playing');
+  await setImmediate();
+  assert.equal(radio.nowPlaying().local, true);
+  assert.equal(audio.plays.length, 1);
+  radio.nextStation();
+  assert.equal(local.skips, 1);
+  assert.equal(audio.plays.length, 1, 'Next advances local music without tuning into radio');
+});
+
+test('fresh sessions start live despite a previous local choice, while pause and resume keep the current source', async t => {
+  sourceStorage(t, 'local');
+  let discoveries = 0;
+  const options = { load: async () => { discoveries++; return stations; } };
+  const { radio, audio, local } = setup(t, options);
+  assert.equal(radio.nowPlaying().local, false);
+  assert.equal(radio.nowPlaying().playing, false);
+  assert.equal(local.enabled, false);
+  assert.equal(local.musicEnabled, false);
+  await radio.loading;
+  await radio.setEnabled(true);
+  audio.emit('playing');
+  assert.equal(radio.nowPlaying().state, 'live');
+  assert.equal(discoveries, 1);
+  assert.equal(audio.src, stations[0].url);
+  assert.equal(audio.plays.length, 1);
+  radio.setSource('local');
+  await radio.setEnabled(false);
+  await radio.setEnabled(true);
+  assert.equal(radio.nowPlaying().local, true);
+  assert.equal(radio.nowPlaying().playing, true);
+  assert.equal(audio.plays.length, 1, 'resume keeps the local source for the current session');
+  await radio.setEnabled(false);
+  const next = setup(t, options);
+  await next.radio.loading;
+  assert.equal(next.radio.nowPlaying().local, false);
+  await next.radio.setEnabled(true);
+  next.audio.emit('playing');
+  assert.equal(next.radio.nowPlaying().state, 'live');
+  assert.equal(discoveries, 2);
+  assert.equal(next.audio.src, stations[0].url);
+  assert.equal(next.local.musicEnabled, false);
+});
+
+test('switching to local while discovery is pending prevents the eventual response from taking over', async t => {
+  sourceStorage(t);
+  let resolve;
+  const { radio, audio, local } = setup(t, { load: () => new Promise(done => { resolve = done; }) });
+  await radio.setEnabled(true);
+  radio.setSource('local');
+  resolve(stations);
+  await setImmediate();
+  assert.equal(audio.plays.length, 0);
+  assert.equal(radio.nowPlaying().local, true);
+  assert.equal(local.musicEnabled, true);
+  await radio.setEnabled(false);
+  radio.setSource('stream');
+  radio.setSource('local');
+  assert.equal(local.enabled, false);
+  assert.equal(radio.nowPlaying().playing, false);
+  await radio.setEnabled(true);
+  assert.equal(radio.nowPlaying().local, true);
+  assert.equal(radio.nowPlaying().playing, true);
+});
+
+test('automatic offline fallback and source changes do not persist a source', async t => {
+  const values = sourceStorage(t);
+  const { radio } = setup(t);
+  await radio.loading;
+  await radio.setEnabled(true);
+  radio.useLocal(radio.request);
+  assert.equal(values.has('night-rail:music-source'), false);
+  radio.setSource('local');
+  assert.equal(values.has('night-rail:music-source'), false);
+  radio.setSource('invalid');
+  assert.equal(radio.nowPlaying().local, true);
+  assert.equal(values.has('night-rail:music-source'), false);
 });
 
 test('browser autoplay denial requests a new gesture instead of cycling through stations', async t => {

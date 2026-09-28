@@ -11,3 +11,7 @@ node_modules/
 
 next-env.d.ts
 *.tsbuildinfo
+
+# Generated from the production build, with matching client chunks.
+/public/sw.js
+/public/offline-shell-*.html

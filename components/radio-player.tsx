@@ -64,7 +64,7 @@ export default function RadioPlayer({ radio, calm = false, onStart, ready = true
             <strong id="track-title" title={onStart ? undefined : track.title}>
               {onStart ? ready ? "Stay a little while." : "Getting ready…" : track.title}
             </strong>
-            <span id="track-japanese" lang={track.local ? "ja" : undefined}>
+            <span id="track-japanese">
               {track.local || track.state === "blocked"
                 ? track.subtitle
                 : "A quiet soundtrack for your thoughts."}
@@ -140,13 +140,13 @@ export default function RadioPlayer({ radio, calm = false, onStart, ready = true
           <button
             id="next-track"
             type="button"
-            aria-label={track.local ? "Retry live stations" : "Next station"}
-            title={track.local ? "Retry live stations" : "Next station"}
+            aria-label={track.local ? "Next local track" : "Next station"}
+            title={track.local ? "Next local track" : "Next station"}
             hidden={Boolean(onStart)}
             disabled={!track.canSkip}
             onClick={() => radio?.nextStation()}
           >
-            <span>{track.local ? "TUNE IN" : "NEXT"}</span>
+            <span>NEXT</span>
             <svg width={14} height={14} viewBox="0 0 20 20" aria-hidden="true">
               <path d="m6 4 8 6-8 6Z" fill="currentColor" />
               <path
@@ -177,18 +177,24 @@ export default function RadioPlayer({ radio, calm = false, onStart, ready = true
             max={track.duration || 120}
             value={track.elapsed || 0}
             aria-label="Track progress"
+            aria-valuetext={`${timeLabel(track.elapsed)} of ${timeLabel(track.duration || 0)}`}
             hidden={!track.local}
           ></progress>
         </div>
-        <small id="track-time" aria-hidden="true" hidden={Boolean(onStart)}>
-          {track.local
-            ? `${timeLabel(track.elapsed)} / ${timeLabel(track.duration || 0)}`
-            : track.playing
-              ? "LIVE"
-              : ["connecting", "loading"].includes(track.state)
-                ? "CONNECTING"
-                : "LO-FI"}
-        </small>
+        <button
+          id="track-time"
+          type="button"
+          hidden={Boolean(onStart)}
+          disabled={!radio}
+          aria-label={track.local ? "LOCAL: switch to live radio" : "LIVE: switch to local mix"}
+          title={track.local ? "Switch to live radio" : "Switch to local mix"}
+          onClick={() => {
+            radio?.setSource(track.local ? "stream" : "local");
+            if (radio) setTrack(radio.nowPlaying());
+          }}
+        >
+          {track.local ? "LOCAL" : "LIVE"}
+        </button>
         <Popover role={null}>
           {({ open: mixerOpen, triggerProps, panelProps, close }) => (
             <>

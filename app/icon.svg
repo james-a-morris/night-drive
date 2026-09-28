@@ -1,5 +1,5 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512" fill="none">
-  <!-- Master artwork for apple-icon.png: export at 180 x 180, opaque, with square corners. -->
+  <!-- Shared artwork for the favicon and generated iOS / PWA icons. Platforms apply their own corner masks. -->
   <defs>
     <radialGradient id="forest" cx=".3" cy=".12" r="1.05">
       <stop stop-color="#39584a"/>
@@ -21,6 +21,7 @@
     </linearGradient>
   </defs>
   <path fill="url(#forest)" d="M0 0h512v512H0z"/>
+  <g transform="translate(12.8 12.8) scale(.95)">
   <path d="M148 434a20 20 0 0 1-20-20V216a128 128 0 0 1 256 0v198a20 20 0 0 1-20 20Z" stroke="#10251e" stroke-opacity=".3" stroke-width="16"/>
   <path d="M148 430a20 20 0 0 1-20-20V214a128 128 0 0 1 256 0v196a20 20 0 0 1-20 20Z" fill="url(#night)"/>
   <path d="M300 145a48 48 0 1 0 29 77 48 48 0 0 1-29-77Z" fill="#f7e8c5"/>
@@ -36,4 +37,5 @@
     <path d="M259 426c-3-36 10-59 24-81 19-30 23-50 12-71 20 24 16 47 3 76-12 27-21 49-17 76Z"/>
   </g>
   <path d="M148 430a20 20 0 0 1-20-20V214a128 128 0 0 1 256 0v196a20 20 0 0 1-20 20Z" stroke="url(#ivory)" stroke-width="11"/>
+  </g>
 </svg>
