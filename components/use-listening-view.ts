@@ -10,6 +10,7 @@ export function useListeningView() {
     const style = document.documentElement.style;
     const updateViewport = () => {
       const installed = standalone.matches || (navigator as Navigator & { standalone?: boolean }).standalone === true;
+      document.documentElement.toggleAttribute("data-standalone", installed);
       // Both 100dvh and innerHeight can omit the status bar on an iOS cold
       // start. With no browser toolbar, 100vh is the full installed viewport.
       if (installed) {
@@ -30,6 +31,7 @@ export function useListeningView() {
       window.removeEventListener("pageshow", updateViewport);
       document.removeEventListener("visibilitychange", onVisible);
       style.removeProperty("--standalone-viewport-height");
+      document.documentElement.removeAttribute("data-standalone");
     };
   }, []);
   useEffect(() => {

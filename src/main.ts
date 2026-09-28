@@ -64,13 +64,16 @@ export function mountScene(
 ) {
   const scope = createLifecycle();
   try {
+    // CSS owns the viewport size, including the full height of installed PWAs.
+    let viewportWidth = Math.max(1, canvas.clientWidth);
+    let viewportHeight = Math.max(1, canvas.clientHeight);
     const scene = new THREE.Scene();
     scope.defer(() => disposeScene(scene));
     scene.background = new THREE.Color(0x233b46);
     scene.fog = new THREE.FogExp2(0x233b46, 0.0105);
     const camera = new THREE.PerspectiveCamera(
       70,
-      innerWidth / innerHeight,
+      viewportWidth / viewportHeight,
       0.1,
       CAMERA_FAR,
     );
@@ -83,7 +86,7 @@ export function mountScene(
     scope.defer(() => renderer.dispose());
     // Keep the canvas below full Retina resolution; DOM controls remain native.
     renderer.setPixelRatio(Math.min(devicePixelRatio, 1.5));
-    renderer.setSize(innerWidth, innerHeight);
+    renderer.setSize(viewportWidth, viewportHeight, false);
     renderer.outputColorSpace = THREE.SRGBColorSpace;
     renderer.toneMapping = THREE.ACESFilmicToneMapping;
     renderer.toneMappingExposure = 0.95;
@@ -135,15 +138,15 @@ export function mountScene(
     scope.on(window, "blur", clearPlantHover);
     scope.defer(clearPlantHover);
     function fitCabinView() {
-      camera.fov = innerWidth / innerHeight < 0.85 ? 76 : 70;
-      camera.aspect = innerWidth / innerHeight;
+      camera.fov = viewportWidth / viewportHeight < 0.85 ? 76 : 70;
+      camera.aspect = viewportWidth / viewportHeight;
       camera.setViewOffset(
-        innerWidth,
-        innerHeight,
+        viewportWidth,
+        viewportHeight,
         0,
-        innerHeight * 0.045,
-        innerWidth,
-        innerHeight,
+        viewportHeight * 0.045,
+        viewportWidth,
+        viewportHeight,
       );
       camera.updateProjectionMatrix();
     }
@@ -221,8 +224,8 @@ export function mountScene(
       cabin.tree.update(now, drive.started);
       treePoint.set(0, 0.03, 0.12);
       cabin.plant.localToWorld(treePoint).project(camera);
-      const labelX = (treePoint.x * 0.5 + 0.5) * innerWidth;
-      const labelY = (-treePoint.y * 0.5 + 0.5) * innerHeight;
+      const labelX = (treePoint.x * 0.5 + 0.5) * viewportWidth;
+      const labelY = (-treePoint.y * 0.5 + 0.5) * viewportHeight;
       const viewingGarden = getSettings().gardenView;
       let hoveringPlant = false;
       if (pointerOverScene && !viewingGarden && drive.started) {
@@ -234,9 +237,9 @@ export function mountScene(
       treeLabel.classList.toggle("is-plant-hovered", hoveringPlant);
       // Leave room for the radio card on phones and keep a hovered button still.
       if (viewingGarden || !treeLabel.matches(":hover")) {
-        const bottomClearance = innerWidth <= 650 ? 280 : 90;
-        treeLabel.style.left = `${Math.round(viewingGarden ? innerWidth / 2 : Math.max(90, Math.min(innerWidth - 90, labelX)))}px`;
-        treeLabel.style.top = `${Math.round(viewingGarden ? innerHeight * 0.7 : Math.min(innerHeight - bottomClearance, labelY + 8))}px`;
+        const bottomClearance = viewportWidth <= 650 ? 280 : 90;
+        treeLabel.style.left = `${Math.round(viewingGarden ? viewportWidth / 2 : Math.max(90, Math.min(viewportWidth - 90, labelX)))}px`;
+        treeLabel.style.top = `${Math.round(viewingGarden ? viewportHeight * 0.7 : Math.min(viewportHeight - bottomClearance, labelY + 8))}px`;
       }
       treeLabel.style.visibility = drive.started && (viewingGarden || (Math.abs(treePoint.x) < 1.15 && treePoint.z < 1)) ? "visible" : "hidden";
       conductor.update(now);
@@ -281,10 +284,19 @@ export function mountScene(
       }
     }
     frameId = requestAnimationFrame(animate);
-    scope.on(window, "resize", () => {
+    const resize = () => {
+      const width = canvas.clientWidth, height = canvas.clientHeight;
+      if (!width || !height || (width === viewportWidth && height === viewportHeight)) return;
+      viewportWidth = width;
+      viewportHeight = height;
       fitCabinView();
-      renderer.setSize(innerWidth, innerHeight);
-    });
+      // Updating the drawing buffer must not overwrite the CSS viewport height.
+      renderer.setSize(width, height, false);
+    };
+    const observer = new ResizeObserver(resize);
+    observer.observe(canvas);
+    scope.defer(() => observer.disconnect());
+    scope.on(window, "resize", resize);
     return { dispose: () => scope.dispose() };
   } catch (error) {
     scope.dispose();
