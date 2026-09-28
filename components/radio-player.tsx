@@ -64,7 +64,7 @@ export default function RadioPlayer({ radio, calm = false, onStart, ready = true
             <strong id="track-title" title={onStart ? undefined : track.title}>
               {onStart ? ready ? "Stay a little while." : "Getting ready…" : track.title}
             </strong>
-            <span id="track-japanese" lang={track.local ? "ja" : undefined}>
+            <span id="track-japanese">
               {track.local || track.state === "blocked"
                 ? track.subtitle
                 : "A quiet soundtrack for your thoughts."}

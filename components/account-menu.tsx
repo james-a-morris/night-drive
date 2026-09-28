@@ -1,7 +1,7 @@
 import type { CityAtmosphere } from "../src/city-atmosphere.ts";
 import CityWeatherChecker from "./city-weather.tsx";
 import FullscreenButton from "./fullscreen-button.tsx";
-import OfflineStatus from "./offline-status.tsx";
+import OfflineSupport from "./offline-support.tsx";
 import type { Room } from "./use-room.ts";
 import type { Seat, SeatDirection, DistanceUnit } from "../src/types.ts";
 import Popover from "./popover.tsx";
@@ -302,7 +302,7 @@ export default function AccountMenu({
                   : "N/A"}
               </dd>
             </dl>
-            <OfflineStatus />
+            <OfflineSupport />
           </div>
         </div>
       )}

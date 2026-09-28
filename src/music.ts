@@ -1,36 +1,29 @@
 import type { EnvironmentSource } from "./environments.ts";
 import { blendEnvironment } from "./environments.ts";
 import type { EnvironmentWeights } from "./environments.ts";
-import type { Track } from "./tracks.ts";
-import { createTrack } from "./tracks.ts";
+import { LocalPlaylist } from "./local-playlist.ts";
 import { createThunder } from "./thunder-audio.ts";
 import { createTrainAmbience } from "./train-audio.ts";
 import { createConductorWhir } from "./conductor-whir.ts";
 import { playDepartureChime } from "./departure-chime.ts";
 import { DEFAULT_AUDIO_MIX, type AudioMix } from "./audio-mix.ts";
 
-const frequency = (note: number) => 440 * 2 ** ((note - 69) / 12);
-
-// Original, locally synthesized lo-fi radio: keys, bass, melody and soft drums.
-// The audio clock schedules ahead, so rendering a frame never sets the rhythm.
+// Original lo-fi pieces with locally synthesized weather and carriage ambience.
+// The audio clock keeps the offline playlist independent of scene rendering.
 export class LocalSoundscape {
   onChange: (enabled: boolean, error?: unknown) => void;
   enabled: boolean;
   musicEnabled: boolean;
   windowOpen: boolean;
   request: number;
-  step: number;
   voices: Set<AudioScheduledSourceNode>;
-  seed: number;
-  track: Track | null;
   context!: AudioContext;
   master!: GainNode;
   musicGain!: GainNode;
+  playlist?: LocalPlaylist;
   musicVolume!: GainNode;
   ambienceVolume!: GainNode;
   mix: AudioMix = { ...DEFAULT_AUDIO_MIX };
-  keysFilter!: BiquadFilterNode;
-  echo!: DelayNode;
   noise!: AudioBuffer;
   weatherFilter!: BiquadFilterNode;
   weatherGain!: GainNode;
@@ -42,21 +35,14 @@ export class LocalSoundscape {
   conductorWhir?: ReturnType<typeof createConductorWhir>;
   trainAmbience?: ReturnType<typeof createTrainAmbience>;
   trainSpeed = 0;
-  timer?: ReturnType<typeof setInterval>;
   suspendTimer?: ReturnType<typeof setTimeout>;
-  nextTime = 0;
-  trackStartedAt = 0;
-  trackEndsAt = 0;
   constructor(onChange: (enabled: boolean, error?: unknown) => void) {
     this.onChange = onChange;
     this.enabled = false;
     this.musicEnabled = true;
     this.windowOpen = false;
     this.request = 0;
-    this.step = 0;
     this.voices = new Set();
-    this.seed = Math.floor(Math.random() * 4294967296);
-    this.track = null;
   }
 
   createAudio() {
@@ -79,20 +65,7 @@ export class LocalSoundscape {
     // Music fades between pieces; the weather and train continue underneath it.
     this.musicGain = audio.createGain();
     this.musicGain.connect(this.musicVolume);
-    this.keysFilter = audio.createBiquadFilter();
-    this.keysFilter.type = "lowpass";
-    this.keysFilter.connect(this.musicGain);
-
-    this.echo = audio.createDelay(1);
-    this.echo.delayTime.value = 0.6;
-    const feedback = audio.createGain();
-    feedback.gain.value = 0.22;
-    const echoFilter = audio.createBiquadFilter();
-    echoFilter.frequency.value = 1800;
-    this.echo.connect(echoFilter).connect(feedback);
-    feedback.connect(this.echo);
-    feedback.connect(this.musicGain);
-
+    this.playlist = new LocalPlaylist(audio, this.musicGain, () => this.onChange(this.enabled));
     this.noise = audio.createBuffer(1, audio.sampleRate * 2, audio.sampleRate);
     const samples = this.noise.getChannelData(0);
     for (let i = 0; i < samples.length; i++) samples[i] = Math.random() * 2 - 1;
@@ -169,7 +142,6 @@ export class LocalSoundscape {
     this.request++;
     this.enabled = false;
     this.onChange = () => {};
-    clearInterval(this.timer);
     clearTimeout(this.suspendTimer);
     for (const voice of this.voices) {
       try {
@@ -178,6 +150,7 @@ export class LocalSoundscape {
     }
     this.voices.clear();
     this.thunder?.clear();
+    this.playlist?.dispose();
     if (this.context && this.context.state !== "closed")
       void this.context.close().catch(() => {});
   }
@@ -194,7 +167,6 @@ export class LocalSoundscape {
         await this.context.resume();
       }
       if (request !== this.request) return;
-      clearInterval(this.timer);
       if (this.context) {
         this.master.gain.setTargetAtTime(
           enabled ? 0.7 * this.mix.master : 0,
@@ -202,15 +174,10 @@ export class LocalSoundscape {
           0.06,
         );
         if (enabled && this.musicEnabled) {
-          if (!this.track) this.startTrack(0, this.context.currentTime);
-          else {
-            this.step = Math.floor(this.step / 16) * 16;
-            this.nextTime = this.context.currentTime + 0.05;
-            this.fadeTrack();
-          }
-          this.schedule();
-          this.timer = setInterval(() => this.schedule(), 50);
+          await this.playlist?.setEnabled(true);
+          if (request !== this.request) return;
         } else if (!enabled) {
+          this.playlist?.pause();
           for (const voice of this.voices)
             voice.stop(this.context.currentTime + 0.12);
           this.suspendTimer = setTimeout(
@@ -223,7 +190,7 @@ export class LocalSoundscape {
     } catch (error) {
       if (request !== this.request) return;
       this.enabled = false;
-      clearInterval(this.timer);
+      this.playlist?.pause();
       this.onChange(false, error);
     }
   }
@@ -305,186 +272,15 @@ export class LocalSoundscape {
   setMusicEnabled(enabled: boolean) {
     if (enabled === this.musicEnabled) return;
     this.musicEnabled = enabled;
-    clearInterval(this.timer);
-    if (!this.context) return;
-    for (const voice of this.voices)
-      voice.stop(this.context.currentTime + 0.02);
-    if (enabled && this.enabled) {
-      this.startTrack((this.track?.index ?? -1) + 1, this.context.currentTime);
-      this.schedule();
-      this.timer = setInterval(() => this.schedule(), 50);
-    }
-  }
-
-  fadeTrack() {
-    const now = this.context.currentTime;
-    const remaining = Math.max(0, this.trackEndsAt - now);
-    const fadeIn = now + Math.min(1.4, remaining / 3);
-    const gain = this.musicGain.gain;
-    gain.cancelScheduledValues(now);
-    gain.setValueAtTime(0, now);
-    gain.linearRampToValueAtTime(1, fadeIn);
-    gain.setValueAtTime(1, Math.max(fadeIn, this.trackEndsAt - 2.2));
-    gain.linearRampToValueAtTime(0, Math.max(now, this.trackEndsAt));
-  }
-
-  startTrack(index: number, time: number) {
-    this.track = createTrack(index, this.seed);
-    this.trackStartedAt = time;
-    this.trackEndsAt = time + this.track.duration;
-    this.step = 0;
-    this.nextTime = Math.max(time, this.context.currentTime) + 0.05;
-    this.keysFilter.frequency.setTargetAtTime(
-      this.track.warmth,
-      this.context.currentTime,
-      0.3,
-    );
-    this.echo.delayTime.setTargetAtTime(
-      (60 / this.track.bpm) * 0.75,
-      this.context.currentTime,
-      0.1,
-    );
-    this.fadeTrack();
+    if (!enabled) this.playlist?.pause();
+    else if (this.enabled) void this.playlist?.setEnabled(true);
   }
 
   nextTrack() {
-    if (!this.context || !this.track) return;
-    const now = this.context.currentTime;
-    for (const voice of this.voices) voice.stop(now + 0.02);
-    this.startTrack(this.track.index + 1, now);
-    if (this.enabled) this.schedule();
+    this.playlist?.nextTrack();
   }
 
   nowPlaying() {
-    if (!this.track) return null;
-    return {
-      ...this.track,
-      elapsed: Math.max(
-        0,
-        Math.min(
-          this.track.duration,
-          this.context.currentTime - this.trackStartedAt,
-        ),
-      ),
-      playing: this.enabled && this.context.state === "running",
-    };
-  }
-
-  tone(
-    note: number,
-    time: number,
-    duration: number,
-    volume: number,
-    type: OscillatorType = "triangle",
-    echo = false,
-  ) {
-    if (!this.track) return;
-    duration = Math.min(duration, this.trackEndsAt - time - 0.03);
-    if (duration < 0.04) return;
-    const oscillator = this.context.createOscillator();
-    const envelope = this.context.createGain();
-    oscillator.type = type;
-    oscillator.frequency.value = frequency(note);
-    oscillator.detune.value = this.track.detune;
-    envelope.gain.setValueAtTime(0, time);
-    envelope.gain.linearRampToValueAtTime(volume, time + 0.025);
-    envelope.gain.exponentialRampToValueAtTime(0.0001, time + duration);
-    oscillator.connect(envelope).connect(this.keysFilter);
-    if (echo) envelope.connect(this.echo);
-    oscillator.start(time);
-    oscillator.stop(time + duration + 0.02);
-    this.voices.add(oscillator);
-    oscillator.onended = () => {
-      this.voices.delete(oscillator);
-      oscillator.disconnect();
-      envelope.disconnect();
-    };
-  }
-
-  kick(time: number) {
-    const oscillator = this.context.createOscillator();
-    const envelope = this.context.createGain();
-    oscillator.frequency.setValueAtTime(115, time);
-    oscillator.frequency.exponentialRampToValueAtTime(42, time + 0.16);
-    envelope.gain.setValueAtTime(0, time);
-    envelope.gain.linearRampToValueAtTime(0.3, time + 0.006);
-    envelope.gain.exponentialRampToValueAtTime(0.0001, time + 0.3);
-    oscillator.connect(envelope).connect(this.musicGain);
-    oscillator.start(time);
-    oscillator.stop(time + 0.32);
-    this.voices.add(oscillator);
-    oscillator.onended = () => {
-      this.voices.delete(oscillator);
-      oscillator.disconnect();
-      envelope.disconnect();
-    };
-  }
-
-  percussion(time: number, snare = false, volume = 1) {
-    const source = this.context.createBufferSource();
-    source.buffer = this.noise;
-    const filter = this.context.createBiquadFilter();
-    filter.type = "highpass";
-    filter.frequency.value = snare ? 1300 : 6200;
-    const envelope = this.context.createGain();
-    const duration = snare ? 0.16 : 0.045;
-    envelope.gain.setValueAtTime((snare ? 0.12 : 0.04) * volume, time);
-    envelope.gain.exponentialRampToValueAtTime(0.0001, time + duration);
-    source.connect(filter).connect(envelope).connect(this.musicGain);
-    source.start(time, Math.random());
-    source.stop(time + duration);
-    this.voices.add(source);
-    source.onended = () => {
-      this.voices.delete(source);
-      source.disconnect();
-      filter.disconnect();
-      envelope.disconnect();
-    };
-  }
-
-  schedule() {
-    if (
-      !this.track ||
-      !this.enabled ||
-      !this.musicEnabled ||
-      this.context.state !== "running"
-    )
-      return;
-    const now = this.context.currentTime;
-    if (now >= this.trackEndsAt) {
-      const passed = Math.floor(
-        (now - this.trackStartedAt) / this.track.duration,
-      );
-      this.startTrack(
-        this.track.index + passed,
-        this.trackStartedAt + passed * this.track.duration,
-      );
-    }
-    // Don't replay a backlog of notes after a background tab has been throttled.
-    if (this.nextTime < now) this.nextTime = now + 0.05;
-    const beat = 60 / this.track.bpm;
-    while (this.nextTime < Math.min(now + 1.2, this.trackEndsAt - 0.08)) {
-      const step = this.step % 16;
-      const bar = Math.floor(this.step / 16) % 4;
-      const time = this.nextTime + (step % 2 ? this.track.swing : 0);
-      const elapsed = time - this.trackStartedAt;
-      const drums = elapsed > 8 && !(elapsed > 56 && elapsed < 64);
-      if (step === 0)
-        this.track.chords[bar].forEach((note, i) =>
-          this.tone(note, time + i * 0.013, beat * 3.8, 0.05, "triangle", true),
-        );
-      if (elapsed > 4 && [0, 6, 10].includes(step))
-        this.tone(this.track.bass[bar], time, beat * 0.85, 0.18, "sine");
-      if (drums && this.track.kicks.includes(step)) this.kick(time);
-      if (drums && (step === 4 || step === 12)) this.percussion(time, true);
-      if (step % 2 === 0) {
-        if (drums) this.percussion(time, false, step % 4 === 0 ? 0.7 : 0.45);
-        const note = this.track.melody[bar][step / 2];
-        if (elapsed > 3 && note !== null)
-          this.tone(note, time, beat * 1.4, 0.05, "sine", true);
-      }
-      this.step++;
-      this.nextTime += beat / 4;
-    }
+    return this.playlist?.nowPlaying() ?? null;
   }
 }

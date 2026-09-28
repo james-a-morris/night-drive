@@ -108,7 +108,7 @@ function setup(t, { load = async () => stations } = {}) {
     setMusicEnabled(enabled) { this.musicEnabled = enabled; },
     dispose() { this.enabled = false; this.disposed = true; },
     setWeather(weights) { this.weights = weights; },
-    nowPlaying() { return this.musicEnabled ? { title: 'Local song', japanese: '夜', duration: 120, elapsed: 2, playing: this.enabled } : null; },
+    nowPlaying() { return this.musicEnabled ? { title: 'Local song', artist: 'Local artist', duration: 120, elapsed: 2, playing: this.enabled } : null; },
   };
   const clicks = [];
   const changes = [];

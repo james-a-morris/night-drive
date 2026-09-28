@@ -120,6 +120,7 @@ test('the build includes unvisited chunks and public assets, versions content an
     '.next/static/chunks/lazy-scene.js': 'unvisited scene',
     '.next/static/media/ui.woff2': 'font',
     'public/assets/wolf.glb': 'model',
+    'public/assets/music/windowlight.mp3': 'original local music',
     'src/service-worker.js': source,
   };
   for (const [path, contents] of Object.entries(fixture)) {
@@ -130,6 +131,7 @@ test('the build includes unvisited chunks and public assets, versions content an
   assert.ok(first.assets.includes('/_next/static/chunks/lazy-scene.js'));
   assert.ok(first.assets.includes('/_next/static/media/ui.woff2'));
   assert.ok(first.assets.includes('/assets/wolf.glb'));
+  assert.ok(first.assets.includes('/assets/music/windowlight.mp3'));
   assert.ok(!first.assets.some(url => /server|api\//.test(url)));
   assert.equal(await readFile(join(root, 'public', first.shell), 'utf8'), fixture['.next/server/app/index.html']);
   await writeFile(join(root, 'public/assets/wolf.glb'), 'updated model');

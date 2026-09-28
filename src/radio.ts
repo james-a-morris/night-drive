@@ -334,7 +334,8 @@ export class NightRadio {
           : "A little music for your thoughts."),
       subtitle:
         this.error ||
-        local?.japanese ||
+        local?.error ||
+        local?.artist ||
         this.station?.subtitle ||
         "Lo-fi for a little while.",
       state: this.state,

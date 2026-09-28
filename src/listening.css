@@ -22,10 +22,6 @@
 .listening-view-options strong { display:block; margin-bottom:4px; font-size:12px; }
 .listening-view-options small { display:block; max-width:225px; color:#aeb9a6; font-size:12px; line-height:1.5; }
 .listening-option-check { flex:none; margin-left:auto; color:#d5dfbd; opacity:0; }
-.offline-status { margin-top:12px; padding-top:12px; border-top:1px solid #cbd4b333; color:#c3ceba; font:12px/1.5 var(--font-ui); letter-spacing:0; }
-.offline-status p { margin:0 0 4px; }
-.offline-status small { display:block; color:#a3b19c; }
-.offline-status button { margin-top:8px; padding:6px 10px; border:1px solid #cbd4b355; border-radius:6px; background:transparent; cursor:pointer; }
 [aria-pressed="true"]>.listening-option-check { opacity:1; }
 
 /* Safari uses the document background to extend color beneath its toolbars. */

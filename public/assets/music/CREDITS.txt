@@ -1,0 +1,9 @@
+Original music composed and synthesized for Night Rail.
+
+Windowlight
+After the Rain
+Blue Hour
+
+No third-party songs, recordings or instrument samples are used.
+Score and instrument source: scripts/render-local-music.py
+Authoring and playback notes: docs/music-assets.md
