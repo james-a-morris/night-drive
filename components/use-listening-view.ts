@@ -6,6 +6,37 @@ export function useListeningView() {
   // Resolve on the client before importing either the scene or the radio.
   const [state, setState] = useState<{ view: ListeningView; mobile: boolean } | null>(null);
   useEffect(() => {
+    const standalone = window.matchMedia("(display-mode: standalone)");
+    const style = document.documentElement.style;
+    const updateHeight = () => {
+      const installed = standalone.matches || (navigator as Navigator & { standalone?: boolean }).standalone === true;
+      // iOS home-screen apps can resolve 100dvh below the status bar even
+      // though the page starts behind it. Use the actual window height.
+      if (installed && window.innerHeight > 0) {
+        style.setProperty("--standalone-viewport-height", `${window.innerHeight}px`);
+      } else {
+        style.removeProperty("--standalone-viewport-height");
+      }
+    };
+    const onVisible = () => {
+      if (document.visibilityState === "visible") updateHeight();
+    };
+    updateHeight();
+    standalone.addEventListener("change", updateHeight);
+    window.addEventListener("resize", updateHeight);
+    window.addEventListener("pageshow", updateHeight);
+    window.visualViewport?.addEventListener("resize", updateHeight);
+    document.addEventListener("visibilitychange", onVisible);
+    return () => {
+      standalone.removeEventListener("change", updateHeight);
+      window.removeEventListener("resize", updateHeight);
+      window.removeEventListener("pageshow", updateHeight);
+      window.visualViewport?.removeEventListener("resize", updateHeight);
+      document.removeEventListener("visibilitychange", onVisible);
+      style.removeProperty("--standalone-viewport-height");
+    };
+  }, []);
+  useEffect(() => {
     const mobile = window.matchMedia("(max-width: 650px), (max-height: 500px) and (pointer: coarse)");
     const update = () => setState({
       view: resolveListeningView(readPreference("listeningView"), mobile.matches),
