@@ -1,4 +1,5 @@
 import { environmentWeights, insideTunnel, type SceneryMode } from "./environments.ts";
+import { trackElevation } from "./route-elevation.ts";
 
 export const STATION_DWELL_SECONDS = 22;
 export const STATION_INTERVAL = 3800;
@@ -9,8 +10,9 @@ const stationCache = new Map<number, StationStop | null>();
 
 export function stationAvailable(at: number, mode: SceneryMode) {
   for (const offset of [-110, 0, 150]) {
+    if (trackElevation(at + offset, mode) !== 0) return false;
     const weights = environmentWeights(at + offset, mode);
-    if (insideTunnel(at + offset, mode) || weights.tunnel > 0.02 || weights.bridge > 0.02) return false;
+    if (insideTunnel(at + offset, mode) || weights.tunnel > 0.02 || weights.bridge > 0.02 || weights.underwater > 0.02) return false;
   }
   return true;
 }

@@ -4,7 +4,7 @@ import { roadFrame, roadPoint } from "./drive.ts";
 import { environmentWeights, type SceneryMode } from "./environments.ts";
 import type { Lifecycle } from "./lifecycle.ts";
 import { reducedMotion } from "./motion.ts";
-import { noise, terrainSurfaceHeight } from "./terrain.ts";
+import { noise, terrainSurfaceHeight, SEA_LEVEL } from "./terrain.ts";
 import { settlementClearing } from "./settlement-layout.ts";
 import { stationClearing } from "./station-route.ts";
 
@@ -87,8 +87,10 @@ export function createTumbleweeds(world: THREE.Group, scope: Lifecycle) {
           if (stationClearing(station, lateral, mode) ||
               settlementClearing(point.x, point.z, station, radius + 1, mode)) continue;
           const bounce = Math.abs(Math.sin(travel / radius * 1.7 + seed * 9)) * 0.12;
+          const height = terrainSurfaceHeight(point.x, point.z, mode);
+          if (height < SEA_LEVEL + .5) continue;
           pose.position.set(point.x,
-            terrainSurfaceHeight(point.x, point.z, mode) + radius + bounce, point.z);
+            height + radius + bounce, point.z);
           // Travel follows the verge, with a little sideways wind and an uneven roll.
           pose.rotation.set(-travel / radius + seed * 6,
             roadFrame(station).heading, Math.sin(time * 0.7 + seed * 8) * 0.2, "YXZ");

@@ -1,3 +1,5 @@
+import { readBoundedJson } from "../src/bounded-json.ts";
+
 export class ModerationUnavailable extends Error {}
 
 export async function moderateIntention(
@@ -17,6 +19,7 @@ export async function moderateIntention(
         "Content-Type": "application/json",
         "X-OpenRouter-Title": "Night Rail",
       },
+      redirect: "error",
       signal: AbortSignal.timeout(12000),
       body: JSON.stringify({
         model: "typesafe/jev-1.13",
@@ -39,8 +42,12 @@ export async function moderateIntention(
       throw new ModerationUnavailable(
         `Moderation provider returned ${response.status}`,
       );
-    const result = await response.json();
-    const answer = result.answers?.suitable_for_leaderboard;
+    const result = await readBoundedJson(response, 64 * 1024);
+    const answer = (result as {
+      answers?: { suitable_for_leaderboard?: unknown };
+    } | null)?.answers?.suitable_for_leaderboard as
+      | { type?: unknown; noul?: unknown }
+      | undefined;
     if (
       answer?.type !== "noul" ||
       typeof answer.noul !== "number" ||

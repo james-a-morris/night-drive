@@ -1,5 +1,6 @@
 import { roadPoint } from "./drive.ts";
 import { coastalShoreDistance, SEA_LEVEL } from "./terrain.ts";
+import { UNDERWATER_SURFACE } from "./underwater-layout.ts";
 
 export const OCEAN_SPECIES = {
   dolphin: {
@@ -143,5 +144,32 @@ export function oceanPose(path: SwimPath, time: number, calm = false) {
       -pitchLimit,
       Math.min(pitchLimit, Math.atan2(ahead.y - point.y, Math.hypot(dx, dz))),
     ),
+  };
+}
+
+// In the glass passage, signed offshore distances put animals outside either
+// wall. They swim at window height or above the roof, always below the surface.
+export function underwaterPose(path: SwimPath, time: number, still = false) {
+  const kind = OCEAN_SPECIES[path.species];
+  const small = kind.length < 1.2;
+  const sample = (t: number) => {
+    const phase = t * kind.speed * .7 + path.phase;
+    const station = path.station + Math.sin(phase) * (small ? 9 : 18);
+    const lateral = path.offshore + Math.sign(path.offshore) * Math.cos(phase) * (small ? 1.5 : 3);
+    const y = (path.species === "whale" ? 9 : path.species === "ray" ? 5.8 : small ? 2.1 : 5) +
+      Math.sin(t * .36 + path.phase * 2) * (small ? .65 : 1.2);
+    return { ...roadPoint(station, lateral), station, y, lateral };
+  };
+  const now = still ? 0 : time;
+  const point = sample(now), next = sample(now + .05);
+  const dx = next.x - point.x, dz = next.z - point.z;
+  return {
+    ...point,
+    depth: UNDERWATER_SURFACE - point.y,
+    heading: Math.atan2(-dx, -dz),
+    pitch: Math.max(-.2, Math.min(.2, Math.atan2(next.y - point.y, Math.hypot(dx, dz)))),
+    roll: still ? 0 : Math.sin(now * kind.speed + path.phase) * .12,
+    stroke: kind.stroke * (.85 + Math.sin(now * .7 + path.phase) * .12),
+    splash: 0,
   };
 }

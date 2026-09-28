@@ -175,7 +175,7 @@ export function createSettlements(world: THREE.Group) {
       const cell = first + ((village.index - first % count + count) % count);
       const weights = environmentWeights(cell * SETTLEMENT_SPACING + 139, mode);
       village.group.visible = Math.abs(cell * SETTLEMENT_SPACING + 139 - progress) < SCENERY_DISTANCE &&
-        weights.tunnel < 0.15 && weights.bridge < 0.15;
+        weights.tunnel < 0.15 && weights.bridge < 0.15 && weights.underwater < 0.15;
       for (const [i, building] of village.buildings.entries()) {
         if (village.group.visible && building.group.visible)
           building.smoke?.update(elapsed, building.snowcap.visible, village.index * 0.21 + i * 0.13);

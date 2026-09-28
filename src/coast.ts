@@ -1,4 +1,4 @@
-import { SCENERY_DISTANCE } from "./view-distance.ts";
+import { CAMERA_FAR, SCENERY_DISTANCE } from "./view-distance.ts";
 import type { Environment, EnvironmentWeights, SceneryMode } from "./environments.ts";
 import { atmosphereLighting } from "./atmosphere-lighting.ts";
 import type { Lifecycle } from "./lifecycle.ts";
@@ -16,6 +16,7 @@ import {
 import { SEA_LEVEL, terrainSurfaceHeight } from "./terrain.ts";
 import { createOceanLife } from "./ocean-life.ts";
 import { OCEAN_SWELLS_GLSL } from "./ocean-motion.ts";
+import { SUBSEA_REGION, SUBSEA_RAMP_LENGTH } from "./route-elevation.ts";
 
 // The ocean stays in route coordinates, just like the land. Moving the mesh
 // origin by complete grid cells keeps its waves continuous on long journeys.
@@ -28,12 +29,13 @@ export function createCoast(world: THREE.Group, scope: Lifecycle) {
   const waterMaterial = new THREE.ShaderMaterial({
     transparent: true,
     depthWrite: false,
-    side: THREE.DoubleSide,
+    side: THREE.FrontSide,
     uniforms: {
       time: { value: 0 },
       station: { value: 0 },
       strength: { value: 0 },
       automatic: { value: false },
+      desert: { value: false },
       nearWater: { value: new THREE.Color(0x4bada4) },
       deepWater: { value: new THREE.Color(0x285a78) },
       horizon: { value: new THREE.Color(0xb9c9c7) },
@@ -63,7 +65,7 @@ export function createCoast(world: THREE.Group, scope: Lifecycle) {
     fragmentShader: `
       uniform float time;
       uniform float strength;
-      uniform bool automatic;
+      uniform bool automatic, desert;
       uniform bool synced;
       uniform vec3 nearWater, deepWater, horizon, sunDirection;
       uniform vec3 foamColor, reflectionColor;
@@ -82,14 +84,22 @@ export function createCoast(world: THREE.Group, scope: Lifecycle) {
       void main() {
         float s = max(0., -routePosition.z);
         float coast = strength;
+        float approach = desert ? 1. : 0.;
+        float submerged = 0.;
         if (automatic) {
           float position = mod(s, ${ROUTE_LENGTH.toFixed(1)});
           coast = smoothstep(${(region.start - TRANSITION_LENGTH).toFixed(1)}, ${region.start.toFixed(1)}, position)
             * (1. - smoothstep(${(region.start + region.length - TRANSITION_LENGTH).toFixed(1)}, ${(region.start + region.length).toFixed(1)}, position));
+          approach = smoothstep(${(SUBSEA_REGION.start - SUBSEA_RAMP_LENGTH - 360).toFixed(1)}, ${(SUBSEA_REGION.start - SUBSEA_RAMP_LENGTH - 60).toFixed(1)}, position)
+            * (1. - smoothstep(${(SUBSEA_REGION.start + SUBSEA_REGION.length).toFixed(1)}, ${(SUBSEA_REGION.start + SUBSEA_REGION.length + 60).toFixed(1)}, position));
+          submerged = smoothstep(${(SUBSEA_REGION.start - SUBSEA_RAMP_LENGTH + 100).toFixed(1)}, ${(SUBSEA_REGION.start - 30).toFixed(1)}, position)
+            * (1. - smoothstep(${(SUBSEA_REGION.start + SUBSEA_REGION.length - SUBSEA_RAMP_LENGTH + 30).toFixed(1)}, ${(SUBSEA_REGION.start + SUBSEA_REGION.length - 100).toFixed(1)}, position));
         }
+        coast = max(coast, approach);
         float across = lateral(routePosition.xz);
-        if (coast < .005 || across > -6.) discard;
-        float shore = 23. + 4. * sin(-routePosition.z / 83.) + 3. * sin(-routePosition.z / 39. + .7);
+        if (across > -6.) coast *= submerged;
+        if (coast < .005) discard;
+        float shore = mix(23. + 4. * sin(-routePosition.z / 83.) + 3. * sin(-routePosition.z / 39. + .7), 29., approach);
         float offshore = -across - shore;
         vec3 view = normalize(cameraPosition - surfacePosition);
         vec3 normal = normalize(surfaceNormal);
@@ -119,9 +129,11 @@ export function createCoast(world: THREE.Group, scope: Lifecycle) {
       }
     `,
   });
-  const geometry = new THREE.PlaneGeometry(1600, 1600, 96, 128);
+  // The surface also spans the submerged railway ahead of the desert. Keep
+  // its edge beyond the camera so the shore opens onto an uninterrupted sea.
+  const diameter = (CAMERA_FAR + 100) * 2;
+  const geometry = new THREE.PlaneGeometry(diameter, diameter, 132, 176);
   geometry.rotateX(-Math.PI / 2);
-  geometry.translate(-600, 0, 0);
   const water = new THREE.Mesh(geometry, waterMaterial);
   water.name = "pacific-ocean";
   water.position.y = SEA_LEVEL;
@@ -258,9 +270,10 @@ export function createCoast(world: THREE.Group, scope: Lifecycle) {
       waterMaterial.uniforms.station.value = station;
       waterMaterial.uniforms.strength.value = weights.coast;
       waterMaterial.uniforms.automatic.value = mode === "auto";
+      waterMaterial.uniforms.desert.value = mode === "desert";
       if (!motion.matches) waterMaterial.uniforms.time.value += dt;
       // A coast can be visible ahead while the train is still in another region.
-      root.visible = mode === "auto" || weights.coast > 0.005;
+      root.visible = mode === "auto" || mode === "desert" || weights.coast > 0.005;
       life.update(
         progress,
         dt,

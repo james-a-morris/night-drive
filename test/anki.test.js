@@ -179,3 +179,14 @@ test("uncertain suspend or mark writes never retry", async () => {
     assert.equal(failed.requests.filter(request => request.action === action).length, 1);
   }
 });
+
+test("local services cannot return unbounded JSON or oversized card markup", async () => {
+  const declared = createAnkiClient(async () => new Response('{"result":null,"error":null}', {
+    headers: { "Content-Length": "3000000", "Content-Type": "application/json" },
+  }));
+  await assert.rejects(declared.connect(), /too much data/);
+
+  const hugeCard = { ...card(), question: "x".repeat(1_000_001) };
+  const client = createAnkiClient(async () => Response.json({ result: hugeCard, error: null }));
+  await assert.rejects(client.current(), /can’t review/);
+});

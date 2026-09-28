@@ -3,7 +3,8 @@ import assert from 'node:assert/strict';
 import { cityLabel, isCity, localTime, parseWeather, temperature, weatherDescription } from '../src/city-weather.ts';
 import { canSyncWeather, cityEnvironments } from '../src/city-atmosphere.ts';
 import { blendEnvironment, environmentWeights, ENVIRONMENTS } from '../src/environments.ts';
-import { searchCities, getCityWeather } from '../server/city-weather.ts';
+import { searchCities, getCityWeather, createCityWeatherHandlers } from '../server/city-weather.ts';
+import { createStore } from '../server/store.ts';
 
 const city = { id: 1, population: 8900000, capital: true, name: 'London', region: 'England', country: 'United Kingdom', latitude: 51.5, longitude: -.12, timezone: 'Europe/London' };
 const raw = { current: { time: 1780315200, temperature_2m: 14, weather_code: 61, precipitation: .4, apparent_temperature: 12, wind_speed_10m: 10, is_day: 1, cloud_cover: 90 }, hourly: { is_day: [1, 0], time: [1780318800, 1780322400], temperature_2m: [15, null], weather_code: [63, null], precipitation_probability: [80, null] } };
@@ -18,6 +19,7 @@ test('city clocks honor DST, fractional offsets and the date line', () => {
   assert.equal(isCity({ ...city, latitude: 91 }), false);
   assert.equal(isCity({ ...city, population: 99999, capital: false }), false);
   assert.equal(isCity({ ...city, population: 100000, capital: false }), true);
+  assert.equal(isCity({ ...city, name: 'x'.repeat(201) }), false);
   assert.equal(cityLabel(city), 'London, England, United Kingdom');
 });
 
@@ -28,6 +30,10 @@ test('weather timestamps stay UTC and absent readings never become clear skies o
   assert.equal(missing.current.temperature, null);
   assert.equal(missing.current.code, null);
   assert.equal(missing.current.isDay, null);
+  const absurd = parseWeather({ current: { time: raw.current.time, temperature_2m: 1e100, wind_speed_10m: -1, cloud_cover: 101 } });
+  assert.equal(absurd.current.temperature, null);
+  assert.equal(absurd.current.wind, null);
+  assert.equal(absurd.current.cloudCover, null);
   assert.equal(temperature(null, 'C'), '—');
   assert.equal(temperature(0, 'F'), '32°F');
   assert.equal(weatherDescription(null), 'Conditions unavailable');
@@ -138,4 +144,40 @@ test('weather proxy requests explicit units, timezone and UTC timestamps and han
   assert.equal((await (await getCityWeather(request())).json()).current.temperature, 14);
   fetch.mock.mockImplementation(async () => Response.json({ error: true }));
   assert.equal((await getCityWeather(request())).status, 502);
+});
+
+test('weather proxies bound upstream bodies and never cache visitor responses', async t => {
+  const responses = [
+    new Response('{"results":[]}', {
+      headers: { 'Content-Length': String(600 * 1024), 'Content-Type': 'application/json' },
+    }),
+    new Response(`{"padding":"${'x'.repeat(600 * 1024)}"}`, {
+      headers: { 'Content-Type': 'application/json' },
+    }),
+  ];
+  const fetch = t.mock.method(globalThis, 'fetch', async () => responses.shift());
+  for (const query of ['London', 'Paris']) {
+    const response = await searchCities(new Request(`http://localhost/api/cities?q=${query}`));
+    assert.equal(response.status, 502);
+    assert.equal(response.headers.get('cache-control'), 'no-store');
+  }
+  assert.equal(fetch.mock.callCount(), 2);
+});
+
+test('city search and weather share an address-wide abuse limit', async t => {
+  const store = await createStore({ sqlitePath: ':memory:' });
+  t.after(() => store.close());
+  const fetch = t.mock.method(globalThis, 'fetch', async url =>
+    url.hostname.startsWith('geocoding-') ? Response.json({ results: [] }) : Response.json(raw));
+  const handlers = createCityWeatherHandlers({
+    getStore: async () => store,
+    clock: () => 1790200000000,
+    requestsPerMinute: 2,
+  });
+  assert.equal((await handlers.searchCities(new Request('http://localhost/api/cities?q=London'))).status, 200);
+  assert.equal((await handlers.getCityWeather(new Request('http://localhost/api/weather?latitude=51.5&longitude=-.12&timezone=Europe%2FLondon'))).status, 200);
+  const limited = await handlers.searchCities(new Request('http://localhost/api/cities?q=Paris'));
+  assert.equal(limited.status, 429);
+  assert.equal(limited.headers.get('retry-after'), '60');
+  assert.equal(fetch.mock.callCount(), 2);
 });

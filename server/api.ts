@@ -25,15 +25,24 @@ interface ApiOptions {
   clock?: () => number;
   origin?: string;
 }
-import { createHash, createHmac, randomBytes, randomUUID } from "node:crypto";
-import { createStore } from "./store.ts";
+import { createHash, randomBytes, randomUUID } from "node:crypto";
+import { getSharedStore } from "./store.ts";
 import { moderateIntention, ModerationUnavailable } from "./moderation.ts";
 import { authenticatedUser, requestOrigin } from "./auth.ts";
+import {
+  addressBucket,
+  addressKey,
+  rateLimit,
+  RateLimitError,
+} from "./traffic.ts";
 
+export { addressBucket };
 const COOKIE = "night_drive_guest";
+const SECURE_COOKIE = "__Host-night_drive_guest";
 const METRES_PER_MILE = 1609.344;
 const INTENTION_HOURS = [1, 3, 6, 12, 24];
 const JOURNEYS_PER_RIDER = 10;
+const REQUESTS_PER_ADDRESS_PER_MINUTE = 300;
 const currentJourneyRanking = `
   WITH latest_journeys AS (
     SELECT journeys.*, ROW_NUMBER() OVER (
@@ -48,42 +57,6 @@ const currentJourneyRanking = `
   ) SELECT * FROM ranked_journeys WHERE rank <= 5 OR id = $2 ORDER BY rank`;
 const hash = (value: string) =>
   createHash("sha256").update(value).digest("hex");
-// One IPv6 subscriber can rotate through a whole /64, so limit by that prefix.
-export function addressBucket(ip: string) {
-  // IPv4, including IPv4-mapped IPv6 such as ::ffff:203.0.113.7.
-  if (ip.includes(".")) return ip.slice(ip.lastIndexOf(":") + 1);
-  if (!ip.includes(":")) return ip;
-  const [head, tail] = ip.split("::");
-  const left = head ? head.split(":") : [];
-  const right = tail ? tail.split(":") : [];
-  const groups =
-    tail === undefined
-      ? left
-      : [
-          ...left,
-          ...Array(Math.max(0, 8 - left.length - right.length)).fill("0"),
-          ...right,
-        ];
-  return `${groups
-    .slice(0, 4)
-    .map((group) => parseInt(group, 16).toString(16))
-    .join(":")}::/64`;
-}
-// Vercel sets X-Forwarded-For itself. Elsewhere clients can forge it, so only
-// a header named by CLIENT_IP_HEADER (set by a trusted proxy) is used.
-function clientIp(req: Request) {
-  const header =
-    process.env.CLIENT_IP_HEADER ||
-    (process.env.VERCEL ? "x-forwarded-for" : "");
-  const ip = header && req.headers.get(header)?.split(",")[0].trim();
-  return ip ? addressBucket(ip) : header ? "unknown" : "local";
-}
-// Keyed with a server secret, so a copy of the database cannot be brute-forced
-// back into visitors' addresses. Expired windows are deleted as well.
-const addressKey = (req: Request) =>
-  createHmac("sha256", process.env.CLERK_SECRET_KEY || "")
-    .update(`rate-limit:${clientIp(req)}`)
-    .digest("hex");
 export class ApiError extends Error {
   status: number;
   constructor(status: number, message: string) {
@@ -193,7 +166,7 @@ async function readBody(req: Request): Promise<Body> {
 
 function checkOrigin(req: Request, configuredOrigin?: string) {
   const origin = req.headers.get("origin");
-  const host = new URL(requestOrigin(req)).host;
+  const expectedOrigin = new URL(requestOrigin(req)).origin;
   try {
     const parsed = new URL(origin || "");
     if (
@@ -204,7 +177,7 @@ function checkOrigin(req: Request, configuredOrigin?: string) {
     if (
       configuredOrigin
         ? parsed.origin !== new URL(configuredOrigin).origin
-        : parsed.host !== host
+        : parsed.origin !== expectedOrigin
     )
       throw new Error();
   } catch {
@@ -212,40 +185,25 @@ function checkOrigin(req: Request, configuredOrigin?: string) {
   }
 }
 
-async function rateLimit(
-  store: Store,
-  key: string,
-  limit: number,
-  window: number,
-  now: number,
-) {
-  const [row] = await store.query<{ count: number }>(
-    `
-    INSERT INTO request_limits (key, window_start, count) VALUES ($1, $2, 1)
-    ON CONFLICT(key) DO UPDATE SET
-      count = CASE WHEN $2 - request_limits.window_start >= $3 THEN 1 ELSE request_limits.count + 1 END,
-      window_start = CASE WHEN $2 - request_limits.window_start >= $3 THEN $2 ELSE request_limits.window_start END
-    RETURNING count`,
-    [key, now, window],
-  );
-  // A window just began: drop ones that have ended. The longest is an hour.
-  if (row.count === 1)
-    await store.query("DELETE FROM request_limits WHERE window_start < $1", [
-      now - 3600000,
-    ]);
-  if (row.count > limit)
-    throw new ApiError(
-      429,
-      "A few too many requests. Take a moment and try again.",
-    );
+function secureRequest(req: Request) {
+  return new URL(requestOrigin(req)).protocol === "https:";
 }
 
 function setCookie(req: Request, headers: Headers, token: string) {
-  const secure = requestOrigin(req).startsWith("https:") || process.env.VERCEL;
+  const secure = secureRequest(req);
+  const name = secure ? SECURE_COOKIE : COOKIE;
   headers.set(
     "Set-Cookie",
-    `${COOKIE}=${token}; HttpOnly; SameSite=Lax; Path=/; Max-Age=31536000${secure ? "; Secure" : ""}`,
+    `${name}=${token}; HttpOnly; SameSite=Lax; Path=/; Max-Age=31536000; Priority=High${secure ? "; Secure" : ""}`,
   );
+}
+
+function cookieValue(req: Request, name: string) {
+  return (req.headers.get("cookie") || "")
+    .split(";")
+    .map((part) => part.trim())
+    .find((part) => part.startsWith(`${name}=`))
+    ?.slice(name.length + 1);
 }
 
 async function identify(
@@ -255,17 +213,29 @@ async function identify(
   now: number,
   userId: string | null,
 ) {
-  let token = (req.headers.get("cookie") || "")
-    .split(";")
-    .map((part) => part.trim())
-    .find((part) => part.startsWith(`${COOKIE}=`))
-    ?.slice(COOKIE.length + 1);
+  const secure = secureRequest(req);
+  const secureToken = secure ? cookieValue(req, SECURE_COOKIE) : undefined;
+  let token = secureToken || cookieValue(req, COOKIE);
+  const migrateLegacy = secure && !secureToken;
   let guest: ProfileRow | undefined;
   if (token && /^[0-9a-f]{64}$/.test(token)) {
     [guest] = await store.query<ProfileRow>(
       "SELECT p.* FROM road_profiles p JOIN guest_sessions s ON p.id = s.driver_id WHERE s.token_hash = $1",
       [hash(token)],
     );
+    // Host-prefixed cookies cannot be planted by a compromised sibling
+    // subdomain. Rotate an older cookie once so a pre-seeded token stops working.
+    if (migrateLegacy && guest && !guest.clerk_user_id) {
+      const replacement = randomBytes(32).toString("hex");
+      const migrated = await store.query<{ driver_id: string }>(
+        "UPDATE guest_sessions SET token_hash = $1 WHERE token_hash = $2 RETURNING driver_id",
+        [hash(replacement), hash(token)],
+      );
+      if (migrated.some((row) => row.driver_id === guest!.id)) {
+        token = replacement;
+        setCookie(req, headers, token);
+      } else guest = undefined;
+    }
   }
   if (userId) {
     return store.transaction(async (query, lock) => {
@@ -731,10 +701,19 @@ export function createApi({
         throw new ApiError(405, "Method not allowed.");
       }
       if (request.method === "POST") checkOrigin(request, origin);
-      const body = request.method === "POST" ? await readBody(request) : null;
       const now = clock();
-      const userId = await getUser(request);
       const store = await getStore();
+      // This runs before body parsing and Clerk verification. A client cannot
+      // multiply work by rotating otherwise valid guest cookies.
+      await rateLimit(
+        store,
+        `traffic:${addressKey(request)}`,
+        REQUESTS_PER_ADDRESS_PER_MINUTE,
+        60000,
+        now,
+      );
+      const body = request.method === "POST" ? await readBody(request) : null;
+      const userId = await getUser(request);
       const driver = await identify(request, headers, store, now, userId);
       await rateLimit(store, `requests:${driver.id}`, 120, 60000, now);
       if (request.method === "GET")
@@ -755,8 +734,11 @@ export function createApi({
       });
       return send(body.action === "start" ? 201 : 200, result);
     } catch (error) {
+      if (error instanceof RateLimitError)
+        headers.set("Retry-After", String(error.retryAfter));
       if (
         error instanceof ApiError ||
+        error instanceof RateLimitError ||
         [401, 503].includes(requestError(error).status || 0)
       )
         return send(requestError(error).status!, {
@@ -776,20 +758,6 @@ export function createApi({
   };
 }
 
-// Reuse the pool/SQLite connection across Next.js development module reloads.
-// Version the cache when schema migrations change so development runs them too.
-const storeKey = Symbol.for("night-line.store.city-preferences-v1");
-const shared = globalThis as typeof globalThis & {
-  [storeKey]?: { promise: Promise<Store> | null };
-};
-const storeState = (shared[storeKey] ||= { promise: null });
 export const handleRoom = createApi({
-  getStore: () => {
-    if (!storeState.promise)
-      storeState.promise = createStore().catch((error) => {
-        storeState.promise = null;
-        throw error;
-      });
-    return storeState.promise;
-  },
+  getStore: getSharedStore,
 });

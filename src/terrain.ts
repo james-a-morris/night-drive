@@ -3,6 +3,7 @@ type Point = { x: number; y: number; z: number };
 import { roadFrame } from "./drive.ts";
 import { environmentWeights } from "./environments.ts";
 import { pnwRiverBanks } from "./pnw-river-layout.ts";
+import { desertOceanApproach, subseaHeadlandHeight, trackElevation } from "./route-elevation.ts";
 
 export const TERRAIN_OFFSETS = [
   5.5, 7.5, 10, 13, 17, 22, 28, 36, 46, 59, 75, 95, 119, 147, 179, 215, 256,
@@ -56,7 +57,7 @@ function fractal(x: number, z: number, octaves: number = 4) {
   return sum / total;
 }
 
-function distanceFromRoad(x: number, z: number) {
+function coordinatesFromRoad(x: number, z: number) {
   // Project onto the curved centerline, keeping the banks out of the roadway.
   let station = -z;
   for (let i = 0; i < 3; i++) {
@@ -65,7 +66,7 @@ function distanceFromRoad(x: number, z: number) {
     station += ((x - frame.x) * slope - (z + station)) / (1 + slope * slope);
   }
   const frame = roadFrame(station);
-  return (x - frame.x) * frame.rightX + (z - frame.z) * frame.rightZ;
+  return { station, lateral: (x - frame.x) * frame.rightX + (z - frame.z) * frame.rightZ };
 }
 
 // World-space noise keeps neighboring pieces of landscape continuous when
@@ -76,17 +77,25 @@ export function terrainHeight(
   z: number,
   mode: SceneryMode = "auto",
 ) {
-  const lateral = distanceFromRoad(x, z);
+  const { lateral, station } = coordinatesFromRoad(x, z);
   const distance = Math.abs(lateral);
+  // Far terrain uses a regular grid. Projecting distant points back onto a
+  // winding track can jump between bends and lift the seabed above the sea.
+  // Match that grid's station outside the close railway shoulders.
+  const landscapeStation = station + (-z - station) * smoothstep(36, 95, distance);
+  const elevation = trackElevation(landscapeStation, mode);
+  const headland = subseaHeadlandHeight(landscapeStation, lateral, mode);
   const bank = smoothstep(16, 46, distance);
   const weights = environmentWeights(-z, mode);
   if (
     bank === 0 &&
+    (!Number.isFinite(headland) || distance <= 7.5) &&
+    weights.underwater === 0 &&
     weights.bridge === 0 &&
     (weights.coast === 0 || lateral >= -8) &&
     (weights.pnw === 0 || lateral <= 8)
   )
-    return 0;
+    return elevation;
   const warp = fractal(x * 0.006 + 24, z * 0.006 - 11, 3);
   const rolling = fractal(x * 0.022 + warp, z * 0.018, 3);
   const broad = fractal(x * 0.007 + 81, z * 0.006 + 36);
@@ -98,11 +107,13 @@ export function terrainHeight(
     smoothstep(75, 220, distance) * (18 + broad * 66 + ridge * ridge * 35);
   const stone =
     bank * (0.4 + rolling * 1.5 + erosion * 0.8) + foothills + peaks;
-  const dunes =
+  const inlandDunes =
     bank *
       (1 + 14 * (0.5 + 0.5 * Math.sin(x * 0.045 + z * 0.019 + warp * 5)) ** 2) +
     smoothstep(70, 180, distance) *
       (12 + smoothstep(0.3, 0.7, broad) * 42 + ridge * 12);
+  const shoreline = lateral < 0 ? desertOceanApproach(landscapeStation, mode) * smoothstep(16, 42, distance) : 0;
+  const dunes = inlandDunes * (1 - shoreline) - 16 * shoreline;
   const coast =
     lateral < 0
       ? -16 * smoothstep(8, coastalShoreDistance(-z) * 2 - 8, distance)
@@ -111,15 +122,26 @@ export function terrainHeight(
   const channel = smoothstep(8, river.near + 4, lateral) *
     (1 - smoothstep(river.far - 4, river.far + 10, lateral));
   const pnw = (stone * 0.65 + peaks * 0.4) * (1 - channel) - 8.5 * channel;
-  return (
-    stone * weights.forest +
+  const reef = Math.min(SEA_LEVEL - elevation - 2,
+    -5.5 + rolling * 1.4 + Math.sin(x * .17 + z * .08) * .18 +
+    smoothstep(20, 55, distance) * (14 + rolling * 7 + ridge * 3));
+  // The railway drops into a cutting while the distant dunes stay at their
+  // surface elevation. A fixed shoreline gives the slope a visible reference.
+  const landDatum = elevation * (1 - smoothstep(16, 65, distance) *
+    (weights.desert + weights.coast) * (lateral > 0 ? 1 : 0));
+  const ground = (
+    landDatum + stone * weights.forest +
     (stone * 1.3 + peaks * ridge * 0.18) * weights.alpine +
     dunes * weights.desert +
+    reef * smoothstep(6, 12, distance) * weights.underwater +
     coast * weights.coast +
     pnw * weights.pnw +
     (stone * 1.4 + bank * 12) * weights.tunnel +
     (stone * 0.8 - 34 * smoothstep(0, 5.5, distance)) * weights.bridge
   );
+  return Number.isFinite(headland)
+    ? Math.max(ground, ground + (headland - ground) * smoothstep(7.5, 10, distance))
+    : ground;
 }
 
 export function terrainPoint(
@@ -159,7 +181,7 @@ export function terrainSurfaceHeight(
     lateral = (x - frame.x) / (1 + (frame.rightX - 1) * follow);
     station = -z + lateral * frame.rightZ * follow;
   }
-  if (Math.abs(lateral) <= TERRAIN_OFFSETS[0]) return 0;
+  if (Math.abs(lateral) <= TERRAIN_OFFSETS[0]) return trackElevation(station, mode);
   const side = Math.sign(lateral);
   const column = Math.min(
     TERRAIN_OFFSETS.length - 2,

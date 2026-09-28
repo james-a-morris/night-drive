@@ -28,7 +28,7 @@ export default function SceneryPicker({
 }) {
   const options = { ...routes, forest: { ...pineEnvironment(pineWeather), ...(cityWeather ? { name: "THE PINES" } : {}) } };
   const name = title(options[value].name);
-  const synced = !!cityWeather && value !== "tunnel";
+  const synced = !!cityWeather && value !== "tunnel" && value !== "underwater";
   const [condition, location] = (synced ? cityWeather : title(options[value].weather)).split(" · ");
   const landscape = synced ? undefined : value === "pnw" ? "river" : value === "coast" || value === "desert" ? "wind" : value !== "forest" && value !== "alpine" ? "route" : undefined;
   const weatherCode = synced ? cityWeatherCode ?? null : value === "alpine" ? 73 : pineWeather === "rain" ? 53 : 0;

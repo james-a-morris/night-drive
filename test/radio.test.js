@@ -8,8 +8,8 @@ const row = (index, overrides = {}) => ({
   stationuuid: `00000000-0000-0000-0000-${String(index).padStart(12, '0')}`,
   name: `Lo-fi ${index}`, tags: 'chill,lofi', country: 'Japan', bitrate: 128,
   codec: 'MP3', hls: 0, lastcheckok: 1,
-  url: `https://radio.example/${index}.mp3`,
-  url_resolved: `https://radio.example/${index}.mp3`,
+  url: `https://radio.example.com/${index}.mp3`,
+  url_resolved: `https://radio.example.com/${index}.mp3`,
   ...overrides,
 });
 const playable = type => type === 'audio/mpeg' ? 'probably' : '';
@@ -22,8 +22,8 @@ test('only working, browser-playable web streams with the exact lofi tag survive
     row(3, { lastcheckok: 0 }), row(4, { hls: 1 }),
     row(5, { url_resolved: 'file:///not-a-stream.mp3' }),
     row(6, { codec: 'OGG' }), row(7, { tags: 'lofi hip hop' }),
-    row(8, { url_resolved: 'https://radio.example/playlist.m3u8' }),
-    row(9, { url_resolved: 'https://user:pass@radio.example/stream' }),
+    row(8, { url_resolved: 'https://radio.example.com/playlist.m3u8' }),
+    row(9, { url_resolved: 'https://user:pass@radio.example.com/stream' }),
     row(10, { stationuuid: '../not-a-station' }), null,
     row(11, { url_resolved: '', name: '  A quiet station  ', tags: ' LoFi , chill' }),
   ];
@@ -38,12 +38,25 @@ test('HTTP listings are tried over HTTPS without losing their popularity order',
   const result = playableStations([
     row(1, { name: 'Lofi 24/7', url_resolved: 'http://usa9.fastcast4u.com/proxy/jamz?mp=/1' }),
     row(2),
-    row(3, { url_resolved: 'http://radio.example/2.mp3' }),
+    row(3, { url_resolved: 'http://radio.example.com/2.mp3' }),
   ], playable);
   assert.equal(result[0].title, 'Lofi 24/7');
   assert.equal(result[0].url, 'https://usa9.fastcast4u.com/proxy/jamz?mp=/1');
   assert.equal(result[1].id, row(2).stationuuid);
   assert.equal(result.length, 2, 'deduplicate after normalizing to HTTPS');
+});
+
+test('directory data cannot target local services or flood station labels', () => {
+  const urls = [
+    'https://127.0.0.1/private', 'https://10.0.0.8/private',
+    'https://192.168.1.1/private', 'https://[::1]/private',
+    'https://router.local/private', 'https://localhost/private',
+  ];
+  assert.equal(playableStations(urls.map((url, index) => row(index + 20, { url_resolved: url })), playable).length, 0);
+  const [station] = playableStations([row(30, { name: `Safe\u202edriver${'x'.repeat(200)}`, country: `JP${'x'.repeat(100)}` })], playable);
+  assert.equal(station.title.includes('\u202e'), false);
+  assert.equal(station.title.length, 120);
+  assert.equal(station.subtitle.split(' · ')[0].length, 80);
 });
 
 test('directory discovers mirrors, retries failures, and counts listens on its working mirror', async () => {

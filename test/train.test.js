@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { roadFrame } from '../src/drive.ts';
 import { trainFrames, CARRIAGE_LENGTH, CARRIAGE_WHEELBASE, CARRIAGE_GAP } from '../src/train-motion.ts';
+import { SUBSEA_REGION, trackElevation } from '../src/route-elevation.ts';
 
 const distance = (a, b) => Math.hypot(a.x - b.x, a.z - b.z);
 const close = (actual, expected, message) => assert.ok(Math.abs(actual - expected) < 1e-7, message);
@@ -52,4 +53,24 @@ test('the train moves continuously without stretching, snapping, or drifting whe
       assert.ok(Math.abs(a.heading - b.heading) < 0.00002, 'heading stays continuous');
     }
   }
+});
+
+test('the train descends into the ocean with rigid carriages and attached gangways', () => {
+  const length = (a, b) => Math.hypot(a.x - b.x, a.y - b.y, a.z - b.z);
+  for (let progress = SUBSEA_REGION.start - 380; progress < SUBSEA_REGION.start + SUBSEA_REGION.length + 140; progress += 7) {
+    const { cabin, cars } = trainFrames(progress, 5, 'auto');
+    let previous = cabin;
+    for (const car of cars) {
+      close(length(car.rearBogie, car.frontBogie), CARRIAGE_WHEELBASE, 'both bogies follow the grade without stretching');
+      close(length(car.rear, car.front), CARRIAGE_LENGTH, 'each body stays rigid on the incline');
+      close(length(previous.front, car.rear), CARRIAGE_GAP, 'gangways stay joined while neighboring cars climb at different angles');
+      for (const bogie of [car.rearBogie, car.frontBogie])
+        close(bogie.y, trackElevation(bogie.distance, 'auto'), 'wheels rest on the graded railway');
+      previous = car;
+    }
+  }
+  assert.ok(trainFrames(SUBSEA_REGION.start - 140, 5, 'auto').cabin.pitch < 0);
+  assert.ok(trainFrames(SUBSEA_REGION.start + SUBSEA_REGION.length - 140, 5, 'auto').cabin.pitch > 0);
+  assert.ok(trainFrames(SUBSEA_REGION.start - 280, 5, 'auto').cabin.pitch < -.06, 'the carriage tips downhill in the open air');
+  assert.ok(trainFrames(SUBSEA_REGION.start + SUBSEA_REGION.length + 40, 5, 'auto').cabin.pitch > .06, 'the carriage tips uphill after emerging');
 });

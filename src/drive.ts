@@ -1,5 +1,6 @@
 import { stationAt, stationAvailable, stationsNear, FIRST_STATION, STATION_DWELL_SECONDS, type StationStop } from "./station-route.ts";
 import type { SceneryMode } from "./environments.ts";
+import { trackGrade } from "./route-elevation.ts";
 export const ROAD_WIDTH = 11;
 export const SEGMENT_LENGTH = 24;
 export const CRUISING_SPEED = 50;
@@ -76,7 +77,7 @@ export function advanceDrive(drive: Drive, dt: number, mode: SceneryMode = "auto
   }
   const next = stationsNear(drive.progress).find(stop => stop.index > drive.lastStation &&
     stop.at >= drive.progress - 0.01 && stationAvailable(stop.at, mode));
-  const length = roadFrame(drive.progress).length;
+  const length = Math.hypot(roadFrame(drive.progress).length, trackGrade(drive.progress, mode));
   const remaining = next ? Math.max(0, (next.at - drive.progress) * length) : Infinity;
   drive.speed += (CRUISING_SPEED - drive.speed) * (1 - Math.exp(-(drive.departing ? 0.22 : 1.6) * dt));
   if (drive.speed > CRUISING_SPEED - 0.1) drive.departing = false;

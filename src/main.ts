@@ -194,9 +194,9 @@ export function mountScene(
         : null;
       if (stationStatus !== currentStation) { currentStation = stationStatus; onStation(stationStatus); }
       const frame = roadFrame(drive.progress);
-      const cabinFrame = train.update(drive.progress, dt, motion.matches);
-      cabin.rig.position.set(frame.x, 0, frame.z);
-      cabin.rig.rotation.y = cabinFrame.heading;
+      const cabinFrame = train.update(drive.progress, dt, motion.matches, getSettings().mode);
+      cabin.rig.position.set(frame.x, cabinFrame.rearBogie.y, frame.z);
+      cabin.rig.rotation.set(cabinFrame.pitch, cabinFrame.heading, 0, "YXZ");
       cabin.rig.rotation.z = motion.matches
         ? 0
         : (Math.sin(now * 0.0013) * 0.003 +
@@ -215,6 +215,7 @@ export function mountScene(
         currentMiles,
         distanceUnit,
         seatOnTrain(seat, seatDirection),
+        getSettings().mode,
       );
       // Update the world transform before the camera and shelter use it.
       scenery.world.updateMatrixWorld(true);

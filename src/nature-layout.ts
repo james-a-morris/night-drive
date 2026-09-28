@@ -86,6 +86,7 @@ export function naturePlacements(progress: number, mode: SceneryMode) {
     if (stationClearing(station, lateral, mode)) return;
     const point = roadPoint(station, lateral);
     const weights = environmentWeights(-point.z, mode);
+    if (weights.underwater > .15) return;
     const abundance = weights.forest + weights.pnw + (lateral > 0 ? weights.coast * 0.6 : 0);
     if (random(cell, seed + 301) > abundance || abundance < 0.05) return;
     if (kind === "maple" && weights.forest < 0.5) return;

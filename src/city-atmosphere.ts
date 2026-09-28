@@ -31,7 +31,7 @@ export function cityEnvironments({ city, weather }: CityAtmosphere): Record<Envi
     : mixColor(0x040b17, 0x0b1623, clouds);
   return Object.fromEntries(environmentNames.map((name) => {
     const base = ENVIRONMENTS[name];
-    if (name === "tunnel") return [name, base];
+    if (name === "tunnel" || name === "underwater") return [name, base];
     const dry = base.precipitation === "none";
     const localRain = rain && !dry && base.precipitation !== "snow";
     const localSnow = !dry && (snow || (rain && base.precipitation === "snow"));

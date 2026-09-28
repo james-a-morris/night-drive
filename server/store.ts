@@ -178,3 +178,20 @@ export async function createStore({
     close: () => database.close(),
   };
 }
+
+// Reuse the pool/SQLite connection across route handlers and development module
+// reloads. Version the key whenever a schema migration must rerun in dev.
+const sharedStoreKey = Symbol.for("night-line.store.city-preferences-v1");
+const sharedStore = globalThis as typeof globalThis & {
+  [sharedStoreKey]?: { promise: Promise<Store> | null };
+};
+const storeState = (sharedStore[sharedStoreKey] ||= { promise: null });
+
+export function getSharedStore() {
+  if (!storeState.promise)
+    storeState.promise = createStore().catch((error) => {
+      storeState.promise = null;
+      throw error;
+    });
+  return storeState.promise;
+}

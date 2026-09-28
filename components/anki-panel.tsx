@@ -244,7 +244,7 @@ export default function AnkiPanel({ client, connection, onConnect, onClose, onUn
         run(async signal => { client.setKey(apiKey); await client.decks(signal); signal.throwIfAborted(); setApiKey(""); onUnlocked(); });
       }}>
         <label htmlFor="anki-api-key">AnkiConnect API key</label>
-        <input id="anki-api-key" type="password" autoComplete="off" value={apiKey} onChange={event => setApiKey(event.target.value)} required />
+        <input id="anki-api-key" type="password" autoComplete="off" maxLength={4096} value={apiKey} onChange={event => setApiKey(event.target.value)} required />
         <button className="anki-primary" type="submit" disabled={busy || !apiKey}>Unlock Anki</button>
       </form> : <button className="anki-primary" type="button" disabled={connection.status === "checking"} onClick={() => void onConnect()}>
         {connection.status === "checking" ? "Waiting for Anki…" : "Connect Anki"}

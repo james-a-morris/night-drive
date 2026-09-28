@@ -1,3 +1,5 @@
+import { readBoundedJson, ResponseTooLarge } from "./bounded-json.ts";
+
 // This connection always belongs to the visitor's browser, never our server.
 export const ANKI_ENDPOINT = "http://127.0.0.1:8765";
 export const ANKI_ACTIONS = [
@@ -16,6 +18,10 @@ export interface AnkiCard {
   buttons: number[];
   nextReviews: string[];
 }
+const MAX_RESPONSE_BYTES = 2_000_000;
+const MAX_MEDIA_RESPONSE_BYTES = 12_000_000;
+const MAX_CARD_HTML = 1_000_000;
+const MAX_CARD_CSS = 250_000;
 export class AnkiError extends Error {
   kind: "connection" | "api" | "changed";
   constructor(message: string, kind: "connection" | "api" | "changed" = "api") {
@@ -31,10 +37,15 @@ function record(value: unknown): value is Record<string, unknown> {
 function readCard(value: unknown): AnkiCard | null {
   if (value === null) return null;
   if (!record(value) || !Number.isSafeInteger(value.cardId) || Number(value.cardId) <= 0 ||
-    typeof value.question !== "string" || typeof value.answer !== "string" ||
-    typeof value.deckName !== "string" || !Array.isArray(value.buttons) ||
+    typeof value.question !== "string" || value.question.length > MAX_CARD_HTML ||
+    typeof value.answer !== "string" || value.answer.length > MAX_CARD_HTML ||
+    typeof value.deckName !== "string" || value.deckName.length > 512 ||
+    (value.css !== undefined && (typeof value.css !== "string" || value.css.length > MAX_CARD_CSS)) ||
+    !Array.isArray(value.buttons) ||
     !value.buttons.length || value.buttons.length > 4 ||
-    value.buttons.some((button, i) => button !== i + 1)) {
+    value.buttons.some((button, i) => button !== i + 1) ||
+    (value.nextReviews !== undefined && (!Array.isArray(value.nextReviews) || value.nextReviews.length > 4 ||
+      value.nextReviews.some(review => typeof review !== "string" || review.length > 100)))) {
     throw new AnkiError("Anki returned a card this viewer can’t review.");
   }
   return {
@@ -64,14 +75,24 @@ export function createAnkiClient(fetcher: typeof fetch = (...args) => fetch(...a
     const timer = setTimeout(() => controller.abort(), timeout);
     try {
       const response = await fetcher(ANKI_ENDPOINT, {
-        method: "POST", headers: { "Content-Type": "text/plain;charset=UTF-8" },
+        method: "POST", headers: { Accept: "application/json", "Content-Type": "text/plain;charset=UTF-8" },
         body: JSON.stringify({ action, version: 6, params, ...(key && action !== "requestPermission" ? { key } : {}) }),
         signal: controller.signal, credentials: "omit", cache: "no-store", redirect: "error", referrerPolicy: "no-referrer",
       });
       if (!response.ok) throw new AnkiError("Anki didn’t allow this connection. Reconnect and allow this site in Anki.", "connection");
-      const payload: unknown = await response.json();
+      let payload: unknown;
+      try {
+        payload = await readBoundedJson(
+          response,
+          action === "retrieveMediaFile" ? MAX_MEDIA_RESPONSE_BYTES : MAX_RESPONSE_BYTES,
+        );
+      } catch (error) {
+        if (error instanceof ResponseTooLarge)
+          throw new AnkiError("Anki returned too much data for this viewer.", "connection");
+        throw error;
+      }
       if (!record(payload) || !("result" in payload) || !("error" in payload)) throw new AnkiError("This local service doesn’t look like AnkiConnect.", "connection");
-      if (payload.error !== null) throw new AnkiError(typeof payload.error === "string" ? payload.error : "Anki couldn’t complete the request.");
+      if (payload.error !== null) throw new AnkiError(typeof payload.error === "string" ? payload.error.slice(0, 500) : "Anki couldn’t complete the request.");
       return payload.result;
     } catch (error) {
       signal?.throwIfAborted();
@@ -111,7 +132,7 @@ export function createAnkiClient(fetcher: typeof fetch = (...args) => fetch(...a
     return Number(info[0].note);
   }
   return {
-    setKey(value: string) { key = value; }, // Memory only; never stored or sent to Night Rail.
+    setKey(value: string) { key = value.length <= 4096 ? value : ""; }, // Memory only; never stored or sent to Night Rail.
     async connect(signal?: AbortSignal): Promise<AnkiConnection> {
       const result = await call("requestPermission", {}, signal, 120000);
       if (!record(result) || !["granted", "denied"].includes(String(result.permission))) throw new AnkiError("This local service doesn’t look like AnkiConnect.", "connection");
@@ -121,7 +142,9 @@ export function createAnkiClient(fetcher: typeof fetch = (...args) => fetch(...a
     },
     async decks(signal?: AbortSignal) {
       const result = await call("deckNames", {}, signal);
-      if (!Array.isArray(result) || result.some(name => typeof name !== "string")) throw new AnkiError("Anki couldn’t list your decks.");
+      if (!Array.isArray(result) || result.length > 10000 ||
+        result.some(name => typeof name !== "string" || name.length > 512))
+        throw new AnkiError("Anki couldn’t list your decks.");
       return (result as string[]).sort((a, b) => a.localeCompare(b));
     },
     async start(deck: string, signal?: AbortSignal) {
@@ -154,7 +177,9 @@ export function createAnkiClient(fetcher: typeof fetch = (...args) => fetch(...a
     async mark(card: AnkiCard, signal?: AbortSignal) {
       const note = await noteFor(card, signal);
       const tags = await call("getNoteTags", { note }, signal);
-      if (!Array.isArray(tags) || tags.some(tag => typeof tag !== "string")) throw new AnkiError("Couldn’t read this note’s tags.");
+      if (!Array.isArray(tags) || tags.length > 10000 ||
+        tags.some(tag => typeof tag !== "string" || tag.length > 512))
+        throw new AnkiError("Couldn’t read this note’s tags.");
       const marked = tags.some(tag => tag.toLowerCase() === "marked");
       await unchanged(card, signal);
       revealed = null;
