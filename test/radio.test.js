@@ -350,7 +350,7 @@ function sourceStorage(t, source) {
   return values;
 }
 
-test('choosing local music online stops the stream, remembers the choice and ignores stale failures', async t => {
+test('choosing local music online stops the stream without saving the source and ignores stale failures', async t => {
   const values = sourceStorage(t);
   const { radio, audio, local } = setup(t);
   await radio.loading;
@@ -363,7 +363,7 @@ test('choosing local music online stops the stream, remembers the choice and ign
   assert.equal(local.enabled, true, 'ambience remains enabled');
   assert.equal(local.musicEnabled, true);
   assert.equal(radio.nowPlaying().state, 'fallback');
-  assert.equal(values.get('night-rail:music-source'), 'local');
+  assert.equal(values.has('night-rail:music-source'), false);
   pending.reject(new Error('Old stream failed'));
   audio.emit('playing');
   await setImmediate();
@@ -374,26 +374,38 @@ test('choosing local music online stops the stream, remembers the choice and ign
   assert.equal(audio.plays.length, 1, 'Next advances local music without tuning into radio');
 });
 
-test('a saved local choice starts locally while online without a station-directory dependency', async t => {
+test('fresh sessions start live despite a previous local choice, while pause and resume keep the current source', async t => {
   sourceStorage(t, 'local');
   let discoveries = 0;
-  const { radio, audio, local } = setup(t, { load: async () => { discoveries++; return stations; } });
-  assert.equal(radio.nowPlaying().local, true);
+  const options = { load: async () => { discoveries++; return stations; } };
+  const { radio, audio, local } = setup(t, options);
+  assert.equal(radio.nowPlaying().local, false);
   assert.equal(radio.nowPlaying().playing, false);
   assert.equal(local.enabled, false);
-  await radio.setEnabled(true);
-  assert.equal(radio.nowPlaying().playing, true);
-  assert.equal(discoveries, 0);
-  assert.equal(audio.plays.length, 0);
-  await radio.setEnabled(false);
-  radio.setSource('stream');
-  await radio.loading;
-  assert.equal(audio.plays.length, 0, 'changing source while paused stays silent');
-  assert.equal(local.enabled, false);
-  assert.equal(radio.nowPlaying().state, 'paused');
-  await radio.setEnabled(true);
-  assert.equal(audio.plays.length, 1);
   assert.equal(local.musicEnabled, false);
+  await radio.loading;
+  await radio.setEnabled(true);
+  audio.emit('playing');
+  assert.equal(radio.nowPlaying().state, 'live');
+  assert.equal(discoveries, 1);
+  assert.equal(audio.src, stations[0].url);
+  assert.equal(audio.plays.length, 1);
+  radio.setSource('local');
+  await radio.setEnabled(false);
+  await radio.setEnabled(true);
+  assert.equal(radio.nowPlaying().local, true);
+  assert.equal(radio.nowPlaying().playing, true);
+  assert.equal(audio.plays.length, 1, 'resume keeps the local source for the current session');
+  await radio.setEnabled(false);
+  const next = setup(t, options);
+  await next.radio.loading;
+  assert.equal(next.radio.nowPlaying().local, false);
+  await next.radio.setEnabled(true);
+  next.audio.emit('playing');
+  assert.equal(next.radio.nowPlaying().state, 'live');
+  assert.equal(discoveries, 2);
+  assert.equal(next.audio.src, stations[0].url);
+  assert.equal(next.local.musicEnabled, false);
 });
 
 test('switching to local while discovery is pending prevents the eventual response from taking over', async t => {
@@ -417,18 +429,18 @@ test('switching to local while discovery is pending prevents the eventual respon
   assert.equal(radio.nowPlaying().playing, true);
 });
 
-test('automatic offline fallback does not replace the saved live-radio choice', async t => {
-  const values = sourceStorage(t, 'stream');
+test('automatic offline fallback and source changes do not persist a source', async t => {
+  const values = sourceStorage(t);
   const { radio } = setup(t);
   await radio.loading;
   await radio.setEnabled(true);
   radio.useLocal(radio.request);
-  assert.equal(values.get('night-rail:music-source'), 'stream');
+  assert.equal(values.has('night-rail:music-source'), false);
   radio.setSource('local');
-  assert.equal(values.get('night-rail:music-source'), 'local');
+  assert.equal(values.has('night-rail:music-source'), false);
   radio.setSource('invalid');
   assert.equal(radio.nowPlaying().local, true);
-  assert.equal(values.get('night-rail:music-source'), 'local');
+  assert.equal(values.has('night-rail:music-source'), false);
 });
 
 test('browser autoplay denial requests a new gesture instead of cycling through stations', async t => {

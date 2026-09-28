@@ -75,9 +75,10 @@ export class NightRadio {
     this.onChange = onChange;
     this.audio = audio;
     this.directory = directory;
-    this.mode = readPreference("musicSource");
+    // Source selection lasts for this listening session; new launches try live.
+    this.mode = "stream";
     this.local = local || new LocalSoundscape(() => this.notify());
-    this.local.setMusicEnabled(this.mode === "local");
+    this.local.setMusicEnabled(false);
     this.mix = { ...readPreference("audioMix") };
     this.local.setMix(this.mix);
     this.audio.preload = "none";
@@ -94,7 +95,7 @@ export class NightRadio {
     this.failed = new Set();
     globalThis.window?.addEventListener("offline", this.onOffline);
     // Discover early so the first play() can happen within the start gesture.
-    if (this.mode === "stream") this.loadStations();
+    this.loadStations();
   }
 
   loadStations() {
@@ -136,7 +137,6 @@ export class NightRadio {
     this.failed.clear();
     this.error = null;
     this.mode = source;
-    savePreference("musicSource", source);
     this.local.setMusicEnabled(source === "local");
     this.state = this.enabled
       ? source === "local" ? "fallback" : "loading"
