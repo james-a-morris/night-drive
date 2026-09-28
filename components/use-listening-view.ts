@@ -8,30 +8,26 @@ export function useListeningView() {
   useEffect(() => {
     const standalone = window.matchMedia("(display-mode: standalone)");
     const style = document.documentElement.style;
-    const updateHeight = () => {
+    const updateViewport = () => {
       const installed = standalone.matches || (navigator as Navigator & { standalone?: boolean }).standalone === true;
-      // iOS home-screen apps can resolve 100dvh below the status bar even
-      // though the page starts behind it. Use the actual window height.
-      if (installed && window.innerHeight > 0) {
-        style.setProperty("--standalone-viewport-height", `${window.innerHeight}px`);
+      // Both 100dvh and innerHeight can omit the status bar on an iOS cold
+      // start. With no browser toolbar, 100vh is the full installed viewport.
+      if (installed) {
+        style.setProperty("--standalone-viewport-height", "100vh");
       } else {
         style.removeProperty("--standalone-viewport-height");
       }
     };
     const onVisible = () => {
-      if (document.visibilityState === "visible") updateHeight();
+      if (document.visibilityState === "visible") updateViewport();
     };
-    updateHeight();
-    standalone.addEventListener("change", updateHeight);
-    window.addEventListener("resize", updateHeight);
-    window.addEventListener("pageshow", updateHeight);
-    window.visualViewport?.addEventListener("resize", updateHeight);
+    updateViewport();
+    standalone.addEventListener("change", updateViewport);
+    window.addEventListener("pageshow", updateViewport);
     document.addEventListener("visibilitychange", onVisible);
     return () => {
-      standalone.removeEventListener("change", updateHeight);
-      window.removeEventListener("resize", updateHeight);
-      window.removeEventListener("pageshow", updateHeight);
-      window.visualViewport?.removeEventListener("resize", updateHeight);
+      standalone.removeEventListener("change", updateViewport);
+      window.removeEventListener("pageshow", updateViewport);
       document.removeEventListener("visibilitychange", onVisible);
       style.removeProperty("--standalone-viewport-height");
     };
