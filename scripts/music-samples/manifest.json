@@ -1,0 +1,122 @@
+{
+  "piano": {
+    "url": "https://freepats.zenvoid.org/Piano/UprightPianoKW/UprightPianoKW-SFZ%2BFLAC-20220221.7z",
+    "sha256": "3a66da3b25a2fd9499d90bcf09f1aee4431825796e249361b48af59b1201e703",
+    "page": "https://freepats.zenvoid.org/Piano/acoustic-grand-piano.html#UprightKW",
+    "author": "Gonzalo and Roberto, FreePats (recorded January 2017; bank 2022-02-21)",
+    "samples": [
+      {
+        "note": 48,
+        "file": "piano/48.flac",
+        "original": "C3vL.flac",
+        "sha256": "501f7703e1006f1afd37f8dcc438906057e6f7dc84c0952237cf84d8ebaec6cb"
+      },
+      {
+        "note": 51,
+        "file": "piano/51.flac",
+        "original": "D#3vL.flac",
+        "sha256": "c34359c5561bc71a53bce1c24ebd62fa335be5098feb63ab9eaa57af51b57521"
+      },
+      {
+        "note": 54,
+        "file": "piano/54.flac",
+        "original": "F#3vL.flac",
+        "sha256": "5a39e7f31344425491c439847a009d0859aaeaf51737dbe952d47bd86d0d4998"
+      },
+      {
+        "note": 57,
+        "file": "piano/57.flac",
+        "original": "A3vL.flac",
+        "sha256": "498682c53eb222dd88692a21ffdf48641873df63287d93dd43cd814544874372"
+      },
+      {
+        "note": 60,
+        "file": "piano/60.flac",
+        "original": "C4vL.flac",
+        "sha256": "4382a54ffbb731cc8c7d8d88e322b1d669d6d44ccdca71eb17860d3c81967b4f"
+      },
+      {
+        "note": 63,
+        "file": "piano/63.flac",
+        "original": "D#4vL.flac",
+        "sha256": "105074540a60b82228cc6d9defb84b37aaab2a18d7526ccbf197500529040ff7"
+      },
+      {
+        "note": 66,
+        "file": "piano/66.flac",
+        "original": "F#4vL.flac",
+        "sha256": "157fa02c06d4cc768f059ae1954c11f8dabf0dae65da1f94f120570d7d6a50e5"
+      },
+      {
+        "note": 69,
+        "file": "piano/69.flac",
+        "original": "A4vL.flac",
+        "sha256": "1eb7f53be83b4fb86a5fb5f2e8b2cebd6e1da3c1a7e8c3305b20533e6ac63d86"
+      },
+      {
+        "note": 72,
+        "file": "piano/72.flac",
+        "original": "C5vL.flac",
+        "sha256": "b6c6948fdc8b4f0a35d260229de051d912077123ce4a4c19e2a41edca9d4214d"
+      },
+      {
+        "note": 75,
+        "file": "piano/75.flac",
+        "original": "D#5vL.flac",
+        "sha256": "6730be1a4ccc3747d46535fc64b6bfccd725a433ef10c122a688cf643ef0eb17"
+      }
+    ]
+  },
+  "sonicPiCommit": "008e53c05fa247b674b042737dde3acd981d32d1",
+  "drums": [
+    {
+      "name": "drum_bass_soft",
+      "url": "https://raw.githubusercontent.com/sonic-pi-net/sonic-pi/008e53c05fa247b674b042737dde3acd981d32d1/etc/samples/drum_bass_soft.flac",
+      "sha256": "87bfb846ea7adf747515b1c59602555c2dde5da40ba4cb5a19244df06385ff23",
+      "file": "drums/drum_bass_soft.flac",
+      "author": "menegass, via Sonic Pi",
+      "original": "https://freesound.org/people/menegass/sounds/100052/"
+    },
+    {
+      "name": "drum_snare_soft",
+      "url": "https://raw.githubusercontent.com/sonic-pi-net/sonic-pi/008e53c05fa247b674b042737dde3acd981d32d1/etc/samples/drum_snare_soft.flac",
+      "sha256": "3da004f932da94c4a4ccf1066f973c08ebe314875304333c1b257dbd6725ad9e",
+      "file": "drums/drum_snare_soft.flac",
+      "author": "menegass, via Sonic Pi",
+      "original": "https://freesound.org/people/menegass/sounds/100059/"
+    },
+    {
+      "name": "drum_cymbal_closed",
+      "url": "https://raw.githubusercontent.com/sonic-pi-net/sonic-pi/008e53c05fa247b674b042737dde3acd981d32d1/etc/samples/drum_cymbal_closed.flac",
+      "sha256": "f3b9d6bb14f75ba06ef633baf58b1f75f0e2ea5e07edd491f0a22aedb2480d62",
+      "file": "drums/drum_cymbal_closed.flac",
+      "author": "menegass, via Sonic Pi",
+      "original": "https://freesound.org/people/menegass/sounds/100053/"
+    },
+    {
+      "name": "drum_cymbal_pedal",
+      "url": "https://raw.githubusercontent.com/sonic-pi-net/sonic-pi/008e53c05fa247b674b042737dde3acd981d32d1/etc/samples/drum_cymbal_pedal.flac",
+      "sha256": "af2cf5e259f3671d9b363418b9d222b742cf6e41dd3e6871b23f2b4ce8b36635",
+      "file": "drums/drum_cymbal_pedal.flac",
+      "author": "menegass, via Sonic Pi",
+      "original": "https://freesound.org/people/menegass/sounds/100054/"
+    },
+    {
+      "name": "drum_cymbal_open",
+      "url": "https://raw.githubusercontent.com/sonic-pi-net/sonic-pi/008e53c05fa247b674b042737dde3acd981d32d1/etc/samples/drum_cymbal_open.flac",
+      "sha256": "3a9cf6aacab05003fe3edaa9a9150841e080ecd3b7e6383571bc3570c23c7118",
+      "file": "drums/drum_cymbal_open.flac",
+      "author": "menegass, via Sonic Pi",
+      "original": "https://freesound.org/people/menegass/sounds/100055/"
+    },
+    {
+      "name": "drum_tom_lo_soft",
+      "url": "https://raw.githubusercontent.com/sonic-pi-net/sonic-pi/008e53c05fa247b674b042737dde3acd981d32d1/etc/samples/drum_tom_lo_soft.flac",
+      "sha256": "473adf163ce22285b633d2a7f7c673a9f1d0820b0ea184cb497ee45d66c939c3",
+      "file": "drums/drum_tom_lo_soft.flac",
+      "author": "menegass, via Sonic Pi",
+      "original": "https://freesound.org/people/menegass/sounds/100064/"
+    }
+  ],
+  "license": "CC0-1.0"
+}
