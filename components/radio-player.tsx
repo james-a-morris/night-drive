@@ -177,18 +177,24 @@ export default function RadioPlayer({ radio, calm = false, onStart, ready = true
             max={track.duration || 120}
             value={track.elapsed || 0}
             aria-label="Track progress"
+            aria-valuetext={`${timeLabel(track.elapsed)} of ${timeLabel(track.duration || 0)}`}
             hidden={!track.local}
           ></progress>
         </div>
-        <small id="track-time" aria-hidden="true" hidden={Boolean(onStart)}>
-          {track.local
-            ? `${timeLabel(track.elapsed)} / ${timeLabel(track.duration || 0)}`
-            : track.playing
-              ? "LIVE"
-              : ["connecting", "loading"].includes(track.state)
-                ? "CONNECTING"
-                : "LO-FI"}
-        </small>
+        <button
+          id="track-time"
+          type="button"
+          hidden={Boolean(onStart)}
+          disabled={!radio}
+          aria-label={track.local ? "LOCAL: switch to live radio" : "LIVE: switch to local mix"}
+          title={track.local ? "Switch to live radio" : "Switch to local mix"}
+          onClick={() => {
+            radio?.setSource(track.local ? "stream" : "local");
+            if (radio) setTrack(radio.nowPlaying());
+          }}
+        >
+          {track.local ? "LOCAL" : "LIVE"}
+        </button>
         <Popover role={null}>
           {({ open: mixerOpen, triggerProps, panelProps, close }) => (
             <>
@@ -227,21 +233,6 @@ export default function RadioPlayer({ radio, calm = false, onStart, ready = true
                       <path d="m4 4 8 8M12 4l-8 8" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" />
                     </svg>
                   </button>
-                </div>
-                <div className="radio-mixer-sources" role="group" aria-label="Music source">
-                  {([
-                    ["local", "Local mix"],
-                    ["stream", "Live radio"],
-                  ] as const).map(([source, label]) => (
-                    <button key={source} type="button" disabled={!radio}
-                      aria-pressed={track.local === (source === "local")}
-                      onClick={() => {
-                        radio?.setSource(source);
-                        if (radio) setTrack(radio.nowPlaying());
-                      }}>
-                      {label}
-                    </button>
-                  ))}
                 </div>
                 {([
                   ["master", "Volume"],

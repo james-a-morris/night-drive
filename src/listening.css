@@ -240,7 +240,7 @@
 #app[data-listening-view="calm"] #radio-source { grid-column:1; grid-row:3; }
 #app[data-listening-view="calm"] #track-time { grid-column:2; grid-row:3; align-self:center; }
 #app[data-listening-view="calm"] .radio-mixer-toggle { grid-column:3; grid-row:3; }
-#app[data-listening-view="calm"] :is(.radio-controls button,.radio-mixer-toggle):focus-visible { outline-offset:-2px; }
+#app[data-listening-view="calm"] :is(.radio-controls button,.radio-mixer-toggle,#track-time):focus-visible { outline-offset:-2px; }
 #app[data-listening-view="calm"] .radio-widget[data-onboarding="true"] { grid-template-rows:var(--listening-waveform-height) auto auto 56px; gap:10px; }
 #app[data-listening-view="calm"] .radio-widget[data-onboarding="true"] .playback-row { display:contents; }
 #app[data-listening-view="calm"] .radio-widget[data-onboarding="true"] .radio-display { grid-column:1 / -1; grid-row:2; text-align:center; }
