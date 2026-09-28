@@ -9,6 +9,7 @@ import { readPreference, savePreference } from "./prefs.ts";
 
 const CONNECTION_TIMEOUT = 12000;
 const MAX_FAILURES = 3;
+const isOffline = () => globalThis.navigator?.onLine === false;
 
 // Streams use a plain media element: many stations don't allow the CORS access
 // required by Web Audio. The local audio engine keeps weather playing beneath it.
@@ -59,6 +60,9 @@ export class NightRadio {
   connectionTimer?: ReturnType<typeof setTimeout>;
   cleanup: (() => void) | null = null;
   private artworkMetadata: MediaMetadata | null = null;
+  private readonly onOffline = () => {
+    if (this.enabled) this.useLocal(++this.request);
+  };
   constructor(
     onChange: (enabled: boolean, error?: unknown) => void,
     {
@@ -88,11 +92,13 @@ export class NightRadio {
     this.station = null;
     this.stations = null;
     this.failed = new Set();
+    globalThis.window?.addEventListener("offline", this.onOffline);
     // Discover early so the first play() can happen within the start gesture.
     this.loadStations();
   }
 
   loadStations() {
+    if (isOffline()) return Promise.resolve(null);
     if (!this.loading) {
       this.loading = this.directory
         .load((type) => this.audio.canPlayType(type))
@@ -172,6 +178,7 @@ export class NightRadio {
   dispose() {
     this.request++;
     this.enabled = false;
+    globalThis.window?.removeEventListener("offline", this.onOffline);
     this.onChange = () => {};
     this.stopStream();
     this.local.dispose();
@@ -181,11 +188,13 @@ export class NightRadio {
   }
 
   async tune(request: number, start: number, direction = 1): Promise<void> {
+    if (isOffline()) return this.useLocal(request);
     if (!this.stations) {
       this.state = "loading";
       await this.loadStations();
     }
     if (request !== this.request || !this.enabled) return;
+    if (isOffline()) return this.useLocal(request);
     if (!this.stations?.length || this.failed.size >= MAX_FAILURES)
       return this.useLocal(request);
     const stations = this.stations;

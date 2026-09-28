@@ -63,7 +63,7 @@ The **Dev kit** toggle and diagnostics panel are hidden by default, even if this
 
 Development stores shared mileage in `.data/night-drive.sqlite`. Keep that file to preserve totals across server restarts. `SQLITE_PATH` can override the location. A guest's anonymous, HttpOnly cookie links this browser to its saved mileage; clearing cookies loses access to that guest profile. An account preserves access across browsers.
 
-Three.js and its model loaders are installed dependencies bundled by Next.js. Fonts and Clerk's browser SDK load from their CDNs. Only `public/` assets and Next's compiled client code are publicly served; environment files, server source, and the database stay private.
+Three.js and its model loaders are installed dependencies bundled by Next.js. Google fonts are self-hosted by `next/font`; Clerk's browser SDK loads from its CDN. Only `public/` assets and Next's compiled client code are publicly served; environment files, server source, and the database stay private.
 
 `app/layout.tsx` owns global styles and metadata; `app/page.tsx` renders the React interface in `components/night-line.tsx`. Client effects initialize the Three.js scene, audio, and room synchronization, with cleanup for listeners, polling, animation frames, WebGL resources, and audio on unmount or Fast Refresh. The shared logo and your About message live in `components/brand.tsx` and `components/about-panel.tsx`.
 
@@ -91,6 +91,12 @@ For self-hosting, run `pnpm build` and `pnpm start` with PostgreSQL or a durable
 Edit the card's JSX to change the background or layout. The logo and title come from `components/brand.tsx`, and the title uses `public/assets/night-line-wordmark.ttf`.
 
 ## Install on your phone
+
+Open the installed app once with internet and leave it open until **Settings and account → Ready for offline use** appears. It automatically downloads both mobile views, the 3D scenery, fonts and local music engine. You can then close and reopen it in airplane mode. Your view, scenery, train, seat, window, volume and timer preferences stay on the device. If a download is interrupted, it retries when connectivity returns; Settings also offers **Retry download**.
+
+Offline playback uses the original synthesized lo-fi mix and train/weather ambience. Live stations, current weather, sign-in and shared mileage/garden updates require internet; the app does not queue or claim server progress while disconnected. Account APIs, tokens and Anki data are never put in the offline cache. Clearing site data removes the offline copy and local preferences.
+
+`pnpm build` generates `public/sw.js` and a versioned offline HTML shell from the completed Next.js build, including lazy client chunks. These files are generated, not committed. Offline support runs only in production (`pnpm build` then `pnpm start`), over HTTPS or localhost. Navigations prefer the network so published changes stay visible; offline loads use a complete matching shell and assets. Worker updates install in the background and activate after existing app windows close, without interrupting music. Failed updates retain the previous offline copy.
 
 Night Rail installs as a home screen app and opens in its own window, without the browser's address bar. On iPhone and iPad, open it in Safari, tap **Share**, then **Add to Home Screen**. On Android, Chrome offers **Install app** in its menu, or shows an install banner. Installation needs HTTPS, which Vercel provides. `localhost` also works for testing on a desktop.
 

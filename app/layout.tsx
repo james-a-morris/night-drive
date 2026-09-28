@@ -1,5 +1,7 @@
 import type { ReactNode } from "react";
 import type { Metadata, Viewport } from "next";
+import { Noto_Sans_JP, Permanent_Marker } from "next/font/google";
+import localFont from "next/font/local";
 import { PAGE_BACKGROUND, SITE_DESCRIPTION } from "../components/brand.tsx";
 import "../src/style.css";
 import "../src/scenery-picker.css";
@@ -13,6 +15,10 @@ import "../src/anki.css";
 import "../src/city-weather.css";
 import "../src/train-picker.css";
 import "../src/listening.css";
+
+const manrope = localFont({ src: "../public/assets/manrope-variable.ttf", weight: "200 800", variable: "--font-manrope", display: "swap" });
+const japanese = Noto_Sans_JP({ weight: "400", variable: "--font-japanese", display: "swap", preload: false });
+const marker = Permanent_Marker({ weight: "400", subsets: ["latin"], variable: "--font-marker", display: "swap", preload: false });
 
 const title = "Night Rail: a little room for your thoughts";
 const deploymentHost =
@@ -68,7 +74,7 @@ export const viewport: Viewport = {
 
 export default function RootLayout({ children }: { children: ReactNode }) {
   return (
-    <html lang="en">
+    <html lang="en" className={`${manrope.variable} ${japanese.variable} ${marker.variable}`}>
       <body>{children}</body>
     </html>
   );

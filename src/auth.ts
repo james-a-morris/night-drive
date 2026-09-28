@@ -155,21 +155,30 @@ export function observeAuth(
   onChange: (signedIn: boolean) => void,
 ) {
   let lastUserId: string | null | undefined;
-  void scope
-    .task(async () => {
-      const client = await loadClerk();
-      scope.signal.throwIfAborted();
-      scope.defer(
-        client.addListener(({ user }) => {
-          const userId = user?.id || null;
-          if (userId !== lastUserId) {
-            lastUserId = userId;
-            onChange(Boolean(user));
-          }
-        }),
-      );
-    })
-    .catch(() => {});
+  let connected = false, connecting = false;
+  function connect() {
+    if (connected || connecting || globalThis.navigator?.onLine === false || scope.signal.aborted) return;
+    connecting = true;
+    void scope
+      .task(async () => {
+        const client = await loadClerk();
+        scope.signal.throwIfAborted();
+        connected = true;
+        scope.defer(
+          client.addListener(({ user }) => {
+            const userId = user?.id || null;
+            if (userId !== lastUserId) {
+              lastUserId = userId;
+              onChange(Boolean(user));
+            }
+          }),
+        );
+      })
+      .catch(() => {})
+      .finally(() => { connecting = false; });
+  }
+  connect();
+  scope.on(window, "online", connect);
   scope.defer(() => {
     clerk?.closeSignIn?.();
     clerk?.closeSignUp?.();
@@ -220,6 +229,7 @@ export const signOut = () => clerk!.signOut();
 // never mistaken for a new guest. A stalled Clerk load gives up after 5 seconds.
 let settled: Promise<void> | undefined;
 export function authSettled() {
+  if (globalThis.navigator?.onLine === false) return Promise.resolve();
   return (settled ||= new Promise<void>((resolve) => {
     const timer = setTimeout(resolve, 5000);
     void loadClerk()
@@ -240,6 +250,7 @@ export async function openAuth(
   signUp = false,
   { signal }: { signal?: AbortSignal } = {},
 ) {
+  if (globalThis.navigator?.onLine === false) throw new Error("Connect to the internet to sign in.");
   const client = await loadClerk();
   signal?.throwIfAborted();
   if (signUp) client.openSignUp();

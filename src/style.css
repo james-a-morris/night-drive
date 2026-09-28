@@ -1,8 +1,6 @@
-@import url('https://fonts.googleapis.com/css2?family=Manrope:wght@400;500&family=Noto+Sans+JP:wght@400&family=Permanent+Marker&display=swap');
-
 :root {
   /* Four shared sizes across the journey, menus, dialogs and account screens. */
-  --font-ui:Manrope,'Noto Sans JP',sans-serif;
+  --font-ui:var(--font-manrope,Manrope),var(--font-japanese,'Noto Sans JP'),sans-serif;
   --text-label:10px;
   --text-body:12px;
   --text-title:24px;

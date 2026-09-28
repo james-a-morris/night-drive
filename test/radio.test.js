@@ -118,6 +118,43 @@ function setup(t, { load = async () => stations } = {}) {
   return { radio, audio, local, clicks, changes };
 }
 
+test('an offline cold start plays local music immediately without discovering stations', async t => {
+  const previous = Object.getOwnPropertyDescriptor(navigator, 'onLine');
+  Object.defineProperty(navigator, 'onLine', { configurable: true, value: false });
+  t.after(() => { if (previous) Object.defineProperty(navigator, 'onLine', previous); else delete navigator.onLine; });
+  let discoveries = 0;
+  const { radio, audio, local } = setup(t, { load: async () => { discoveries++; return stations; } });
+  await radio.setEnabled(true);
+  assert.equal(discoveries, 0);
+  assert.equal(audio.plays.length, 0);
+  assert.equal(local.enabled, true);
+  assert.equal(radio.nowPlaying().state, 'fallback');
+  radio.nextStation();
+  assert.equal(discoveries, 0);
+  assert.equal(radio.nowPlaying().playing, true);
+});
+
+test('losing connectivity switches a live stream to local audio and cleans up on dispose', async t => {
+  const previous = globalThis.window;
+  globalThis.window = new EventTarget();
+  t.after(() => { if (previous) globalThis.window = previous; else delete globalThis.window; });
+  const { radio, audio, local } = setup(t);
+  await radio.loading;
+  await radio.setEnabled(true);
+  audio.emit('playing');
+  window.dispatchEvent(new Event('offline'));
+  assert.equal(audio.src, '');
+  assert.equal(local.enabled, true);
+  assert.equal(radio.nowPlaying().state, 'fallback');
+  await radio.setEnabled(false);
+  window.dispatchEvent(new Event('offline'));
+  assert.equal(local.enabled, false);
+  assert.equal(radio.nowPlaying().state, 'paused');
+  radio.dispose();
+  window.dispatchEvent(new Event('offline'));
+  assert.equal(radio.nowPlaying().playing, false);
+});
+
 test('the mixer scales streams and preserves independent channels through pause and fallback', async t => {
   const { radio, audio, local } = setup(t);
   await radio.loading;
