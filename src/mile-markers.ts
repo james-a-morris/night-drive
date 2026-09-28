@@ -1,4 +1,6 @@
 import * as THREE from "./three.ts";
+import { trackElevation } from "./route-elevation.ts";
+import type { SceneryMode } from "./environments.ts";
 import { roadFrame, roadPoint } from "./drive.ts";
 import { createMilestoneTracker, type Milestone } from "./milestones.ts";
 import type { DistanceUnit, Seat } from "./types.ts";
@@ -77,7 +79,7 @@ export function createMileMarkers(world: THREE.Group) {
   let activeJourney: string | null = null;
   let activeUnit: DistanceUnit = "mi";
   return {
-    update(progress: number, journey: string | null, miles: number, unit: DistanceUnit, seat: Seat) {
+    update(progress: number, journey: string | null, miles: number, unit: DistanceUnit, seat: Seat, mode: SceneryMode = "forest") {
       const milestone = tracker.update(journey, miles, unit);
       if (journey !== activeJourney || unit !== activeUnit) root.visible = false;
       activeJourney = journey;
@@ -96,7 +98,7 @@ export function createMileMarkers(world: THREE.Group) {
       // Stay on the rail shoulder, inside tunnels and clear of the carriages.
       const side = seat === "left" ? -1 : 1;
       const point = roadPoint(station, side * 4.5);
-      root.position.set(point.x, 0, point.z);
+      root.position.set(point.x, trackElevation(station, mode), point.z);
       root.rotation.y = roadFrame(station).heading - side * Math.PI / 5;
     },
   };

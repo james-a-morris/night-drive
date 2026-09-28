@@ -456,7 +456,7 @@ export function createLandmarks(world: THREE.Group, scope: Lifecycle) {
           continue;
         }
         const weights = environmentWeights(site.station, mode);
-        site.group.visible = weights.tunnel < 0.15 && weights.bridge < 0.15;
+        site.group.visible = weights.tunnel < 0.15 && weights.bridge < 0.15 && weights.underwater < 0.15;
         for (const item of site.items) {
           if (item.object.visible && item.object.parent?.visible)
             item.update?.(dt, elapsed, motion.matches);
@@ -471,7 +471,7 @@ export function createLandmarks(world: THREE.Group, scope: Lifecycle) {
       flock.rotation.y = elapsed * 0.045 + Math.PI / 2;
       const localWeights = environmentWeights(progress, mode);
       const coastal = localWeights.coast;
-      flock.visible = localWeights.tunnel < 0.15;
+      flock.visible = localWeights.tunnel < 0.15 && localWeights.underwater < 0.15;
       birdMaterial.color.setRGB(
         0.025 + coastal * 0.65,
         0.037 + coastal * 0.64,
@@ -481,7 +481,7 @@ export function createLandmarks(world: THREE.Group, scope: Lifecycle) {
       const trainFrame = roadFrame(progress);
       for (const { group, side } of flybys) {
         // Keep close passes out of the reduced-motion view.
-        group.visible = !motion.matches && localWeights.tunnel < 0.15;
+        group.visible = !motion.matches && localWeights.tunnel < 0.15 && localWeights.underwater < 0.15;
         if (!group.visible) continue;
         const flight = birdFlyby(elapsed, side);
         group.position.set(

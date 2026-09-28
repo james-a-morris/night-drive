@@ -1,1 +1,1 @@
-export { getCityWeather as GET } from "../../../server/city-weather.ts";
+export { handleCityWeather as GET } from "../../../server/city-weather.ts";

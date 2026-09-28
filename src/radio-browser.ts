@@ -1,3 +1,5 @@
+import { readBoundedJson } from "./bounded-json.ts";
+
 export interface Station {
   id: string;
   title: string;
@@ -9,6 +11,7 @@ const DISCOVERY = "https://all.api.radio-browser.info";
 const BOOTSTRAP = "https://de1.api.radio-browser.info";
 const SEARCH =
   "/json/stations/search?limit=10&tagList=lofi&hidebroken=true&order=clickcount&reverse=true";
+const MAX_DIRECTORY_BYTES = 512 * 1024;
 const MIME_TYPES: Record<string, string[]> = {
   MP3: ["audio/mpeg"],
   AAC: ["audio/aac", 'audio/mp4; codecs="mp4a.40.2"'],
@@ -17,6 +20,48 @@ const MIME_TYPES: Record<string, string[]> = {
   OPUS: ['audio/ogg; codecs="opus"'],
   FLAC: ["audio/flac"],
 };
+
+function displayText(value: unknown, fallback: string, max: number) {
+  const text = String(value ?? "")
+    .normalize("NFKC")
+    .replace(/[\p{Cc}\p{Cf}]/gu, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+    .slice(0, max);
+  return text || fallback;
+}
+
+function publicStreamHost(hostname: string) {
+  const host = hostname.toLowerCase();
+  if (
+    !host.includes(".") ||
+    host.startsWith("[") ||
+    [".localhost", ".local", ".internal", ".home", ".lan", ".test", ".invalid", ".example", ".onion"].some(
+      (suffix) => host === suffix.slice(1) || host.endsWith(suffix),
+    )
+  )
+    return false;
+  const octets = host.split(".").map(Number);
+  if (
+    octets.length === 4 &&
+    octets.every((octet) => Number.isInteger(octet) && octet >= 0 && octet <= 255)
+  ) {
+    const [a, b] = octets;
+    if (
+      a === 0 ||
+      a === 10 ||
+      a === 127 ||
+      (a === 100 && b >= 64 && b <= 127) ||
+      (a === 169 && b === 254) ||
+      (a === 172 && b >= 16 && b <= 31) ||
+      (a === 192 && b === 168) ||
+      (a === 198 && (b === 18 || b === 19)) ||
+      a >= 224
+    )
+      return false;
+  }
+  return true;
+}
 
 export function playableStations(
   rows: unknown[],
@@ -29,7 +74,7 @@ export function playableStations(
     if (!row || Number(row.lastcheckok) !== 1 || Number(row.hls) === 1)
       return [];
     if (
-      !String(row.tags)
+      !String(row.tags).slice(0, 2000)
         .toLowerCase()
         .split(",")
         .some((tag) => tag.trim() === "lofi")
@@ -43,9 +88,11 @@ export function playableStations(
       return [];
     const types = MIME_TYPES[String(row.codec).toUpperCase()];
     if (!types?.some((type) => canPlayType(type))) return [];
+    const source = String(row.url_resolved || row.url);
+    if (source.length > 2048) return [];
     let url;
     try {
-      url = new URL(String(row.url_resolved || row.url));
+      url = new URL(source);
     } catch {
       return [];
     }
@@ -56,6 +103,7 @@ export function playableStations(
       url.protocol !== "https:" ||
       url.username ||
       url.password ||
+      !publicStreamHost(url.hostname) ||
       /\.(m3u8?|pls|asx)$/i.test(url.pathname)
     )
       return [];
@@ -65,10 +113,15 @@ export function playableStations(
     return [
       {
         id: String(row.stationuuid),
-        title: String(row.name || "Lo-fi radio").trim(),
+        title: displayText(row.name, "Lo-fi radio", 120),
         url: url.href,
         subtitle:
-          [row.country, Number(row.bitrate) > 0 ? `${row.bitrate} kbps` : null]
+          [
+            displayText(row.country, "", 80) || null,
+            Number.isFinite(Number(row.bitrate)) && Number(row.bitrate) > 0 && Number(row.bitrate) <= 10000
+              ? `${Math.round(Number(row.bitrate))} kbps`
+              : null,
+          ]
             .filter(Boolean)
             .join(" · ") || "Lo-fi radio",
       },
@@ -89,9 +142,12 @@ export class RadioDirectory {
       signal: AbortSignal.timeout(5000),
       credentials: "omit",
       headers: { Accept: "application/json" },
+      cache: "no-store",
+      redirect: "error",
+      referrerPolicy: "no-referrer",
     });
     if (!response.ok) throw new Error("Radio directory unavailable");
-    return response.json();
+    return readBoundedJson(response, MAX_DIRECTORY_BYTES);
   }
 
   async load(canPlayType: CanPlayType): Promise<Station[]> {

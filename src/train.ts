@@ -4,6 +4,7 @@ import type { Lifecycle } from "./lifecycle.ts";
 import { mergeStaticMeshes } from "./static-meshes.ts";
 import { createSteamLocomotive } from "./steam-locomotive.ts";
 import { TRAIN_PALETTES, type TrainType } from "./train-types.ts";
+import type { SceneryMode } from "./environments.ts";
 import {
   trainFrames,
   CARRIAGE_LENGTH,
@@ -198,20 +199,23 @@ export function createTrain(scene: THREE.Group, scope: Lifecycle) {
       locomotive.group.visible = type === "steam";
       for (const group of metroDetails) group.visible = type === "metro";
     },
-    update(progress: number, dt = 0, reducedMotion = false) {
+    update(progress: number, dt = 0, reducedMotion = false, mode: SceneryMode = "forest") {
       locomotive.update(progress, dt, reducedMotion);
-      const frames = trainFrames(progress, cars.length);
+      const frames = trainFrames(progress, cars.length, mode);
       cars.forEach((car, index) => {
         const at = frames.cars[index];
-        car.position.set(at.x, 0, at.z);
-        car.rotation.y = at.heading;
+        car.position.set(at.x, at.y, at.z);
+        car.rotation.set(at.pitch, at.heading, 0, "YXZ");
         bogies[index][0].rotation.y = at.rearBogie.heading - at.heading;
         bogies[index][1].rotation.y = at.frontBogie.heading - at.heading;
+        bogies[index][0].rotation.x = at.rearBogie.pitch - at.pitch;
+        bogies[index][1].rotation.x = at.frontBogie.pitch - at.pitch;
 
         const previous = index ? frames.cars[index - 1] : frames.cabin;
         const { group, geometry, coupler } = gangways[index];
-        group.position.set(previous.front.x, 0, previous.front.z);
+        group.position.set(previous.front.x, previous.front.y, previous.front.z);
         const dx = at.rear.x - previous.front.x,
+          dy = at.rear.y - previous.front.y,
           dz = at.rear.z - previous.front.z;
         const positions = geometry.attributes.position;
         for (let ring = 0; ring < 9; ring++) {
@@ -219,22 +223,25 @@ export function createTrain(scene: THREE.Group, scope: Lifecycle) {
             halfWidth = ring % 2 ? 0.72 : 0.63;
           const heading =
             previous.heading + (at.heading - previous.heading) * t;
+          const pitch = previous.pitch + (at.pitch - previous.pitch) * t;
           for (let corner = 0; corner < 4; corner++) {
             const x = (corner === 0 || corner === 3 ? -1 : 1) * halfWidth;
+            const y = corner < 2 ? 1.01 : 3.13;
             positions.setXYZ(
               ring * 4 + corner,
-              dx * t + Math.cos(heading) * x,
-              corner < 2 ? 1.01 : 3.13,
-              dz * t - Math.sin(heading) * x,
+              dx * t + Math.cos(heading) * x + Math.sin(heading) * Math.sin(pitch) * y,
+              dy * t + Math.cos(pitch) * y,
+              dz * t - Math.sin(heading) * x + Math.cos(heading) * Math.sin(pitch) * y,
             );
           }
         }
         positions.needsUpdate = true;
         geometry.computeVertexNormals();
         geometry.computeBoundingSphere();
-        coupler.position.set(dx / 2, 0.92, dz / 2);
+        coupler.position.set(dx / 2, 0.92 + dy / 2, dz / 2);
         coupler.rotation.y = Math.atan2(dx, dz);
-        coupler.scale.z = Math.hypot(dx, dz);
+        coupler.rotation.x = -Math.atan2(dy, Math.hypot(dx, dz));
+        coupler.scale.z = Math.hypot(dx, dy, dz);
       });
       return frames.cabin;
     },

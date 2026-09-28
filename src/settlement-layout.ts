@@ -64,7 +64,7 @@ export function settlementLayout(cell: number, mode: SceneryMode) {
         const ground = buildingGround(kind, point.x, point.z, yaw, mode);
         const weights = environmentWeights(at, mode);
         const suitable = ground.high - ground.low <= MAX_BUILDING_RELIEF && ground.low >= -0.1 &&
-          weights.tunnel < 0.15 && weights.bridge < 0.15 &&
+          weights.tunnel < 0.15 && weights.bridge < 0.15 && weights.underwater < 0.15 &&
           !sites.some(site => site.suitable && Math.hypot(site.x - point.x, site.z - point.z) < 15);
         const candidate = { kind, station: at, ...point, yaw, side, ...ground, suitable };
         selected ??= candidate;

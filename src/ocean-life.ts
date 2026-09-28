@@ -6,10 +6,14 @@ import type { SceneryMode } from "./environments.ts";
 import { environmentWeights } from "./environments.ts";
 import { recycleStation } from "./recycle.ts";
 import { terrainSurfaceHeight, SEA_LEVEL } from "./terrain.ts";
+import { insideUnderwater, UNDERWATER_SLEEVE, UNDERWATER_VIEW_DISTANCE } from "./underwater-layout.ts";
+import { loopedSwimClip } from "./ocean-animation.ts";
+import { trackElevation } from "./route-elevation.ts";
 import {
   OCEAN_SPECIES,
   oceanHeight,
   oceanPose,
+  underwaterPose,
   type OceanSpecies,
   type SwimPath,
 } from "./ocean-motion.ts";
@@ -39,7 +43,7 @@ interface Swimmer {
   ripples: THREE.Mesh<THREE.RingGeometry, THREE.MeshBasicMaterial>[];
 }
 
-export function createOceanLife(parent: THREE.Group, scope: Lifecycle) {
+export function createOceanLife(parent: THREE.Group, scope: Lifecycle, habitat: "coast" | "underwater" = "coast") {
   const root = new THREE.Group();
   root.name = "ocean-life";
   parent.add(root);
@@ -52,7 +56,20 @@ export function createOceanLife(parent: THREE.Group, scope: Lifecycle) {
     station: number;
     offshore: number;
     species: OceanSpecies[];
-  }[] = [
+  }[] = habitat === "underwater" ? [
+    { station: 30, offshore: -12, species: ["tang", "fish", "clownfish", "tang", "fish"] },
+    { station: 105, offshore: 15, species: ["ray", "ray"] },
+    { station: 185, offshore: -23, species: ["dolphin", "dolphin"] },
+    { station: 260, offshore: 12, species: ["clownfish", "tang", "fish", "tang", "clownfish"] },
+    { station: 340, offshore: -16, species: ["ray"] },
+    { station: 420, offshore: 30, species: ["whale"] },
+    { station: 505, offshore: -12, species: ["fish", "tang", "clownfish", "fish", "tang"] },
+    { station: 585, offshore: 19, species: ["dolphin", "dolphin"] },
+    { station: 660, offshore: -14, species: ["ray", "ray"] },
+    { station: 740, offshore: 12, species: ["tang", "clownfish", "fish", "tang", "fish"] },
+    { station: 820, offshore: -32, species: ["whale"] },
+    { station: 900, offshore: 22, species: ["shark"] },
+  ] : [
     { station: 150, offshore: 23, species: ["dolphin", "dolphin", "dolphin"] },
     { station: 270, offshore: 56, species: ["whale"] },
     {
@@ -70,7 +87,7 @@ export function createOceanLife(parent: THREE.Group, scope: Lifecycle) {
       body.name = `ocean-${species}`;
       root.add(body);
       const ripples: Swimmer["ripples"] = [];
-      if (["dolphin", "whale", "shark"].includes(species)) {
+      if (habitat === "coast" && ["dolphin", "whale", "shark"].includes(species)) {
         for (let i = 0; i < 2; i++) {
           const ring = new THREE.Mesh(
             rippleGeometry,
@@ -99,6 +116,7 @@ export function createOceanLife(parent: THREE.Group, scope: Lifecycle) {
             member * (OCEAN_SPECIES[species].length < 1.2 ? 2 : 4.5),
           offshore:
             encounter.offshore +
+            (habitat === "underwater" ? Math.sign(encounter.offshore) : 1) *
             (member % 3) * (OCEAN_SPECIES[species].length < 1.2 ? 1.6 : 3),
           phase: index * 1.4 + member * 0.18,
         },
@@ -119,7 +137,7 @@ export function createOceanLife(parent: THREE.Group, scope: Lifecycle) {
       });
       const clip = asset.animations[0];
       if (clip) {
-        swimmer.action = mixer.clipAction(clip).play();
+        swimmer.action = mixer.clipAction(loopedSwimClip(clip)).play();
         swimmer.action.timeScale = OCEAN_SPECIES[swimmer.path.species].stroke;
       }
       mixer.update(0);
@@ -152,21 +170,26 @@ export function createOceanLife(parent: THREE.Group, scope: Lifecycle) {
       time: number,
       still: boolean,
     ) {
+      if (scope.signal.aborted) return;
       for (const swimmer of swimmers) {
         const path = swimmer.path;
         path.station = recycleStation(path.station, progress - 160, 960);
-        const pose = oceanPose(path, time, still);
+        const pose = habitat === "underwater" ? underwaterPose(path, time, still) : oceanPose(path, time, still);
+        const y = pose.y + (habitat === "underwater" ? trackElevation(pose.station, mode) : 0);
         // Both the actual coastline and rendered terrain must be water here.
         // This also suppresses animals in the mixed land/ocean transition.
         const visible =
-          Math.abs(pose.station - progress) < 360 &&
-          environmentWeights(-pose.z, mode).coast > 0.98 &&
-          terrainSurfaceHeight(pose.x, pose.z, mode) < SEA_LEVEL - 3;
+          Math.abs(pose.station - progress) < (habitat === "underwater" ? UNDERWATER_VIEW_DISTANCE : 360) &&
+          (habitat === "underwater"
+            ? insideUnderwater(pose.station, mode, UNDERWATER_SLEEVE + OCEAN_SPECIES[path.species].length) &&
+              terrainSurfaceHeight(pose.x, pose.z, mode) < y - 2
+            : environmentWeights(-pose.z, mode).coast > 0.98 &&
+              terrainSurfaceHeight(pose.x, pose.z, mode) < SEA_LEVEL - 3);
         swimmer.body.visible = visible;
         for (const ring of swimmer.ripples) ring.visible = visible;
         if (!visible) continue;
         if (!swimmer.loaded) populate(swimmer);
-        swimmer.body.position.set(pose.x, pose.y, pose.z);
+        swimmer.body.position.set(pose.x, y, pose.z);
         swimmer.body.rotation.set(pose.pitch, pose.heading, pose.roll, "YXZ");
         if (!still) {
           if (swimmer.action) swimmer.action.timeScale = pose.stroke;

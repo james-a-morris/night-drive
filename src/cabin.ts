@@ -648,8 +648,10 @@ export function createCabinView({
   const motion = reducedMotion();
   scope.on(window, "pointermove", (event) => {
     if (event.pointerType !== "mouse" || motion.matches) return;
-    pointer.x = (event.clientX / innerWidth) * 2 - 1;
-    pointer.y = (event.clientY / innerHeight) * 2 - 1;
+    const bounds = canvas.getBoundingClientRect();
+    if (!bounds.width || !bounds.height) return;
+    pointer.x = ((event.clientX - bounds.left) / bounds.width) * 2 - 1;
+    pointer.y = ((event.clientY - bounds.top) / bounds.height) * 2 - 1;
   });
   scope.on(document, "pointerleave", () => {
     pointer.x = pointer.y = 0;
@@ -658,7 +660,7 @@ export function createCabinView({
     update(dt: number, weather: EnvironmentWeights, forest?: EnvironmentSource) {
       const { seat, seatDirection, windowOpen, gardenView } = getSettings();
       const side = seat === "left" ? 1 : -1;
-      const portrait = innerWidth / innerHeight < 0.85;
+      const portrait = camera.aspect < 0.85;
       gaze.x += (pointer.x - gaze.x) * (1 - Math.exp(-dt * 2));
       gaze.y += (pointer.y - gaze.y) * (1 - Math.exp(-dt * 2));
       look.yaw += ((gardenView ? -side * 0.98 : drag.yaw) - look.yaw) * (motion.matches ? 1 : 1 - Math.exp(-dt * 3));

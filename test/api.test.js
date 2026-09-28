@@ -6,6 +6,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { createStore } from '../server/store.ts';
 import { createApi, ApiError, mileageCredit, addressBucket } from '../server/api.ts';
+import { clientAddress } from '../server/traffic.ts';
 import { moderateIntention, ModerationUnavailable } from '../server/moderation.ts';
 
 async function setup(t, options = {}) {
@@ -381,9 +382,31 @@ test('reads share the per-rider request limit', async t => {
   assert.equal((await guest.request({ action: 'start' })).status, 429);
 });
 
+test('rotating guest cookies cannot multiply the address-wide request budget', async t => {
+  const { visitor } = await setup(t);
+  const guests = [visitor(), visitor(), visitor()];
+  for (const guest of guests) assert.equal((await guest.request()).status, 200);
+  let accepted = 0, limited = 0;
+  for (let round = 0; round < 100; round++) {
+    for (const guest of guests) {
+      const response = await guest.request();
+      if (response.status === 200) accepted++;
+      else {
+        assert.equal(response.status, 429);
+        limited++;
+      }
+    }
+  }
+  assert.equal(accepted, 297);
+  assert.equal(limited, 3);
+});
+
 function withEnv(t, values) {
   const previous = Object.fromEntries(Object.keys(values).map(name => [name, process.env[name]]));
-  Object.assign(process.env, values);
+  for (const [name, value] of Object.entries(values)) {
+    if (value === undefined) delete process.env[name];
+    else process.env[name] = value;
+  }
   t.after(() => {
     for (const [name, value] of Object.entries(previous)) {
       if (value === undefined) delete process.env[name];
@@ -391,6 +414,15 @@ function withEnv(t, values) {
     }
   });
 }
+
+test('Vercel rate limits use the platform-owned forwarding header', t => {
+  withEnv(t, { VERCEL: '1', CLIENT_IP_HEADER: undefined });
+  const request = new Request('https://night-line.test/api/room', { headers: {
+    'X-Forwarded-For': '198.51.100.9',
+    'X-Vercel-Forwarded-For': '203.0.113.7',
+  } });
+  assert.equal(clientAddress(request), '203.0.113.7');
+});
 
 test('self-hosted deployments rate-limit visitors by the header their proxy sets', async t => {
   withEnv(t, { CLIENT_IP_HEADER: 'x-real-ip' });
@@ -414,7 +446,7 @@ test('rate-limit rows hold no recoverable addresses and expire after an hour', a
   await visitor().request(null, from);
   const remaining = (await store.query('SELECT key FROM request_limits')).map(row => row.key);
   assert.equal(remaining.includes(`requests:${first.id}`), false);
-  assert.equal(remaining.length, 2);
+  assert.equal(remaining.length, 3);
 });
 
 test('rate limits group IPv6 visitors by /64 and keep IPv4 addresses whole', () => {
@@ -422,6 +454,9 @@ test('rate limits group IPv6 visitors by /64 and keep IPv4 addresses whole', () 
   assert.notEqual(addressBucket('2001:db8:85a3::1'), addressBucket('2001:db8:85a4::1'));
   assert.equal(addressBucket('203.0.113.7'), '203.0.113.7');
   assert.equal(addressBucket('::ffff:203.0.113.7'), '203.0.113.7');
+  assert.equal(addressBucket('203.0.113.7:443'), '203.0.113.7');
+  assert.equal(addressBucket('[2001:db8:85a3::1]:443'), '2001:db8:85a3:0::/64');
+  assert.equal(addressBucket('not-an-address'), 'unknown');
 });
 
 test('SQLite retains total mileage when the server storage is reopened', async () => {
@@ -483,6 +518,7 @@ test('Jev is a fixed server decision, with strict response validation and no fai
   const provider = probability => async (url, options) => {
     assert.equal(url, 'https://openrouter.ai/api/alpha/decisions');
     assert.equal(options.headers.Authorization, 'Bearer private-test-key');
+    assert.equal(options.redirect, 'error');
     const body = JSON.parse(options.body);
     assert.equal(body.model, 'typesafe/jev-1.13');
     assert.equal(Object.keys(body.questions).length, 1);
@@ -493,6 +529,8 @@ test('Jev is a fixed server decision, with strict response validation and no fai
   for (const value of [undefined, 'true', -1, 2, NaN]) await assert.rejects(moderateIntention(fields, { apiKey: 'private-test-key', fetchImpl: provider(value) }), ModerationUnavailable);
   await assert.rejects(moderateIntention(fields, { apiKey: '' }), ModerationUnavailable);
   await assert.rejects(moderateIntention(fields, { apiKey: 'private-test-key', fetchImpl: async () => ({ ok: false, status: 429 }) }), ModerationUnavailable);
+  await assert.rejects(moderateIntention(fields, { apiKey: 'private-test-key', fetchImpl: async () =>
+    new Response('{"answers":{}}', { headers: { 'Content-Length': '70000' } }) }), ModerationUnavailable);
   assert.equal(mileageCredit(100, 100, 10000), 0);
   assert.equal(mileageCredit(100, 0, 0), 0);
 });

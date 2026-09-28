@@ -10,14 +10,28 @@ export function publicConfig() {
 }
 
 export function requestOrigin(request: Request) {
-  if (process.env.APP_ORIGIN) return new URL(process.env.APP_ORIGIN).origin;
+  if (process.env.APP_ORIGIN) {
+    const configured = new URL(process.env.APP_ORIGIN);
+    if (!["http:", "https:"].includes(configured.protocol))
+      throw new Error("APP_ORIGIN must use HTTP or HTTPS.");
+    return configured.origin;
+  }
   const url = new URL(request.url);
-  const host = request.headers.get("x-forwarded-host")?.split(",")[0].trim();
-  const protocol = request.headers
-    .get("x-forwarded-proto")
-    ?.split(",")[0]
-    .trim();
-  return `${protocol === "https" || protocol === "http" ? protocol + ":" : url.protocol}//${host || url.host}`;
+  // Vercel overwrites these forwarding headers. A general self-hosted server
+  // must not trust client-supplied copies; configure APP_ORIGIN there instead.
+  if (process.env.VERCEL) {
+    const host = request.headers
+      .get("x-forwarded-host")
+      ?.split(",", 1)[0]
+      .trim();
+    const protocol = request.headers
+      .get("x-forwarded-proto")
+      ?.split(",", 1)[0]
+      .trim();
+    if (host && (protocol === "https" || protocol === "http"))
+      return new URL(`${protocol}://${host}`).origin;
+  }
+  return url.origin;
 }
 
 let client: ReturnType<typeof createClerkClient> | undefined;

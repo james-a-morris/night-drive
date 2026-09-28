@@ -28,7 +28,6 @@ export const metadata: Metadata = {
   ),
   title,
   description,
-  icons: { icon: "/icon.svg" },
   openGraph: {
     type: "website",
     siteName: "Night Rail",

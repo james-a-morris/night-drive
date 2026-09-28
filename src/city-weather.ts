@@ -27,9 +27,11 @@ export function isTimezone(value: unknown): value is string {
 export function isCity(value: unknown): value is City {
   if (!value || typeof value !== "object") return false;
   const city = value as City;
-  return Number.isInteger(city.id) && Number.isFinite(city.population) && city.population >= 0 &&
-    typeof city.capital === "boolean" && (city.population >= 100_000 || city.capital) && typeof city.name === "string" && city.name.length > 0 &&
-    typeof city.region === "string" && typeof city.country === "string" &&
+  return Number.isSafeInteger(city.id) && Number.isFinite(city.population) && city.population >= 0 &&
+    typeof city.capital === "boolean" && (city.population >= 100_000 || city.capital) &&
+    typeof city.name === "string" && city.name.length > 0 && city.name.length <= 200 &&
+    typeof city.region === "string" && city.region.length <= 200 &&
+    typeof city.country === "string" && city.country.length <= 200 &&
     Number.isFinite(city.latitude) && Math.abs(city.latitude) <= 90 &&
     Number.isFinite(city.longitude) && Math.abs(city.longitude) <= 180 && isTimezone(city.timezone);
 }
@@ -53,18 +55,25 @@ const CONDITIONS: Record<number, string> = {
 };
 export const weatherDescription = (code: number | null) => code === null ? "Conditions unavailable" : CONDITIONS[code] ?? "Conditions unavailable";
 
-const numeric = (value: unknown): number | null => typeof value === "number" && Number.isFinite(value) ? value : null;
+const numeric = (value: unknown, min = -Infinity, max = Infinity): number | null =>
+  typeof value === "number" && Number.isFinite(value) && value >= min && value <= max ? value : null;
 // Treat missing readings as unavailable, never as zero degrees or clear skies.
 export function parseWeather(value: unknown): CityWeather {
   const data = value as { current?: Record<string, unknown> } | null;
   const current = data?.current;
-  if (!current || numeric(current.time) === null) throw new Error("Invalid weather response");
+  if (!current) throw new Error("Invalid weather response");
+  const time = numeric(current.time, 0, 10_000_000_000);
+  if (time === null) throw new Error("Invalid weather response");
   return {
     current: {
-      time: Number(current.time) * 1000,
-      temperature: numeric(current.temperature_2m), code: numeric(current.weather_code),
-      precipitation: numeric(current.precipitation), feelsLike: numeric(current.apparent_temperature),
-      wind: numeric(current.wind_speed_10m), cloudCover: numeric(current.cloud_cover), isDay: current.is_day === 1 ? true : current.is_day === 0 ? false : null,
+      time: time * 1000,
+      temperature: numeric(current.temperature_2m, -150, 100),
+      code: numeric(current.weather_code, 0, 999),
+      precipitation: numeric(current.precipitation, 0, 10000),
+      feelsLike: numeric(current.apparent_temperature, -200, 150),
+      wind: numeric(current.wind_speed_10m, 0, 1000),
+      cloudCover: numeric(current.cloud_cover, 0, 100),
+      isDay: current.is_day === 1 ? true : current.is_day === 0 ? false : null,
     },
   };
 }

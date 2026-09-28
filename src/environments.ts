@@ -2,6 +2,7 @@ export type EnvironmentName =
   | "forest"
   | "alpine"
   | "desert"
+  | "underwater"
   | "coast"
   | "pnw"
   | "tunnel"
@@ -111,6 +112,28 @@ export const ENVIRONMENTS: Record<EnvironmentName, Environment> = {
     fog: 0x765b57,
     light: 0xf1c49b,
     fogDensity: 0.007,
+  },
+  underwater: {
+    name: "UNDERWATER PASSAGE",
+    weather: "GLASS TUNNEL · BENEATH THE WAVES",
+    precipitation: "none",
+    ground: 0x688e87,
+    pine: 0x367c6e,
+    rock: 0x467a79,
+    sky: 0x125b68,
+    horizon: 0x125b68,
+    fog: 0x125b68,
+    light: 0x9eddd6,
+    fogDensity: 0.014,
+    particles: { rain: 0, snow: 0, dust: 0 },
+    starOpacity: 0,
+    windowRain: 0,
+    audio: { weatherGain: 0.016, filterHz: 180, surfGain: 0 },
+    wildlife: "forest",
+    snowRoof: false,
+    windmill: false,
+    pond: { water: 0x267d87, shore: 0x688e87 },
+    vegetation: { pine: false, cactus: false },
   },
   coast: {
     particles: { rain: 0, snow: 0, dust: 0 },
@@ -269,6 +292,7 @@ export function environmentWeights(
     forest: 0,
     alpine: 0,
     desert: 0,
+    underwater: 0,
     coast: 0,
     pnw: 0,
     tunnel: 0,

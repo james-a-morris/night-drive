@@ -159,6 +159,21 @@ const artwork = {
       <path d="M0 46q14-8 30 2H0Z" fill="#557956" />
     </>
   ),
+  underwater: (
+    <>
+      <rect width={64} height={48} fill="#0b455b" />
+      <path d="m6 0 12 0 14 40H12ZM37 0h7l18 42H43Z" fill="#65c9c5" opacity=".12" />
+      <path d="M0 40Q17 32 34 41T64 36V48H0Z" fill="#4c817c" />
+      <path d="M12 48V32a20 20 0 0 1 40 0v16" fill="#9ad8d1" fillOpacity=".1" stroke="#8bbdb8" strokeWidth="2" />
+      <path d="M20 48V32a12 12 0 0 1 24 0v16m-18 0 4-17m8 17-4-17" fill="none" stroke="#74a9a6" strokeWidth="1.2" />
+      <path d="M5 44q-4-9 1-15m0 9 4-6m48 11q5-9 0-18" fill="none" stroke="#56a792" strokeWidth="2" strokeLinecap="round" />
+      <g className="scenery-wind" fill="#efc994">
+        <path d="M9 15q5-5 9 0-4 5-9 0l-4 3v-6ZM46 23q4-4 8 0-4 4-8 0l-3 2v-4Z" />
+      </g>
+      <path d="m38 9 8-5 5 5-5-1-2 3-1-3Z" fill="#a4d4d5" />
+      <g fill="#b0e2db" opacity=".5"><circle cx="23" cy="9" r=".8" /><circle cx="56" cy="14" r=".7" /><circle cx="8" cy="24" r=".6" /></g>
+    </>
+  ),
   coast: (
     <>
       <rect width={64} height={48} fill="#ceafa0" />

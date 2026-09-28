@@ -29,12 +29,16 @@ import { recycleStation } from "./recycle.ts";
 import { createLandmarks } from "./landmarks.ts";
 import { createRailStructures } from "./rail-structures.ts";
 import { createCoast } from "./coast.ts";
+import { createUnderwater } from "./underwater.ts";
+import { insideUnderwater, UNDERWATER_SLEEVE, UNDERWATER_VIEW_DISTANCE } from "./underwater-layout.ts";
+import { trackElevation, trackGrade } from "./route-elevation.ts";
 import { createPacificNorthwest } from "./pnw.ts";
 import { createPnwMountains } from "./pnw-mountains.ts";
 import { PNW_RIVER_LEVEL } from "./pnw-river-layout.ts";
 import { createStylizedNature } from "./stylized-nature.ts";
 import { createSettlements } from "./settlements.ts";
 import { createStations } from "./stations.ts";
+import { reducedMotion } from "./motion.ts";
 import { stationClearing } from "./station-route.ts";
 import { natureClearing } from "./nature-layout.ts";
 import { createFirFairyLights } from "./fir-fairy-lights.ts";
@@ -162,7 +166,7 @@ function updateStrip(
       positions.setXYZ(
         row * 2 + side,
         point.x - origin.x,
-        height,
+        height + trackElevation(station, mode),
         point.z + start,
       );
       if (colors) colors.setXYZ(row * 2 + side, color.r, color.g, color.b);
@@ -254,7 +258,7 @@ function updateTerrain(
       if (side < 0)
         ground.lerp(
           sand,
-          weights.coast *
+          (weights.coast + weights.desert) *
             (1 - smoothstep(0.5, 3.5, Math.abs(point.y - SEA_LEVEL))),
         );
       const strata =
@@ -368,6 +372,7 @@ export function createScenery(scene: THREE.Scene, scope: Lifecycle) {
   const tumbleweeds = createTumbleweeds(world, scope);
   const settlements = createSettlements(world);
   const stations = createStations(world, scope);
+  const stationMotion = reducedMotion();
   const roadMaterial = new THREE.MeshStandardMaterial({
     color: 0x77796c,
     roughness: 1,
@@ -480,8 +485,10 @@ export function createScenery(scene: THREE.Scene, scope: Lifecycle) {
     const sectionOrigin = roadFrame(start);
     for (let i = 0; i < segment.sleepers.count; i++) {
       const at = roadFrame(start + i * 0.8);
-      sleeper.position.set(at.x - sectionOrigin.x, 0.115, at.z + start);
+      sleeper.position.set(at.x - sectionOrigin.x, 0.115 + trackElevation(start + i * .8, mode), at.z + start);
       sleeper.rotation.y = at.heading;
+      sleeper.rotation.x = Math.atan2(trackGrade(start + i * .8, mode), at.length);
+      sleeper.rotation.order = "YXZ";
       sleeper.updateMatrix();
       segment.sleepers.setMatrixAt(i, sleeper.matrix);
     }
@@ -515,11 +522,13 @@ export function createScenery(scene: THREE.Scene, scope: Lifecycle) {
       )
         item.object.visible = false;
       const localWeights = environmentWeights(start + item.offset, mode);
+      if (localWeights.desert > .15 && item.object.position.y < SEA_LEVEL + 1)
+        item.object.visible = false;
       if (item.object.userData.pnwOnly && localWeights.pnw < .5)
         item.object.visible = false;
       if (localWeights.pnw > .5 && item.object.position.y < PNW_RIVER_LEVEL + 1)
         item.object.visible = false;
-      if (localWeights.tunnel > 0.15 || localWeights.bridge > 0.15)
+      if (localWeights.tunnel > 0.15 || localWeights.bridge > 0.15 || localWeights.underwater > 0.15)
         item.object.visible = false;
       const localForest = localWeights.forest;
       if (stationClearing(start + item.offset, item.lateral, mode)) item.object.visible = false;
@@ -823,6 +832,7 @@ export function createScenery(scene: THREE.Scene, scope: Lifecycle) {
   const weather = createWeather(scene);
   const landmarks = createLandmarks(world, scope);
   const coast = createCoast(world, scope);
+  const underwater = createUnderwater(world, scope);
   const pnw = createPacificNorthwest(world, scope);
   const structures = createRailStructures(world);
   const lighting = createTunnelLighting();
@@ -843,7 +853,7 @@ export function createScenery(scene: THREE.Scene, scope: Lifecycle) {
     nature.update(progress, dt, mode);
     tumbleweeds.update(progress, dt, mode);
     settlements.update(progress, mode, modeChanged, dt);
-    stations.update(progress, mode, cityTimezone);
+    stations.update(progress, mode, cityTimezone, dt, stationMotion.matches);
     landmarks.update(progress, dt, mode, modeChanged);
     let decorationsChanged = false;
     for (const segment of segments) {
@@ -859,12 +869,17 @@ export function createScenery(scene: THREE.Scene, scope: Lifecycle) {
       }
     }
     if (decorationsChanged) refreshDecorations();
+    const reefEnclosed = insideUnderwater(progress, mode, UNDERWATER_SLEEVE);
+    surfaces.setVisibility(origin => !reefEnclosed || Math.abs(-origin.position.z - progress) < UNDERWATER_VIEW_DISTANCE + SEGMENT_LENGTH);
+    for (const segment of segments)
+      segment.group.visible = !reefEnclosed || Math.abs(segment.start - progress) < UNDERWATER_VIEW_DISTANCE + SEGMENT_LENGTH;
     previousMode = mode;
     const target = environmentWeights(progress, mode);
     const ease = 1 - Math.exp(-dt * 1.5);
     for (const name of environmentNames)
       weights[name] += (target[name] - weights[name]) * ease;
     coast.update(progress, dt, mode, weights, modeChanged);
+    underwater.update(progress, dt, mode);
     pnw.update(progress, dt, mode, weights);
     blendColor(horizonMaterial.color, weights, "ground");
     return weights;
@@ -877,7 +892,7 @@ export function createScenery(scene: THREE.Scene, scope: Lifecycle) {
     mode: SceneryMode,
     forest: EnvironmentSource = ENVIRONMENTS.forest,
   ) {
-    const { weights, enclosure } = lighting.update(progress, eye.x, eye.z, dt, mode);
+    const { weights, enclosure, submersion } = lighting.update(progress, eye.x, eye.z, dt, mode);
     blendColor(skyMaterial.uniforms.top.value, weights, "sky", forest);
     blendColor(skyMaterial.uniforms.horizon.value, weights, "horizon", forest);
     blendColor(scene.fog!.color, weights, "fog", forest).lerp(
@@ -909,12 +924,16 @@ export function createScenery(scene: THREE.Scene, scope: Lifecycle) {
     const daylight = citySynced ? forest.forest.daylight ?? 0 : 0;
     const cloudCover = citySynced ? forest.forest.cloudCover ?? 0 : 0;
     const sunBlend = citySynced ? daylight : weights.coast + weights.pnw;
-    sky.update(cloudCover, blendEnvironment(weights, environment => environment.haze ?? 0, forest), dt, citySynced);
+    // Water and distant reef use Three's unlit fog color. The submerged sky
+    // must bypass exposure as well, otherwise the ceiling edge stays visible.
+    sky.update(cloudCover * (1 - submersion), blendEnvironment(weights, environment => environment.haze ?? 0, forest), dt, citySynced || submersion > .5);
     const illumination = atmosphereLighting(citySynced ? daylight : undefined, cloudCover);
     hemisphere.intensity = (illumination.ambient + (1.6 - illumination.ambient) * weights.tunnel) * (1 - enclosure * 0.84);
     moonlight.intensity = illumination.directional * (1 - enclosure);
-    moon.visible = enclosure < 0.05 && cloudCover < .7;
-    starMaterial.opacity *= 1 - enclosure;
+    hemisphere.intensity += (2 - hemisphere.intensity) * submersion;
+    moonlight.intensity += (1.25 - moonlight.intensity) * submersion;
+    moon.visible = enclosure < 0.05 && submersion < .05 && cloudCover < .7;
+    starMaterial.opacity *= (1 - enclosure) * (1 - submersion);
     moon.position.lerpVectors(moonPosition, citySynced ? daytimeSunPosition : coastSunPosition, sunBlend);
     moon.scale.setScalar(1 + sunBlend * 0.45);
     moonMaterial.color.copy(nightMoonColor).lerp(citySynced ? daytimeSunColor : coastSunColor, sunBlend);
@@ -939,6 +958,7 @@ export function createScenery(scene: THREE.Scene, scope: Lifecycle) {
     weather,
     landmarks,
     coast,
+    underwater,
     pnw,
     nature,
     settlements,

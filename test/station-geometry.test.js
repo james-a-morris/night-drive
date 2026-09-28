@@ -69,34 +69,66 @@ test("built stations retain their solid canopy, mesh budget and resource cleanup
   const scope = createLifecycle();
   try {
     const stations = createStations(new Group(), scope);
-    let released = 0;
-    for (const [index, mode] of [[0, "desert"], [1, "forest"], [1, "alpine"], [0, "coast"], [1, "coast"]]) {
+    const allocated = new Set(), released = new Set();
+    for (const [index, mode] of [[0, "desert"], [1, "forest"], [1, "alpine"], [0, "coast"], [1, "coast"], [0, "pnw"], [1, "pnw"], [1, "desert"], [0, "forest"]]) {
       const stop = stationAt(index);
       stations.update(stop.at, mode);
-      assert.equal(stations.root.children.length, 10);
+      assert.equal(stations.root.children.length, mode === "desert" ? 12 : 10);
       const solid = stations.root.getObjectByName("station-platforms-and-shelters");
-      solid.geometry.addEventListener("dispose", () => released++);
+      for (const mesh of stations.root.children) {
+        for (const resource of [mesh.geometry, mesh.material, mesh.material.map].filter(Boolean)) {
+          if (allocated.has(resource)) continue;
+          allocated.add(resource);
+          resource.addEventListener("dispose", () => {
+            assert.ok(!released.has(resource), "shared station resources are disposed only once");
+            released.add(resource);
+          });
+        }
+      }
       stations.root.updateMatrixWorld(true);
       for (const side of [-1, 1]) {
         const { x, z } = roadPoint(stop.at - 6, side * 5.7);
         const above = new Raycaster(new Vector3(x, 5, z), new Vector3(0, -1, 0)).intersectObject(solid)[0];
         const below = new Raycaster(new Vector3(x, 3.5, z), new Vector3(0, 1, 0)).intersectObject(solid)[0];
         assert.ok(above && below);
-        assert.ok(Math.abs(above.point.y - below.point.y - .18) < .002, "roof has a separate underside");
+        const thickness = above.point.y - below.point.y;
+        if (mode === "alpine") assert.ok(thickness > .4, "settled snow adds depth above the solid roof");
+        else if (mode === "pnw") assert.ok(thickness >= .178, "timber roof keeps a solid underside below its battens");
+        else assert.ok(Math.abs(thickness - .18) < .002, "roof has a separate underside");
       }
-      if (mode === "coast") {
-        const { x, z } = roadPoint(stop.at - 29, -6);
+      if (mode === "coast" || mode === "pnw") {
+        const { x, z } = roadPoint(stop.at - 29, mode === "coast" ? -6 : 6);
         const deck = new Raycaster(new Vector3(x, 2, z), new Vector3(0, -1, 0)).intersectObject(solid)[0];
         assert.ok(deck && Math.abs(deck.point.y - .8) < .002, "the approach retains its boarding deck");
         const underDeck = new Raycaster(new Vector3(x, .3, z), new Vector3(0, -1, 0)).intersectObject(solid);
         assert.equal(underDeck.length, 0, "the coastal slope is not filled with a solid foundation wall");
+      }
+      if (mode === "alpine") {
+        for (const side of [-1, 1]) {
+          const point = roadPoint(stop.at + 52, side * 15.95);
+          const bank = new Raycaster(new Vector3(point.x, 3, point.z), new Vector3(0, -1, 0)).intersectObject(solid)[0];
+          assert.ok(bank && bank.point.y > 1, "snow settles along the exposed outer platform edge");
+          const path = roadPoint(stop.at + .5, side * 6.4);
+          const floor = new Raycaster(new Vector3(path.x, 1.5, path.z), new Vector3(0, -1, 0)).intersectObject(solid)[0];
+          assert.ok(floor && Math.abs(floor.point.y - .8) < .002, "the sheltered walking path stays clear");
+        }
+      }
+      const rotors = stations.root.children.filter(mesh => mesh.name === "station-windmill-rotor");
+      assert.equal(rotors.length, mode === "desert" ? 2 : 0);
+      for (const rotor of rotors) {
+        const before = rotor.rotation.z;
+        stations.update(stop.at, mode, undefined, .1, false);
+        assert.ok(rotor.rotation.z > before, "desert wheels turn while the train is stopped");
+        const after = rotor.rotation.z;
+        stations.update(stop.at, mode, undefined, .1, true);
+        assert.equal(rotor.rotation.z, after, "reduced motion freezes the wheel");
       }
       for (const child of stations.root.children) {
         for (const attribute of Object.values(child.geometry.attributes)) assert.ok(attribute.array.every(Number.isFinite));
       }
     }
     scope.dispose();
-    assert.equal(released, 5);
+    assert.equal(released.size, allocated.size);
     assert.equal(stations.root.children.length, 0);
   } finally {
     scope.dispose();
