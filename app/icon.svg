@@ -1,7 +1,41 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 40" fill="none">
-  <rect width="32" height="40" rx="8" fill="#21352f"/>
-  <path d="M5 34V15a11 11 0 0 1 22 0v19a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2Z" stroke="#e6d8bc" stroke-width="1.1"/>
-  <path d="M20 9a5 5 0 1 0 3 8 5 5 0 0 1-3-8Z" fill="#e6d8bc"/>
-  <path d="M11 35c0-8 10-6 10-12M16 35c0-7 7-7 5-12" stroke="#e6d8bc" stroke-width=".8"/>
-  <circle cx="11" cy="21" r=".7" fill="#e6d8bc"/>
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512" fill="none">
+  <!-- Shared artwork for the favicon and generated iOS / PWA icons. Platforms apply their own corner masks. -->
+  <defs>
+    <radialGradient id="forest" cx=".3" cy=".12" r="1.05">
+      <stop stop-color="#39584a"/>
+      <stop offset=".55" stop-color="#213c32"/>
+      <stop offset="1" stop-color="#122b24"/>
+    </radialGradient>
+    <linearGradient id="night" x1="256" y1="90" x2="256" y2="430" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#142c25"/>
+      <stop offset="1" stop-color="#2b483b"/>
+    </linearGradient>
+    <linearGradient id="ivory" x1="174" y1="94" x2="340" y2="434" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#fbefd2"/>
+      <stop offset=".55" stop-color="#e9d7af"/>
+      <stop offset="1" stop-color="#cbb586"/>
+    </linearGradient>
+    <linearGradient id="rails" x1="280" y1="276" x2="235" y2="426" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#c7b688"/>
+      <stop offset="1" stop-color="#f3e4c0"/>
+    </linearGradient>
+  </defs>
+  <path fill="url(#forest)" d="M0 0h512v512H0z"/>
+  <g transform="translate(12.8 12.8) scale(.95)">
+  <path d="M148 434a20 20 0 0 1-20-20V216a128 128 0 0 1 256 0v198a20 20 0 0 1-20 20Z" stroke="#10251e" stroke-opacity=".3" stroke-width="16"/>
+  <path d="M148 430a20 20 0 0 1-20-20V214a128 128 0 0 1 256 0v196a20 20 0 0 1-20 20Z" fill="url(#night)"/>
+  <path d="M300 145a48 48 0 1 0 29 77 48 48 0 0 1-29-77Z" fill="#f7e8c5"/>
+  <path d="M193 238c2 11 6 15 17 17-11 2-15 6-17 17-2-11-6-15-17-17 11-2 15-6 17-17Z" fill="#e7d5ad"/>
+  <circle cx="218" cy="179" r="4" fill="#dfcea5"/>
+  <g stroke="#dfcda5" stroke-linecap="round" stroke-width="5">
+    <path d="m251 344 42 9"/>
+    <path d="m225 373 48 9"/>
+    <path d="m209 406 62 3"/>
+  </g>
+  <g fill="url(#rails)">
+    <path d="M196 426c1-61 41-80 73-107 19-16 27-28 26-45 7 18-2 35-19 52-30 28-59 51-60 100Z"/>
+    <path d="M259 426c-3-36 10-59 24-81 19-30 23-50 12-71 20 24 16 47 3 76-12 27-21 49-17 76Z"/>
+  </g>
+  <path d="M148 430a20 20 0 0 1-20-20V214a128 128 0 0 1 256 0v196a20 20 0 0 1-20 20Z" stroke="url(#ivory)" stroke-width="11"/>
+  </g>
 </svg>

@@ -15,7 +15,7 @@ export default function manifest(): MetadataRoute.Manifest {
     background_color: PAGE_BACKGROUND,
     theme_color: PAGE_BACKGROUND,
     lang: "en",
-    // The square PNGs rather than the tall favicon SVG, which launchers would letterbox.
+    // Share the favicon artwork as square PNGs, including for masked launchers.
     icons: APP_ICON_SIZES.flatMap((size) => (["any", "maskable"] as const).map((purpose) => ({
       src: `/app-icon/${size}`,
       sizes: `${size}x${size}`,
