@@ -19,25 +19,39 @@ function waveform(phase: number, amplitude: number) {
     .join(" ");
 }
 
+function steamWaveform(phase: number, amplitude: number) {
+  // Keep the waveform's distinct peaks while its centerline rises like steam.
+  return bars.map((bar, index) => {
+    const drift = index / (bars.length - 1);
+    const plume = Math.sin(Math.PI * drift) ** 0.7;
+    const x = 244 - drift * 196;
+    const y = 45 - 24 * (1 - Math.exp(-drift * 7)) +
+      amplitude * plume * Math.sin(drift * 10 - phase) * 0.7;
+    const height = 0.6 + amplitude * plume * (1 + 7 * bar) *
+      (0.85 + 0.15 * Math.sin(phase - drift * 14));
+    return `M${x.toFixed(2)} ${(y - height).toFixed(2)}V${(y + height).toFixed(2)}`;
+  }).join(" ");
+}
+
 // Decorative rhythm; live stations need not allow access to their audio samples.
 export default function Waveform({ playing, train = false }: { playing: boolean; train?: boolean }) {
-  const [path, setPath] = useState(() => waveform(0, 0));
-  const windows = useId();
+  const [rhythm, setRhythm] = useState({ phase: 0, amplitude: 0 });
+  const smoke = useId();
   useEffect(() => {
     const preference = reducedMotion();
     let frame = 0,
       previous = 0;
     const draw = (now: number) => {
       frame = requestAnimationFrame(draw);
-      if (now - previous < 1000 / (train ? 12 : 24)) return;
+      if (now - previous < 1000 / 24) return;
       previous = now;
-      setPath(waveform((now / 1000) * (train ? 0.55 : 0.9), 1));
+      setRhythm({ phase: (now / 1000) * (train ? 0.35 : 0.9), amplitude: 1 });
     };
     const sync = () => {
       cancelAnimationFrame(frame);
       if (document.hidden) return;
       if (playing && !preference.matches) frame = requestAnimationFrame(draw);
-      else setPath(waveform(0, playing ? 0.65 : 0));
+      else setRhythm({ phase: 0, amplitude: playing ? 0.65 : 0 });
     };
     sync();
     preference.addEventListener("change", sync);
@@ -52,30 +66,40 @@ export default function Waveform({ playing, train = false }: { playing: boolean;
     <svg
       className={`radio-waveform${playing ? " is-playing" : ""}${train ? " is-train" : ""}`}
       id="radio-waveform"
-      viewBox={train ? "0 0 300 64" : "0 0 120 16"}
+      viewBox={train ? "0 0 300 104" : "0 0 120 16"}
       preserveAspectRatio={train ? "xMidYMid meet" : "none"}
       aria-hidden="true"
       focusable="false"
     >
       {train ? <>
         <defs>
-          <clipPath id={windows}>
-            <rect x="40" y="23" width="50" height="14" rx="2" />
-            <rect x="110" y="23" width="50" height="14" rx="2" />
-            <rect x="180" y="23" width="46" height="14" rx="2" />
-          </clipPath>
+          <linearGradient id={smoke} x1="48" y1="0" x2="244" y2="0" gradientUnits="userSpaceOnUse">
+            <stop stopColor="currentColor" stopOpacity="0" />
+            <stop offset=".25" stopColor="currentColor" stopOpacity=".75" />
+            <stop offset="1" stopColor="currentColor" />
+          </linearGradient>
         </defs>
-        <g opacity=".65">
-          <path d="M39 18h52a5 5 0 0 1 5 5v21H34V23a5 5 0 0 1 5-5Zm70 0h52a5 5 0 0 1 5 5v21h-62V23a5 5 0 0 1 5-5Zm70 0h47c12 0 24 12 32 23l1 3h-85V23a5 5 0 0 1 5-5Z" />
-          <path d="M34 39h62m8 0h62m8 0h81m-159 3h8m62 0h8M234 24l11 11h-11Z" />
-          {[47, 83, 117, 153, 187, 244].map(x => <circle key={x} cx={x} cy="48" r="3" fill="none" stroke="currentColor" />)}
+        <path className="waveform-bars waveform-steam" d={steamWaveform(rhythm.phase, rhythm.amplitude)}
+          style={{ stroke: `url(#${smoke})`, strokeWidth: 1 }} vectorEffect="non-scaling-stroke" />
+        <g opacity=".8" fill="none" stroke="currentColor" strokeLinejoin="round">
+          {/* Passenger carriage, coal tender, and a little steam locomotive. */}
+          <path d="M30 82V61a6 6 0 0 1 6-6h58a6 6 0 0 1 6 6v21ZM27 55h76M30 76h70m0 4h10" />
+          {[39, 57, 75].map(x => <rect key={x} x={x} y="62" width="12" height="9" rx="1" />)}
+          <path d="M110 65h44v17h-44ZM115 65l5-5 5 2 5-4 5 4 6-2 7 5m-38 12h44m0 3h10" />
+          <path d="M164 82V54h28v28m-32-28q18-7 36 0M171 59h14v13h-14Z" />
+          <path d="M192 63h56a9 9 0 0 1 9 9v10h-65m8-19v19m48-19v19M207 63v-3a6 6 0 0 1 12 0v3" />
+          <path d="M238 63V52l-3-5h18l-3 5v11m-12-11h12M162 82h100l10 9h-17m2-20h5v5h-5" />
+          {[42, 88, 120, 145, 253].map(x => <circle key={x} cx={x} cy="88" r="4" />)}
+          {[177, 205, 233].map(x => <g key={x}>
+            <circle cx={x} cy="85" r="8" />
+            <circle cx={x} cy="85" r="2" />
+            <path d={`M${x} 77v5m0 6v5m-8-8h5m6 0h5`} opacity=".55" />
+          </g>)}
+          <path d="M177 85h56" />
         </g>
-        <g clipPath={`url(#${windows})`}>
-          <path className="waveform-bars" d={path} transform="translate(40 15.5) scale(1.73 1.8)" vectorEffect="non-scaling-stroke" />
-        </g>
-        <path d="M0 52h300" opacity=".22" />
-        <path className="waveform-track" d="M-20 56h340" strokeDasharray="2 18" opacity=".18" />
-      </> : <path className="waveform-bars" d={path} vectorEffect="non-scaling-stroke" />}
+        <path d="M0 94h300" opacity=".22" />
+        <path className="waveform-track" d="M-20 99h340" strokeDasharray="2 18" opacity=".18" />
+      </> : <path className="waveform-bars" d={waveform(rhythm.phase, rhythm.amplitude)} vectorEffect="non-scaling-stroke" />}
     </svg>
   );
 }

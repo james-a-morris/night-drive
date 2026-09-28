@@ -268,10 +268,6 @@ export default function NightLine() {
       data-ready={ready}
       data-mobile={mobile}
     >
-      {view === "calm" && <div className="listening-art" aria-hidden="true">
-        <BrandEmblem emblemWidth={88} emblemHeight={110} />
-        <span className="listening-wordmark">Night Rail</span>
-      </div>}
       <canvas
         id="world"
         ref={canvas}
@@ -517,6 +513,10 @@ export default function NightLine() {
         inert={!started && view !== "calm"}
         aria-hidden={(!started && view !== "calm") || undefined}
       >
+        {view === "calm" && <div className="listening-art" aria-hidden="true">
+          <BrandEmblem emblemWidth={88} emblemHeight={110} />
+          <span className="listening-wordmark">Night Rail</span>
+        </div>}
         <div className="media-console" aria-label="Your study corner">
           <div className="study-intention-row" data-journey-tile>
             <div className="media-intention">
