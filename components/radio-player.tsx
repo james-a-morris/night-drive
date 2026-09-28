@@ -140,13 +140,13 @@ export default function RadioPlayer({ radio, calm = false, onStart, ready = true
           <button
             id="next-track"
             type="button"
-            aria-label={track.local ? "Retry live stations" : "Next station"}
-            title={track.local ? "Retry live stations" : "Next station"}
+            aria-label={track.local ? "Next local track" : "Next station"}
+            title={track.local ? "Next local track" : "Next station"}
             hidden={Boolean(onStart)}
             disabled={!track.canSkip}
             onClick={() => radio?.nextStation()}
           >
-            <span>{track.local ? "TUNE IN" : "NEXT"}</span>
+            <span>NEXT</span>
             <svg width={14} height={14} viewBox="0 0 20 20" aria-hidden="true">
               <path d="m6 4 8 6-8 6Z" fill="currentColor" />
               <path
@@ -227,6 +227,21 @@ export default function RadioPlayer({ radio, calm = false, onStart, ready = true
                       <path d="m4 4 8 8M12 4l-8 8" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" />
                     </svg>
                   </button>
+                </div>
+                <div className="radio-mixer-sources" role="group" aria-label="Music source">
+                  {([
+                    ["local", "Local mix"],
+                    ["stream", "Live radio"],
+                  ] as const).map(([source, label]) => (
+                    <button key={source} type="button" disabled={!radio}
+                      aria-pressed={track.local === (source === "local")}
+                      onClick={() => {
+                        radio?.setSource(source);
+                        if (radio) setTrack(radio.nowPlaying());
+                      }}>
+                      {label}
+                    </button>
+                  ))}
                 </div>
                 {([
                   ["master", "Volume"],

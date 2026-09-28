@@ -9,6 +9,7 @@ interface PreferenceValues {
   scenery: SceneryMode;
   train: TrainType;
   audioMix: AudioMix;
+  musicSource: "stream" | "local";
   seat: Seat;
   seatDirection: SeatDirection;
   window: "open" | "closed";
@@ -50,6 +51,11 @@ export const PREFERENCES: {
     fallback: DEFAULT_AUDIO_MIX,
     json: true,
     valid: validAudioMix,
+  },
+  musicSource: {
+    key: "night-rail:music-source",
+    fallback: "stream",
+    valid: (value) => value === "stream" || value === "local",
   },
   seat: {
     key: "night-train:seat",

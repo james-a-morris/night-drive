@@ -75,8 +75,9 @@ export class NightRadio {
     this.onChange = onChange;
     this.audio = audio;
     this.directory = directory;
+    this.mode = readPreference("musicSource");
     this.local = local || new LocalSoundscape(() => this.notify());
-    this.local.setMusicEnabled(false);
+    this.local.setMusicEnabled(this.mode === "local");
     this.mix = { ...readPreference("audioMix") };
     this.local.setMix(this.mix);
     this.audio.preload = "none";
@@ -84,7 +85,6 @@ export class NightRadio {
     this.timeout = timeout;
     this.enabled = false;
     this.started = false;
-    this.mode = "stream";
     this.state = "idle";
     this.request = 0;
     this.attempt = 0;
@@ -94,7 +94,7 @@ export class NightRadio {
     this.failed = new Set();
     globalThis.window?.addEventListener("offline", this.onOffline);
     // Discover early so the first play() can happen within the start gesture.
-    this.loadStations();
+    if (this.mode === "stream") this.loadStations();
   }
 
   loadStations() {
@@ -125,6 +125,27 @@ export class NightRadio {
     this.local.setMix(mix);
     savePreference("audioMix", this.mix);
     this.notify();
+  }
+
+  setSource(source: "stream" | "local") {
+    if (source !== "stream" && source !== "local") return;
+    // Changing source cancels pending directory and stream callbacks without
+    // restarting the carriage/weather or unpausing a paused listening session.
+    const request = ++this.request;
+    this.stopStream();
+    this.failed.clear();
+    this.error = null;
+    this.mode = source;
+    savePreference("musicSource", source);
+    this.local.setMusicEnabled(source === "local");
+    this.state = this.enabled
+      ? source === "local" ? "fallback" : "loading"
+      : this.started ? "paused" : "idle";
+    this.notify();
+    if (source === "stream") {
+      if (this.enabled) void this.tune(request, Math.max(0, this.index));
+      else void this.loadStations();
+    }
   }
 
   async setEnabled(enabled: boolean) {
@@ -284,7 +305,11 @@ export class NightRadio {
   }
 
   nextStation() {
-    this.changeStation(1);
+    if (!this.enabled) return;
+    if (this.mode === "local") {
+      this.local.nextTrack();
+      this.notify();
+    } else this.changeStation(1);
   }
 
   previousStation() {
@@ -324,11 +349,12 @@ export class NightRadio {
   }
 
   nowPlaying(): NowPlaying {
-    const local = this.mode === "local" ? this.local.nowPlaying() : null;
+    const localMode = this.mode === "local";
+    const local = localMode ? this.local.nowPlaying() : null;
     return {
-      title:
-        local?.title ||
-        this.station?.title ||
+      title: localMode
+        ? local?.title || "Night Rail local mix"
+        : this.station?.title ||
         (this.state === "loading"
           ? "Finding a quiet station…"
           : "A little music for your thoughts."),
@@ -339,8 +365,8 @@ export class NightRadio {
         this.station?.subtitle ||
         "Lo-fi for a little while.",
       state: this.state,
-      local: Boolean(local),
-      playing: this.enabled && (local ? local.playing : this.state === "live"),
+      local: localMode,
+      playing: this.enabled && (localMode ? Boolean(local?.playing) : this.state === "live"),
       elapsed: local?.elapsed ?? this.audio.currentTime ?? 0,
       duration: local?.duration ?? null,
       canSkip: this.enabled && this.state !== "loading",
