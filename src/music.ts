@@ -4,6 +4,7 @@ import type { EnvironmentWeights } from "./environments.ts";
 import { LocalPlaylist } from "./local-playlist.ts";
 import { createThunder } from "./thunder-audio.ts";
 import { createTrainAmbience } from "./train-audio.ts";
+import { createWindowSound } from "./window-audio.ts";
 import { createConductorWhir } from "./conductor-whir.ts";
 import { playDepartureChime } from "./departure-chime.ts";
 import { DEFAULT_AUDIO_MIX, type AudioMix } from "./audio-mix.ts";
@@ -34,6 +35,7 @@ export class LocalSoundscape {
   thunder?: ReturnType<typeof createThunder>;
   conductorWhir?: ReturnType<typeof createConductorWhir>;
   trainAmbience?: ReturnType<typeof createTrainAmbience>;
+  windowSound?: ReturnType<typeof createWindowSound>;
   trainSpeed = 0;
   suspendTimer?: ReturnType<typeof setTimeout>;
   constructor(onChange: (enabled: boolean, error?: unknown) => void) {
@@ -131,6 +133,7 @@ export class LocalSoundscape {
     river.start(.7);
     this.trainAmbience = createTrainAmbience(audio, this.ambienceVolume);
     this.trainAmbience.setSpeed(this.trainSpeed);
+    this.windowSound = createWindowSound(audio, this.ambienceVolume);
     this.conductorWhir = createConductorWhir(audio, this.ambienceVolume);
     this.thunder = createThunder(audio, this.windowFilter);
     audio.addEventListener("statechange", () =>
@@ -150,6 +153,7 @@ export class LocalSoundscape {
     }
     this.voices.clear();
     this.thunder?.clear();
+    this.windowSound?.clear();
     this.playlist?.dispose();
     if (this.context && this.context.state !== "closed")
       void this.context.close().catch(() => {});
@@ -158,7 +162,10 @@ export class LocalSoundscape {
   async setEnabled(enabled: boolean) {
     const request = ++this.request;
     this.enabled = enabled;
-    if (!enabled) this.thunder?.clear();
+    if (!enabled) {
+      this.thunder?.clear();
+      this.windowSound?.clear();
+    }
     clearTimeout(this.suspendTimer);
     try {
       if (enabled) {
@@ -206,6 +213,7 @@ export class LocalSoundscape {
   setMix(mix: AudioMix) {
     this.mix = { ...mix };
     if (!this.context) return;
+    if (mix.master === 0 || mix.ambience === 0) this.windowSound?.clear();
     const now = this.context.currentTime;
     this.master.gain.setTargetAtTime(this.enabled ? 0.7 * mix.master : 0, now, 0.04);
     this.musicVolume.gain.setTargetAtTime(mix.music, now, 0.04);
@@ -255,6 +263,7 @@ export class LocalSoundscape {
   }
 
   setWindowOpen(open: boolean) {
+    const changed = this.windowOpen !== Boolean(open);
     this.windowOpen = Boolean(open);
     if (!this.context) return;
     this.windowFilter.frequency.setTargetAtTime(
@@ -267,6 +276,8 @@ export class LocalSoundscape {
       this.context.currentTime,
       0.18,
     );
+    if (changed && this.enabled && this.mix.master > 0 && this.mix.ambience > 0)
+      this.windowSound?.play(this.windowOpen);
   }
 
   setMusicEnabled(enabled: boolean) {
