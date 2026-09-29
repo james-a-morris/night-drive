@@ -31,8 +31,12 @@ export default function useAnkiWindow() {
     if (screen) {
       // Reserve the actual, unscaled controls before fitting the 16:9 screen.
       // The minimum width keeps those controls usable in very short windows.
-      const chrome = element.offsetHeight - screen.offsetHeight;
-      const inset = element.offsetWidth - screen.offsetWidth;
+      // Subtract precise bounds before rounding the final fit. Rounding each
+      // height separately can alternate the chrome by 1px and keep this
+      // ResizeObserver resizing the window (and its card) every frame.
+      const bounds = element.getBoundingClientRect(), viewport = screen.getBoundingClientRect();
+      const chrome = bounds.height - viewport.height;
+      const inset = bounds.width - viewport.width;
       const width = Math.max(Math.min(360, window.innerWidth - GUTTER * 2),
         (window.innerHeight - GUTTER * 2 - chrome) * ANKI_CARD_WIDTH / ANKI_CARD_HEIGHT + inset);
       element.style.setProperty("--anki-fit-width", `${Math.floor(width)}px`);
