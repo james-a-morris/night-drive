@@ -24,6 +24,7 @@ export interface RoomView {
   leaderboard: never[];
   together: {
     riders: number;
+    // Retained in the API for older tabs; the current UI only shows company.
     journeyId: string | null;
     miles: number | null;
   };
@@ -71,7 +72,6 @@ export interface RoomSnapshot {
   journey: string | null;
   totalMiles: number;
   currentMiles: number;
-  togetherMiles: number | null;
   now: number;
   status: string;
 }

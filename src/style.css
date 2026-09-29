@@ -86,7 +86,7 @@ strong,b { font-weight:500; }
 #radio-source:focus-visible { outline:1px solid #efb191; outline-offset:4px; }
 .panel-close { display:grid; place-items:center; flex:none; width:24px; height:24px; margin:-3px -4px -3px 0; padding:0; border:0; border-radius:5px; background:none; color:#aebd9b; cursor:pointer; }
 .panel-close:hover { color:#e7d2af; background:#ffffff0a; }
-#together-distance,#distance,#your-miles,#track-time { font-variant-numeric:tabular-nums; }
+#distance,#your-miles,#track-time { font-variant-numeric:tabular-nums; }
 .number-character { position:relative; display:inline-grid; vertical-align:baseline; white-space:pre; }
 .number-current { display:block; }
 .number-previous { position:absolute; inset:0; pointer-events:none; }
