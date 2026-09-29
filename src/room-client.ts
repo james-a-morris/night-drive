@@ -15,6 +15,7 @@ import {
   type ProfileResult,
 } from "./types.ts";
 import { authHeaders, authSettled, observeAuth } from "./auth.ts";
+import { createTogetherDistance } from "./together-distance.ts";
 
 export const METRES_PER_MILE = 1609.344;
 
@@ -33,12 +34,12 @@ export function createRoomClient(
     baseMetres = 0;
   let totalMiles = 0,
     currentMiles = 0,
-    togetherMiles: number | null = null,
     starting = false,
     checkingIn = false,
     // The first check-in aboard, and the first after returning to the tab,
     // starts a new stretch: time away never grows the plant.
     resumeNext = true;
+  let together = createTogetherDistance();
   let lastServerTime = 0,
     clockOffset = 0,
     status = "",
@@ -54,7 +55,11 @@ export function createRoomClient(
       journey,
       totalMiles: totalMiles + pending,
       currentMiles: currentMiles + pending,
-      togetherMiles,
+      togetherMiles: together.read(
+        performance.now(),
+        drive.started && !document.hidden && !status && globalThis.navigator?.onLine !== false,
+        drive.speed / 3.6 / METRES_PER_MILE,
+      ),
       now: Date.now() + clockOffset,
       status,
     });
@@ -106,7 +111,7 @@ export function createRoomClient(
     board = data;
     if (data.together?.journeyId === journey && typeof data.together.miles === "number"
       && Number.isFinite(data.together.miles) && data.together.miles >= 0) {
-      togetherMiles = Math.max(togetherMiles ?? 0, data.together.miles);
+      together.accept(data.together.miles, data.serverTime, data.together.riders, performance.now());
     }
     report("");
   }
@@ -125,7 +130,7 @@ export function createRoomClient(
           journey = data.journeyId;
           baseMetres = drive.distance;
           acceptedMetres = currentMiles = sequence = 0;
-          togetherMiles = 0;
+          together = createTogetherDistance(0);
           updateMe(data.me, data.serverTime);
           emit();
           void checkIn();
@@ -183,7 +188,7 @@ export function createRoomClient(
           if (requestError(error).status === 404) {
             journey = null;
             acceptedMetres = 0;
-            togetherMiles = null;
+            together = createTogetherDistance();
           }
           throw error;
         } finally {
@@ -264,7 +269,7 @@ export function createRoomClient(
           if (signedOut) {
             journey = null;
             acceptedMetres = currentMiles = 0;
-            togetherMiles = null;
+            together = createTogetherDistance();
             await startJourney();
           }
         }),
