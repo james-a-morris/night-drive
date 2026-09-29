@@ -19,7 +19,8 @@ function CardView({ card, answer, client, onReady, onShortcut }: {
   useLayoutEffect(() => {
     const element = screen.current!;
     const fit = () => {
-      const scale = Math.min(element.clientWidth / ANKI_CARD_WIDTH, element.clientHeight / ANKI_CARD_HEIGHT, 1);
+      const { width, height } = element.getBoundingClientRect();
+      const scale = Math.min(width / ANKI_CARD_WIDTH, height / ANKI_CARD_HEIGHT, 1);
       element.style.setProperty("--anki-card-scale", String(scale));
     };
     fit();
