@@ -1,4 +1,4 @@
-Original music composed and arranged for Night Rail.
+Original seeded music composed and arranged for Night Rail.
 
 Windowlight
 After the Rain
@@ -17,6 +17,8 @@ Sample license: CC0 1.0 Universal
 https://creativecommons.org/publicdomain/zero/1.0/
 
 No existing songs, melody transcriptions or musical loops are used.
-Score and production: scripts/render-local-music.py
+Scores: src/lofi-score.ts and src/tracks.ts
+Playback: Tone.js (MIT), src/lofi-player.ts
+Sample preparation: scripts/prepare-music-samples.py
 Individual source URLs and SHA-256 hashes: scripts/music-samples/manifest.json
 Authoring and playback notes: docs/music-assets.md

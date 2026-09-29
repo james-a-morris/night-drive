@@ -5,162 +5,142 @@ import { LocalPlaylist } from '../src/local-playlist.ts';
 import { LOCAL_TRACKS } from '../src/tracks.ts';
 
 function setup(load) {
-  const sources = [], downloads = [], changes = [];
-  const audio = {
-    currentTime: 0, state: 'running',
-    createGain() {
-      return {
-        gain: { value: 1, setValueAtTime() {}, linearRampToValueAtTime() {}, cancelScheduledValues() {} },
-        connect() { return this; }, disconnect() { this.disconnected = true; },
-      };
-    },
-    createBufferSource() {
-      const source = {
-        buffer: null, onended: null,
-        connect(node) { return node; }, disconnect() { this.disconnected = true; },
-        start(time, offset) { this.startedAt = time; this.offset = offset; },
-        stop(time) { this.stoppedAt = time; },
-        finish() { this.onended?.(); },
-      };
-      sources.push(source);
-      return source;
-    },
+  const starts = [], requests = [], changes = [];
+  const audio = { currentTime: 0, state: 'running' };
+  const engine = {
+    stops: 0, disposed: false,
+    start(score, offset, ended) { starts.push({ score, offset, ended }); return audio.currentTime + .22; },
+    stop() { this.stops++; }, dispose() { this.disposed = true; },
   };
-  const playlist = new LocalPlaylist(audio, {}, () => changes.push(playlist.nowPlaying()), async (url, signal) => {
-    downloads.push({ url, signal });
-    return load ? load(url, signal) : { duration: 120 };
+  const playlist = new LocalPlaylist(audio, {}, () => changes.push(playlist.nowPlaying()), async (_audio, _output, signal) => {
+    requests.push(signal);
+    return load ? load(signal, engine) : engine;
   });
-  return { playlist, audio, sources, downloads, changes };
+  return { playlist, audio, engine, starts, requests, changes };
 }
 
-test('recordings preload one successor and transition on the audio clock', async () => {
-  const { playlist, audio, sources, downloads } = setup();
+test('the bank loads once, tracks advance and a new lap develops a reproducible seed', async () => {
+  const { playlist, starts, requests } = setup();
   await playlist.setEnabled(true);
-  await setImmediate();
-  assert.equal(sources.length, 2);
-  assert.equal(downloads.length, 2, 'do not decode the entire playlist into memory');
-  assert.equal(playlist.nowPlaying().title, LOCAL_TRACKS[0].title);
-  assert.equal(playlist.nowPlaying().artist, LOCAL_TRACKS[0].artist);
-  assert.equal(playlist.nowPlaying().duration, 120);
-  assert.equal(playlist.nowPlaying().playing, true);
-  assert(sources[1].startedAt < sources[0].startedAt + 120, 'crossfade before the recording ends');
-  assert(sources[1].startedAt > 118);
-  audio.currentTime = sources[1].startedAt + .2;
-  assert.equal(playlist.nowPlaying().title, LOCAL_TRACKS[1].title);
-  audio.currentTime = sources[0].startedAt + 120;
-  sources[0].finish();
-  await setImmediate();
-  assert(sources[0].disconnected);
-  assert.equal(sources.length, 3);
-  assert.equal(downloads[2].url, LOCAL_TRACKS[2].url);
+  const seed = playlist.nowPlaying().seed;
+  assert.equal(playlist.nowPlaying().title, 'Windowlight');
+  for (let index = 1; index <= 3; index++) {
+    starts.at(-1).ended();
+    await setImmediate();
+    assert.equal(playlist.nowPlaying().title, LOCAL_TRACKS[index % 3].title);
+    assert.equal(playlist.nowPlaying().playing, true);
+  }
+  assert.equal(requests.length, 1);
+  assert.notEqual(playlist.nowPlaying().seed, seed);
   playlist.dispose();
 });
 
-test('pause preserves the playhead and resume reuses the decoded recording', async () => {
-  const { playlist, audio, sources, downloads } = setup();
+test('pause freezes the playhead, stops the sequencer and resumes the same seed at its offset', async () => {
+  const { playlist, audio, engine, starts, requests } = setup();
   await playlist.setEnabled(true);
-  await setImmediate();
   audio.currentTime = 40;
   playlist.pause();
-  const elapsed = playlist.nowPlaying().elapsed;
-  assert(elapsed > 39 && elapsed < 40);
-  assert.equal(playlist.nowPlaying().playing, false);
-  assert(sources.every(source => source.stoppedAt <= 40.05));
+  const paused = playlist.nowPlaying();
+  assert.equal(paused.elapsed, 39.78);
+  assert.equal(paused.playing, false);
+  assert.equal(engine.stops, 1);
   audio.currentTime = 60;
-  assert.equal(playlist.nowPlaying().elapsed, elapsed);
+  assert.deepEqual(playlist.nowPlaying(), paused);
   await playlist.setEnabled(true);
-  await setImmediate();
-  assert.equal(sources[2].offset, elapsed);
-  assert.equal(downloads.filter(item => item.url === LOCAL_TRACKS[0].url).length, 1);
+  assert.equal(starts[1].offset, paused.elapsed);
+  assert.equal(starts[1].score, starts[0].score);
+  assert.equal(requests.length, 1);
   playlist.dispose();
 });
 
-test('pausing during a crossfade resumes the incoming recording', async () => {
-  const { playlist, audio, sources } = setup();
-  await playlist.setEnabled(true);
-  await setImmediate();
-  audio.currentTime = sources[1].startedAt + .5;
-  playlist.pause();
-  assert.equal(playlist.nowPlaying().title, LOCAL_TRACKS[1].title);
-  assert.equal(playlist.nowPlaying().elapsed, .5);
-  await playlist.setEnabled(true);
-  assert.equal(sources[2].offset, .5);
-  playlist.dispose();
-});
-
-test('a late initial download cannot start playback after pausing or disposal', async () => {
+test('late loads and stale end callbacks cannot restart paused or disposed playback', async () => {
   for (const action of ['pause', 'dispose']) {
-    let resolve;
-    const { playlist, sources, downloads, changes } = setup(() => new Promise(done => { resolve = done; }));
-    const loading = playlist.setEnabled(true);
+    let finish;
+    const { playlist, engine, starts, requests } = setup((_signal, engine) => new Promise(resolve => { finish = () => resolve(engine); }));
+    const pending = playlist.setEnabled(true);
     playlist[action]();
-    assert.equal(downloads[0].signal.aborted, true);
-    resolve({ duration: 120 });
-    await loading;
-    assert.equal(sources.length, 0);
-    assert.equal(changes.length, 0);
+    assert.equal(requests[0].aborted, true);
+    finish(); await pending;
+    assert.equal(starts.length, 0);
     assert.equal(playlist.nowPlaying().playing, false);
+    if (action === 'dispose') assert.equal(engine.disposed, true);
+    playlist.dispose();
+  }
+  const { playlist, starts } = setup();
+  await playlist.setEnabled(true);
+  const stale = starts[0].ended;
+  playlist.pause();
+  stale();
+  assert.equal(playlist.nowPlaying().title, 'Windowlight');
+  await playlist.setEnabled(true);
+  stale();
+  assert.equal(playlist.nowPlaying().title, 'Windowlight');
+  playlist.dispose();
+});
+
+test('a rapid pause/resume serializes aborted downloads and allows a fresh attempt', async () => {
+  let reject;
+  const { playlist, starts, requests } = setup((signal, engine) => requests.length === 1
+    ? new Promise((_, fail) => { reject = fail; }) : Promise.resolve(engine));
+  const first = playlist.setEnabled(true);
+  playlist.pause();
+  const second = playlist.setEnabled(true);
+  assert.equal(requests.length, 1);
+  reject(new Error('Aborted'));
+  await Promise.all([first, second]);
+  assert.equal(requests.length, 2);
+  assert.equal(starts.length, 1);
+  assert.equal(playlist.nowPlaying().playing, true);
+  playlist.dispose();
+});
+
+test('missing instruments fail once, surface a retry, and a new gesture can recover', async () => {
+  const { playlist, requests, engine } = setup(async () => {
+    if (requests.length === 1) throw new Error('Offline');
+    return engine;
+  });
+  await playlist.setEnabled(true);
+  assert.equal(requests.length, 1);
+  assert.equal(playlist.nowPlaying().playing, false);
+  assert.match(playlist.nowPlaying().error, /Connect once/);
+  await playlist.setEnabled(true);
+  assert.equal(playlist.nowPlaying().error, null);
+  assert.equal(playlist.nowPlaying().playing, true);
+  playlist.dispose();
+});
+
+test('canceling a pending retry prevents new downloads after pausing or disposing', async () => {
+  for (const action of ['pause', 'dispose']) {
+    let reject;
+    const { playlist, requests, starts } = setup(() => new Promise((_, fail) => { reject = fail; }));
+    const first = playlist.setEnabled(true);
+    playlist.pause();
+    const retry = playlist.setEnabled(true);
+    playlist[action]();
+    reject(new Error('Aborted'));
+    await Promise.all([first, retry]);
+    assert.equal(requests.length, 1);
+    assert.equal(starts.length, 0);
+    playlist.dispose();
   }
 });
 
-test('a canceled successor cannot leak into a resumed or disposed playlist', async () => {
-  let resolve;
-  const { playlist, sources, downloads } = setup(url => url === LOCAL_TRACKS[0].url
-    ? Promise.resolve({ duration: 120 }) : new Promise(done => { resolve = done; }));
+test('skip resets elapsed time, works while paused, and disposal is final', async () => {
+  const { playlist, audio, starts, engine } = setup();
   await playlist.setEnabled(true);
-  playlist.dispose();
-  resolve({ duration: 120 });
-  await setImmediate();
-  assert.equal(sources.length, 1);
-  assert.equal(downloads[1].signal.aborted, true);
-  sources[0].finish();
-  assert.equal(sources[0].disconnected, true);
-  assert.equal(playlist.nowPlaying().playing, false);
-});
-
-test('unavailable recordings are skipped, with a bounded retry if all fail', async () => {
-  const partial = setup(async url => {
-    if (url === LOCAL_TRACKS[0].url) throw new Error('Evicted');
-    return { duration: 120 };
-  });
-  await partial.playlist.setEnabled(true);
-  assert.equal(partial.playlist.nowPlaying().title, LOCAL_TRACKS[1].title);
-  partial.playlist.dispose();
-  const missing = setup(async () => { throw new Error('Offline'); });
-  await missing.playlist.setEnabled(true);
-  assert.equal(missing.downloads.length, LOCAL_TRACKS.length);
-  assert.equal(missing.sources.length, 0);
-  assert.equal(missing.playlist.nowPlaying().playing, false);
-  assert.match(missing.playlist.nowPlaying().error, /Connect once/);
-  await missing.playlist.setEnabled(true);
-  assert.equal(missing.downloads.length, LOCAL_TRACKS.length * 2, 'a new play gesture can retry');
-  missing.playlist.dispose();
-});
-
-test('when successors fail, the decoded track continues without a request loop', async () => {
-  const { playlist, sources, downloads } = setup(async url => {
-    if (url !== LOCAL_TRACKS[0].url) throw new Error('Offline');
-    return { duration: 120 };
-  });
-  await playlist.setEnabled(true);
-  await setImmediate();
-  assert.equal(downloads.length, LOCAL_TRACKS.length);
-  assert.equal(sources.length, 2);
-  assert.equal(sources[0].buffer, sources[1].buffer);
-  assert(sources[1].startedAt > 118);
-  playlist.dispose();
-});
-
-test('skipping starts the next recording and stops both outgoing sources', async () => {
-  const { playlist, audio, sources } = setup();
-  await playlist.setEnabled(true);
-  await setImmediate();
-  audio.currentTime = 10;
+  audio.currentTime = 20;
   playlist.nextTrack();
   await setImmediate();
-  assert.equal(playlist.nowPlaying().title, LOCAL_TRACKS[1].title);
-  assert.equal(playlist.nowPlaying().elapsed, 0);
-  assert.equal(sources[0].stoppedAt, 10.04);
-  assert.equal(sources[1].stoppedAt, 10.04);
+  assert.equal(playlist.nowPlaying().title, 'After the Rain');
+  assert.equal(starts.at(-1).offset, 0);
+  playlist.pause();
+  playlist.nextTrack();
+  assert.equal(playlist.nowPlaying().title, 'Blue Hour');
+  assert.equal(playlist.nowPlaying().playing, false);
+  assert.equal(starts.length, 2);
   playlist.dispose();
+  playlist.dispose();
+  await playlist.setEnabled(true);
+  assert.equal(engine.disposed, true);
+  assert.equal(starts.length, 2);
 });
