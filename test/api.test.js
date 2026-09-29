@@ -40,7 +40,7 @@ async function setup(t, options = {}) {
   return { store, visitor, advance: milliseconds => { now += milliseconds; } };
 }
 
-test('guest mileage persists, current journey ranks, and duplicate reports do not count twice', async t => {
+test('guest and collective mileage persist and duplicate reports do not count twice', async t => {
   const { visitor, advance, store } = await setup(t);
   const guest = visitor();
   const initial = await guest.request();
@@ -56,13 +56,13 @@ test('guest mileage persists, current journey ranks, and duplicate reports do no
   const restored = visitor(guest.cookie);
   const room = await restored.request();
   assert.equal(room.body.me.totalMiles, first.body.totalMiles);
-  assert.equal(room.body.leaderboard[0].you, true);
-  assert.equal(room.body.leaderboard[0].currentMiles, first.body.currentMiles);
-  assert.equal(room.body.me.rank, 1);
+  assert.equal(room.body.together.riders, 1);
+  assert.equal(room.body.me.currentMiles, first.body.currentMiles);
+  assert.equal(room.body.together.miles, first.body.currentMiles);
   assert.equal((await store.query('SELECT total_metres FROM road_profiles'))[0].total_metres, 200);
 });
 
-test('current journeys rank independently of lifetime miles and old trips cannot reappear', async t => {
+test('new journeys reset personal and collective distance without importing past mileage', async t => {
   const { visitor, advance } = await setup(t);
   const veteran = visitor(), newcomer = visitor();
   const old = (await veteran.request({ action: 'start' })).body.journeyId;
@@ -77,8 +77,8 @@ test('current journeys rank independently of lifetime miles and old trips cannot
   let room = (await veteran.request()).body;
   assert.equal(room.me.totalMiles, 1700 / 1609.344);
   assert.equal(room.me.currentMiles, 100 / 1609.344);
-  assert.equal(room.me.rank, 2);
-  assert.equal(room.leaderboard[0].currentMiles, 250 / 1609.344);
+  assert.equal(room.together.riders, 2);
+  assert.equal(room.together.miles, 350 / 1609.344);
   advance(10000);
   await veteran.request({ action: 'mileage', journeyId: old, sequence: 2, metres: 1700 });
   room = (await veteran.request()).body;
@@ -87,13 +87,13 @@ test('current journeys rank independently of lifetime miles and old trips cannot
   await veteran.request({ action: 'start' });
   room = (await veteran.request()).body;
   assert.equal(room.me.currentMiles, 0);
-  assert.equal(room.me.rank, null);
-  assert.equal(room.leaderboard.length, 1);
+  assert.equal(room.together.miles, 0);
+  assert.equal(room.together.riders, 2);
   advance(91000);
-  assert.equal((await veteran.request()).body.leaderboard.length, 0, 'finished journeys expire from the live board');
+  assert.equal((await veteran.request()).body.together.riders, 0, 'departed riders expire from the live count');
 });
 
-test('a background tab that keeps reporting without moving leaves the board until it moves again', async t => {
+test('a background tab that keeps reporting without moving leaves the rider count until it moves again', async t => {
   const { visitor, advance } = await setup(t);
   const rider = visitor(), viewer = visitor();
   const journeyId = (await rider.request({ action: 'start' })).body.journeyId;
@@ -103,12 +103,11 @@ test('a background tab that keeps reporting without moving leaves the board unti
     advance(10000);
     assert.equal((await rider.request({ action: 'mileage', journeyId, sequence, metres: 200 })).status, 200);
   }
-  assert.equal((await viewer.request()).body.leaderboard.length, 0);
+  assert.equal((await viewer.request()).body.together.riders, 0);
   advance(10000);
   await rider.request({ action: 'mileage', journeyId, sequence: 12, metres: 400 });
-  const board = (await viewer.request()).body.leaderboard;
-  assert.equal(board.length, 1);
-  assert.equal(board[0].currentMiles, 400 / 1609.344, 'the same journey resumes with its miles');
+  assert.equal((await viewer.request()).body.together.riders, 1);
+  assert.equal((await rider.request()).body.me.currentMiles, 400 / 1609.344, 'the same journey resumes with its miles');
 });
 
 test('a check-in saves distance and returns the room in one request', async t => {
@@ -120,8 +119,8 @@ test('a check-in saves distance and returns the room in one request', async t =>
   assert.equal(status, 200);
   assert.equal(body.mileage.acceptedMetres, 200);
   assert.equal(body.me.totalMiles, 200 / 1609.344, 'the profile includes the distance just saved');
-  assert.equal(body.leaderboard[0].you, true);
-  assert.equal(body.leaderboard[0].currentMiles, 200 / 1609.344);
+  assert.equal(body.together.riders, 1);
+  assert.equal(body.together.miles, 200 / 1609.344);
   assert.equal(body.garden.seconds, 0, 'the first check-in starts the plant clock');
   advance(10000);
   const next = (await rider.request({ action: 'check-in', journeyId, sequence: 2, metres: 300 })).body;
@@ -131,29 +130,94 @@ test('a check-in saves distance and returns the room in one request', async t =>
   assert.equal((await rider.request({ action: 'check-in', journeyId: 'someone-else', sequence: 2, metres: 300 })).status, 404);
 });
 
-test('the leaderboard contains only the top five drivers, including when the viewer ranks below them', async t => {
+test('the shared journey includes every rider and publishes no rankings or rider lists', async t => {
   const { visitor, advance } = await setup(t);
   const drivers = Array.from({ length: 7 }, () => visitor());
   const trips = [];
   for (const driver of drivers) trips.push((await driver.request({ action: 'start' })).body.journeyId);
   advance(10000);
-  for (const [index, driver] of drivers.entries())
-    await driver.request({ action: 'mileage', journeyId: trips[index], sequence: 1, metres: (index + 1) * 10 });
+  await Promise.all(drivers.map((driver, index) =>
+    driver.request({ action: 'mileage', journeyId: trips[index], sequence: 1, metres: (index + 1) * 10 })));
 
   const outside = (await drivers[0].request()).body;
-  assert.deepEqual(outside.leaderboard.map(row => row.rank), [1, 2, 3, 4, 5]);
-  assert.deepEqual(outside.leaderboard.map(row => row.currentMiles), [70, 60, 50, 40, 30].map(metres => metres / 1609.344));
-  assert.equal(outside.leaderboard.some(row => row.you), false);
-  assert.equal(outside.me.rank, 7, 'the private profile still knows its own rank');
+  assert.deepEqual(outside.leaderboard, [], 'older open tabs receive an empty list');
+  assert.equal(Object.hasOwn(outside.me, 'rank'), false);
   assert.equal(outside.me.currentMiles, 10 / 1609.344);
-  assert.equal(outside.activeCount, 7, 'presence is not capped with the leaderboard');
+  assert.equal(outside.together.riders, 7);
+  assert.equal(outside.together.miles, 280 / 1609.344);
 
   const leader = (await drivers[6].request()).body;
-  assert.equal(leader.leaderboard.length, 5);
-  assert.equal(leader.leaderboard[0].you, true);
-  assert.equal(leader.leaderboard.filter(row => row.you).length, 1);
-  assert.deepEqual(Object.keys(leader.leaderboard[1]).sort(),
-    ['currentMiles', 'intention', 'intentionExpiresAt', 'live', 'name', 'rank', 'you'], 'rows never expose profile IDs');
+  assert.equal(leader.together.miles, outside.together.miles);
+  assert.deepEqual(Object.keys(leader.together).sort(), ['journeyId', 'miles', 'riders']);
+});
+
+test('collective mileage retains departed riders and excludes earlier trips when someone joins', async t => {
+  const { visitor, advance } = await setup(t);
+  const veteran = visitor(), viewer = visitor();
+  const oldTrip = (await veteran.request({ action: 'start' })).body.journeyId;
+  advance(40000);
+  await veteran.request({ action: 'mileage', journeyId: oldTrip, sequence: 1, metres: 1000 });
+  const trip = (await viewer.request({ action: 'start' })).body.journeyId;
+  assert.equal((await viewer.request()).body.together.miles, 0);
+  advance(10000);
+  const contribution = { action: 'mileage', journeyId: oldTrip, sequence: 2, metres: 1200 };
+  await Promise.all([veteran.request(contribution), veteran.request(contribution)]);
+  await viewer.request({ action: 'check-in', journeyId: trip, sequence: 1, metres: 80 });
+  assert.equal((await viewer.request()).body.together.miles, 280 / 1609.344);
+  advance(91000);
+  const alone = (await viewer.request({ action: 'check-in', journeyId: trip, sequence: 2, metres: 90 })).body;
+  assert.equal(alone.together.riders, 1);
+  assert.equal(alone.together.miles, 290 / 1609.344, 'departing never subtracts contributions');
+  for (let i = 0; i < 11; i++) {
+    advance(1);
+    await veteran.request({ action: 'start' });
+  }
+  const reunited = (await viewer.request()).body;
+  assert.equal(reunited.together.riders, 2);
+  assert.equal(reunited.together.miles, alone.together.miles, 'returning and pruning old trips add no past miles');
+});
+
+test('each open tab gets its own collective baseline while the rider is counted once', async t => {
+  const { visitor, advance } = await setup(t);
+  const first = visitor();
+  const firstTrip = (await first.request({ action: 'start' })).body.journeyId;
+  advance(10000);
+  await first.request({ action: 'check-in', journeyId: firstTrip, sequence: 1, metres: 100 });
+  const second = visitor(first.cookie);
+  const secondTrip = (await second.request({ action: 'start' })).body.journeyId;
+  advance(10000);
+  const secondView = (await second.request({ action: 'check-in', journeyId: secondTrip, sequence: 1, metres: 50 })).body;
+  const firstView = (await first.request({ action: 'check-in', journeyId: firstTrip, sequence: 2, metres: 100 })).body;
+  assert.equal(firstView.together.journeyId, firstTrip);
+  assert.equal(firstView.together.miles, 150 / 1609.344);
+  assert.equal(secondView.together.journeyId, secondTrip);
+  assert.equal(secondView.together.miles, 50 / 1609.344);
+  assert.equal(firstView.together.riders, 1);
+  assert.equal(secondView.together.riders, 1);
+  assert.equal((await visitor().request()).body.together.riders, 1, 'a visitor on the welcome screen is not aboard');
+});
+
+test('collective totals survive database reopen and old databases keep their personal mileage', async t => {
+  const directory = await mkdtemp(join(tmpdir(), 'night-rail-together-'));
+  t.after(() => rm(directory, { recursive: true, force: true }));
+  const sqlitePath = join(directory, 'room.sqlite');
+  const { visitor, advance, store } = await setup(t, { sqlitePath });
+  const rider = visitor();
+  const trip = (await rider.request({ action: 'start' })).body.journeyId;
+  advance(10000);
+  await rider.request({ action: 'mileage', journeyId: trip, sequence: 1, metres: 200 });
+  const reopened = await createStore({ databaseUrl: null, sqlitePath });
+  t.after(() => reopened.close());
+  assert.equal((await reopened.query('SELECT credited_metres FROM railway_totals'))[0].credited_metres, 200);
+  await store.query('DROP TABLE railway_totals');
+  await store.query('ALTER TABLE journeys DROP COLUMN together_start_metres');
+  const migrated = await createStore({ databaseUrl: null, sqlitePath });
+  t.after(() => migrated.close());
+  assert.equal((await migrated.query('SELECT total_metres FROM road_profiles'))[0].total_metres, 200);
+  const [saved] = await migrated.query('SELECT credited_metres, together_start_metres FROM journeys');
+  assert.equal(saved.credited_metres, 200);
+  assert.equal(saved.together_start_metres, 0);
+  assert.equal((await migrated.query('SELECT credited_metres FROM railway_totals'))[0].credited_metres, 0, 'new collective counting starts without importing lifetime mileage');
 });
 
 test('live presence includes new guests, excludes self, deduplicates tabs and expires absent travelers', async t => {
@@ -195,7 +259,7 @@ test('forged totals, other guests journeys and impossible speeds cannot grant ar
   const result = await first.request({ action: 'mileage', journeyId: start.body.journeyId, sequence: 1, metres: 999999 });
   assert.ok(result.body.totalMiles <= (115 / 3.6 * 10) / 1609.344);
   assert.equal(result.body.currentMiles, result.body.totalMiles);
-  assert.equal((await first.request()).body.leaderboard[0].currentMiles, result.body.currentMiles, 'rank uses credited distance, never an untrusted report');
+  assert.equal((await first.request()).body.together.miles, result.body.currentMiles, 'the collective uses credited distance');
   assert.equal((await first.request({ action: 'mileage', journeyId: start.body.journeyId, sequence: 2, metres: 1000000, totalMiles: 1e9 })).status, 400);
   assert.equal((await first.request({ action: 'mileage', journeyId: start.body.journeyId, sequence: 2, metres: -1 })).status, 400);
 });
@@ -208,7 +272,10 @@ test('signup merges guest miles once, keeps the journey, and signout cannot edit
   await guest.request({ action: 'mileage', journeyId: start.body.journeyId, sequence: 1, metres: 180 });
   advance(5000);
   const signed = await Promise.all([guest.request(null, { user: 'alice' }), guest.request(null, { user: 'alice' })]);
-  for (const result of signed) assert.equal(result.body.me.totalMiles, 180 / 1609.344);
+  for (const result of signed) {
+    assert.equal(result.body.me.totalMiles, 180 / 1609.344);
+    assert.equal(result.body.together.miles, 180 / 1609.344, 'linking an account does not duplicate collective mileage');
+  }
   assert.equal((await store.query('SELECT total_metres FROM road_profiles WHERE clerk_user_id = $1', ['clerk-alice']))[0].total_metres, 180);
   const pending = await guest.request({ action: 'mileage', journeyId: start.body.journeyId, sequence: 2, metres: 270 }, { user: 'alice' });
   assert.equal(pending.body.totalMiles, 270 / 1609.344, 'signup must keep the distance since the last guest save');
@@ -255,7 +322,7 @@ test('intentions accept 60 characters and reject longer updates without losing t
   assert.equal((await owner.request(null, auth)).body.me.intention, intention);
 });
 
-test('intentions expire after twelve hours for their owner and other riders without losing mileage', async t => {
+test('intentions stay with their owner and expire without losing mileage', async t => {
   const { visitor, advance } = await setup(t);
   const owner = visitor(), viewer = visitor();
   const auth = { user: 'alice' };
@@ -268,17 +335,22 @@ test('intentions expire after twelve hours for their owner and other riders with
   assert.equal(saved.body.me.intentionExpiresAt, saved.body.serverTime + 12 * 3600000);
   advance(12 * 3600000 - 1);
   await owner.request({ action: 'mileage', journeyId: start.body.journeyId, sequence: 2, metres: 200 }, auth);
-  assert.equal((await owner.request(null, auth)).body.me.intention, 'Read one quiet chapter');
-  assert.equal((await viewer.request()).body.leaderboard[0].intention, 'Read one quiet chapter');
+  const ownRoom = (await owner.request(null, auth)).body;
+  assert.equal(ownRoom.me.intention, 'Read one quiet chapter');
+  const publicRoom = (await viewer.request()).body;
+  const checkIn = (await viewer.request({ action: 'check-in' })).body;
+  for (const room of [ownRoom, publicRoom, checkIn]) {
+    assert.deepEqual(room.leaderboard, []);
+    assert.equal(Object.hasOwn(room.together, 'intention'), false);
+    assert.equal(Object.hasOwn(room.together, 'intentionExpiresAt'), false);
+  }
+  assert.equal(publicRoom.me.intention, null);
   advance(1);
   const expired = (await owner.request(null, auth)).body.me;
   assert.equal(expired.intention, null);
   assert.equal(expired.intentionExpiresAt, null);
   assert.equal(expired.totalMiles, 200 / 1609.344);
-  const publicRow = (await viewer.request()).body.leaderboard[0];
-  assert.equal(publicRow.intention, null);
-  assert.equal(publicRow.intentionExpiresAt, null);
-  assert.equal(publicRow.name, expired.name);
+  assert.deepEqual((await viewer.request()).body.leaderboard, []);
   const renewed = await owner.request({ action: 'intention', intention: 'Read another quiet chapter', expiresInHours: 1 }, auth);
   assert.equal(renewed.body.me.intentionExpiresAt, renewed.body.serverTime + 3600000);
   const cleared = (await owner.request({ action: 'clear-intention' }, auth)).body.me;
@@ -588,7 +660,8 @@ test('city profile updates validate settings and never expose private city setti
   advance(10000);
   await rider.request({ action: 'mileage', journeyId: start.journeyId, sequence: 1, metres: 100 });
   const publicView = (await viewer.request()).body;
-  assert.ok(publicView.leaderboard.length);
+  assert.equal(publicView.together.riders, 1);
+  assert.deepEqual(publicView.leaderboard, []);
   assert.equal(JSON.stringify(publicView).includes('Philadelphia'), false);
 });
 

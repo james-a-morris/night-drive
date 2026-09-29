@@ -33,6 +33,7 @@ export function createRoomClient(
     baseMetres = 0;
   let totalMiles = 0,
     currentMiles = 0,
+    togetherMiles: number | null = null,
     starting = false,
     checkingIn = false,
     // The first check-in aboard, and the first after returning to the tab,
@@ -53,6 +54,7 @@ export function createRoomClient(
       journey,
       totalMiles: totalMiles + pending,
       currentMiles: currentMiles + pending,
+      togetherMiles,
       now: Date.now() + clockOffset,
       status,
     });
@@ -102,6 +104,10 @@ export function createRoomClient(
     updateMe(data.me, data.serverTime);
     if (data.garden) garden?.accept(data.garden, data.me.id, sent);
     board = data;
+    if (data.together?.journeyId === journey && typeof data.together.miles === "number"
+      && Number.isFinite(data.together.miles) && data.together.miles >= 0) {
+      togetherMiles = Math.max(togetherMiles ?? 0, data.together.miles);
+    }
     report("");
   }
   const refresh = () =>
@@ -119,6 +125,7 @@ export function createRoomClient(
           journey = data.journeyId;
           baseMetres = drive.distance;
           acceptedMetres = currentMiles = sequence = 0;
+          togetherMiles = 0;
           updateMe(data.me, data.serverTime);
           emit();
           void checkIn();
@@ -176,6 +183,7 @@ export function createRoomClient(
           if (requestError(error).status === 404) {
             journey = null;
             acceptedMetres = 0;
+            togetherMiles = null;
           }
           throw error;
         } finally {
@@ -256,6 +264,7 @@ export function createRoomClient(
           if (signedOut) {
             journey = null;
             acceptedMetres = currentMiles = 0;
+            togetherMiles = null;
             await startJourney();
           }
         }),

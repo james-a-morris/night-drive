@@ -6,7 +6,7 @@ import {
   transferGarden,
 } from "./tree-garden.ts";
 import { TREE_GROWTH_HOURS } from "../src/tree-varieties.ts";
-import type { Store, ProfileRow, JourneyRow, RankingRow } from "./types.ts";
+import type { Store, ProfileRow, JourneyRow } from "./types.ts";
 import type { RiderProfile, RoomView } from "../src/types.ts";
 import { requestError } from "../src/types.ts";
 type Body = Record<string, unknown>;
@@ -43,18 +43,6 @@ const METRES_PER_MILE = 1609.344;
 const INTENTION_HOURS = [1, 3, 6, 12, 24];
 const JOURNEYS_PER_RIDER = 10;
 const REQUESTS_PER_ADDRESS_PER_MINUTE = 300;
-const currentJourneyRanking = `
-  WITH latest_journeys AS (
-    SELECT journeys.*, ROW_NUMBER() OVER (
-      PARTITION BY driver_id ORDER BY started_at DESC, id DESC
-    ) AS recency FROM journeys
-    WHERE driver_id IN (SELECT id FROM road_profiles WHERE last_seen >= $1)
-  ), ranked_journeys AS (
-    SELECT p.id, p.name, p.intention, p.intention_expires_at, j.id AS journey_id, j.credited_metres,
-      ROW_NUMBER() OVER (ORDER BY j.credited_metres DESC, j.started_at ASC, p.id ASC) AS rank
-    FROM latest_journeys j JOIN road_profiles p ON p.id = j.driver_id
-    WHERE j.recency = 1 AND j.last_seen >= $1 AND j.credited_metres > 0
-  ) SELECT * FROM ranked_journeys WHERE rank <= 5 OR id = $2 ORDER BY rank`;
 const hash = (value: string) =>
   createHash("sha256").update(value).digest("hex");
 export class ApiError extends Error {
@@ -334,6 +322,7 @@ async function roomView(
   userId: string | null,
   now: number,
   garden?: RoomView["garden"],
+  journeyId?: string,
 ): Promise<RoomView> {
   // Presence counts people in the room, even before their first mile. A
   // profile is shared across tabs, and disappears after 90 seconds away.
@@ -341,20 +330,26 @@ async function roomView(
     "UPDATE road_profiles SET last_seen = $1 WHERE id = $2 RETURNING *",
     [now, driver.id],
   );
-  const rows = await store.query<RankingRow>(currentJourneyRanking, [
-    now - 90000,
-    driver.id,
-  ]);
-  const [stats] = await store.query<{ active: number | string }>(
-    "SELECT COUNT(*) AS active FROM road_profiles WHERE last_seen >= $1",
+  // Check-ins select this tab's journey; a plain refresh uses the latest one.
+  const [mine] = await store.query<JourneyRow & { together_metres: number | string }>(
+    `SELECT j.*, t.credited_metres - j.together_start_metres AS together_metres
+     FROM journeys j CROSS JOIN railway_totals t
+     WHERE j.driver_id = $1${journeyId ? " AND j.id = $2" : ""}
+     ORDER BY j.started_at DESC, j.id DESC LIMIT 1`,
+    journeyId ? [driver.id, journeyId] : [driver.id],
+  );
+  const [stats] = await store.query<{ active: number | string; aboard: number | string }>(
+    `SELECT COUNT(*) AS active,
+       COALESCE(SUM(CASE WHEN EXISTS (
+         SELECT 1 FROM journeys j WHERE j.driver_id = p.id AND j.last_seen >= $1
+       ) THEN 1 ELSE 0 END), 0) AS aboard
+     FROM road_profiles p WHERE p.last_seen >= $1`,
     [now - 90000],
   );
-  const mine = rows.find((row) => row.id === driver.id);
   return {
     me: {
       ...profileView(profile ?? driver, userId, now),
-      rank: mine ? Number(mine.rank) : null,
-      currentJourneyId: mine?.journey_id ?? null,
+      currentJourneyId: mine?.id ?? null,
       currentMiles: mine ? Number(mine.credited_metres) / METRES_PER_MILE : 0,
     },
     garden:
@@ -365,17 +360,12 @@ async function roomView(
         ]);
         return readGarden(query, driver.id, now);
       })),
-    leaderboard: rows
-      .filter((row) => Number(row.rank) <= 5)
-      .map((row) => ({
-        rank: Number(row.rank),
-        // Profile IDs never change, so sharing them would link a rider's names.
-        you: row.id === driver.id,
-        name: row.name,
-        ...intentionView(row, now),
-        currentMiles: Number(row.credited_metres) / METRES_PER_MILE,
-        live: true,
-      })),
+    leaderboard: [],
+    together: {
+      riders: Number(stats.aboard),
+      journeyId: mine?.id ?? null,
+      miles: mine ? Math.max(0, Number(mine.together_metres)) / METRES_PER_MILE : null,
+    },
     activeCount: Number(stats.active),
     othersCount: Math.max(0, Number(stats.active) - 1),
     serverTime: now,
@@ -450,7 +440,7 @@ async function recordMiles(
       elapsed,
     );
     // Only movement keeps a journey live. Background tabs keep reporting, but
-    // their trains stand still, so they leave the board after 90 seconds.
+    // their trains stand still, so they leave the rider count after 90 seconds.
     await query(
       "UPDATE journeys SET reported_metres = $1, sequence = $2, last_seen = $3, credited_metres = credited_metres + $4 WHERE id = $5",
       [
@@ -464,6 +454,12 @@ async function recordMiles(
     const [updated] = await query<{ total_metres: number | string }>(
       "UPDATE road_profiles SET total_metres = total_metres + $1, last_mileage_at = $2, last_seen = $2 WHERE id = $3 RETURNING total_metres",
       [credit, now, driverId],
+    );
+    // The same transaction credits the rider and the railway exactly once.
+    // This total survives departures, account linking and old-trip cleanup.
+    if (credit > 0) await query(
+      "UPDATE railway_totals SET credited_metres = credited_metres + $1 WHERE id = 1",
+      [credit],
     );
     return {
       totalMiles: Number(updated.total_metres) / METRES_PER_MILE,
@@ -575,7 +571,7 @@ export function createApi({
         ? await tendGarden(store, driver.id, now, { resumed: resumed === true })
         : undefined;
       return {
-        ...(await roomView(store, driver, userId, now, garden)),
+        ...(await roomView(store, driver, userId, now, garden, aboard ? String(report.journeyId) : undefined)),
         mileage,
       };
     },
@@ -607,11 +603,13 @@ export function createApi({
         throw new ApiError(400, "Unexpected journey fields.");
       const id = randomUUID();
       await store.query(
-        "INSERT INTO journeys (id, driver_id, started_at, last_seen) VALUES ($1, $2, $3, $3)",
+        `INSERT INTO journeys (id, driver_id, started_at, last_seen, together_start_metres)
+         SELECT $1, $2, $3, $3, credited_metres FROM railway_totals WHERE id = 1`,
         [id, driver.id, now],
       );
-      // Only the newest journey ranks, and credited miles already live on the
-      // profile. Keep enough for a rider's other open tabs, and no more.
+      await store.query("UPDATE road_profiles SET last_seen = $1 WHERE id = $2", [now, driver.id]);
+      // Credited miles already live on the profile and railway total.
+      // Keep enough journeys for a rider's other open tabs, and no more.
       await store.query(
         `DELETE FROM journeys WHERE driver_id = $1 AND id NOT IN (
           SELECT id FROM journeys WHERE driver_id = $1

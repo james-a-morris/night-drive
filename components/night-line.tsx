@@ -496,7 +496,7 @@ export default function NightLine() {
             {stationStatus}
           </p>
         )}
-        <JourneyMeter room={room} unit={unit} onIntention={openIntention} calm={view === "calm"} />
+        <JourneyMeter room={room} unit={unit} />
         <button type="button" className="listening-intention" onClick={openIntention}
           aria-label={intention ? "Edit your intention" : "Set an intention"}>
           <span>My intention</span><strong>{intention || "+ Set an intention"}</strong>

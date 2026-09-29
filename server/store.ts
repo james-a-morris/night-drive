@@ -25,6 +25,7 @@ const schema = `
     driver_id TEXT NOT NULL REFERENCES road_profiles(id),
     reported_metres DOUBLE PRECISION NOT NULL DEFAULT 0,
     credited_metres DOUBLE PRECISION NOT NULL DEFAULT 0,
+    together_start_metres DOUBLE PRECISION NOT NULL DEFAULT 0,
     sequence INTEGER NOT NULL DEFAULT 0,
     started_at BIGINT NOT NULL,
     last_seen BIGINT NOT NULL
@@ -32,6 +33,11 @@ const schema = `
   CREATE INDEX IF NOT EXISTS mileage_ranking ON road_profiles(total_metres);
   CREATE INDEX IF NOT EXISTS journey_owner_start ON journeys(driver_id, started_at DESC, id);
   CREATE INDEX IF NOT EXISTS profile_last_seen ON road_profiles(last_seen);
+  CREATE TABLE IF NOT EXISTS railway_totals (
+    id INTEGER PRIMARY KEY CHECK (id = 1),
+    credited_metres DOUBLE PRECISION NOT NULL DEFAULT 0
+  );
+  INSERT INTO railway_totals (id) VALUES (1) ON CONFLICT(id) DO NOTHING;
   CREATE TABLE IF NOT EXISTS tree_gardens (
     driver_id TEXT PRIMARY KEY REFERENCES road_profiles(id),
     tree_id TEXT NOT NULL,
@@ -71,6 +77,9 @@ export async function createStore({
     await pool.query("ALTER TABLE road_profiles ADD COLUMN IF NOT EXISTS city_preferences TEXT");
     await pool.query(
       "ALTER TABLE journeys ADD COLUMN IF NOT EXISTS credited_metres DOUBLE PRECISION NOT NULL DEFAULT 0",
+    );
+    await pool.query(
+      "ALTER TABLE journeys ADD COLUMN IF NOT EXISTS together_start_metres DOUBLE PRECISION NOT NULL DEFAULT 0",
     );
     await pool.query(
       "ALTER TABLE road_profiles ADD COLUMN IF NOT EXISTS intention_expires_at BIGINT",
@@ -144,6 +153,9 @@ export async function createStore({
       "ALTER TABLE journeys ADD COLUMN credited_metres DOUBLE PRECISION NOT NULL DEFAULT 0",
     );
   }
+  if (!database.prepare("PRAGMA table_info(journeys)").all().some(column => column.name === "together_start_metres")) {
+    database.exec("ALTER TABLE journeys ADD COLUMN together_start_metres DOUBLE PRECISION NOT NULL DEFAULT 0");
+  }
   const query: Query = async <T extends object>(
     sql: string,
     values: SqlValue[] = [],
@@ -181,7 +193,7 @@ export async function createStore({
 
 // Reuse the pool/SQLite connection across route handlers and development module
 // reloads. Version the key whenever a schema migration must rerun in dev.
-const sharedStoreKey = Symbol.for("night-line.store.city-preferences-v1");
+const sharedStoreKey = Symbol.for("night-line.store.riding-together-v1");
 const sharedStore = globalThis as typeof globalThis & {
   [sharedStoreKey]?: { promise: Promise<Store> | null };
 };

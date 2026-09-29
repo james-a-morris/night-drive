@@ -76,8 +76,7 @@
 .listening-intention>span { font-size:9px; letter-spacing:.12em; color:#aebb9f; }
 .listening-intention strong { max-width:100%; overflow:hidden; white-space:nowrap; text-overflow:ellipsis; font-size:12px; font-weight:400; }
 #app[data-listening-view="calm"] :is(.miles-widget,.focus-timer) { margin:0; padding:0; border:0; border-radius:0; background:none; box-shadow:none; -webkit-backdrop-filter:none; backdrop-filter:none; }
-#app[data-listening-view="calm"] .miles-button { min-height:40px; padding:0 4px; font-size:10px; letter-spacing:.08em; }
-#app[data-listening-view="calm"] .company-status { display:none; }
+#app[data-listening-view="calm"] .journey-distance { min-height:40px; padding:0 4px; font-size:10px; letter-spacing:.08em; }
 #app[data-listening-view="calm"] .focus-timer { margin-top:4px; padding:8px 4px 0; border-top:1px solid #cbd4b31a; }
 #app[data-listening-view="calm"] .timer-time { font-size:28px; }
 #app[data-listening-view="calm"] .timer-row { margin-top:0; }
@@ -85,7 +84,7 @@
 #app[data-listening-view="calm"] :is(.timer-controls button,.timer-controls #timer-toggle) { width:44px; height:44px; }
 #app[data-listening-view="calm"] .timer-mode { min-height:36px; }
 #app[data-listening-view="calm"] #timer-progress { margin-top:4px; }
-#app[data-listening-view="calm"] :is(.leaderboard-panel,.timer-menu) { position:absolute; top:auto; bottom:calc(100% + 8px); left:0; right:0; width:100%; max-height:min(400px,calc(100dvh - 260px)); overflow-y:auto; background:#20372a; z-index:25; }
+#app[data-listening-view="calm"] .timer-menu { position:absolute; top:auto; bottom:calc(100% + 8px); left:0; right:0; width:100%; max-height:min(400px,calc(100dvh - 260px)); overflow-y:auto; background:#20372a; z-index:25; }
 .journey-load-error button { min-height:44px; padding:4px 8px; border:1px solid #d1d7ba66; border-radius:5px; background:#bec8a9; color:#21352f; cursor:pointer; }
 
 @media(max-width:650px) {
@@ -112,11 +111,11 @@
   #app[data-listening-view="carriage"] .listening-intention { display:flex; flex-direction:column; gap:5px; width:100%; min-height:50px; padding:0 0 10px; border:0; background:none; color:#d7ddc7; text-align:left; cursor:pointer; }
   #app[data-listening-view="carriage"] :is(.miles-widget,.focus-timer) { padding:0; border:0; background:none; box-shadow:none; backdrop-filter:none; }
   #app[data-listening-view="carriage"] .miles-widget { margin-bottom:8px; }
-  #app[data-listening-view="carriage"] .miles-button { min-height:38px; padding:0; }
-  #app[data-listening-view="carriage"] :is(.company-status,.station-status) { display:none; }
+  #app[data-listening-view="carriage"] .journey-distance { min-height:38px; padding:0; }
+  #app[data-listening-view="carriage"] .station-status { display:none; }
   #app[data-listening-view="carriage"] .timer-controls button { min-width:44px; min-height:44px; }
   #app[data-listening-view="carriage"] .timer-mode { min-height:36px; }
-  #app[data-listening-view="carriage"] :is(.timer-menu,.leaderboard-panel) { position:relative; inset:auto; width:100%; margin-top:8px; max-height:none; }
+  #app[data-listening-view="carriage"] .timer-menu { position:relative; inset:auto; width:100%; margin-top:8px; max-height:none; }
   #app[data-listening-view="carriage"][data-controls-open="true"] .tree-care { display:none; }
 }
 @media(max-height:740px) {
@@ -137,7 +136,7 @@
   #app[data-listening-view="calm"] .media-console { margin-bottom:12px; }
   #app[data-listening-view="calm"] .listening-intention { flex-direction:row; min-height:44px; gap:12px; }
   #app[data-listening-view="calm"] .listening-intention>span { display:none; }
-  #app[data-listening-view="calm"] .miles-button { min-height:32px; }
+  #app[data-listening-view="calm"] .journey-distance { min-height:32px; }
 }
 @media(max-height:480px) and (min-width:651px) {
   #app[data-listening-view="calm"] { grid-template-columns:1fr 1fr; grid-template-rows:minmax(80px,1fr) auto 52px; gap:0 32px; padding-top:16px; }
@@ -177,12 +176,10 @@
 #app[data-mobile="true"] .timer-controls button,#app[data-mobile="true"] .timer-controls #timer-toggle { width:44px; min-width:44px; height:44px; min-height:44px; border-radius:6px; }
 #app[data-mobile="true"] #timer-progress { margin-top:6px; }
 #app[data-mobile="true"] .miles-widget { padding:0; margin:0; border:0; background:transparent; box-shadow:none; -webkit-backdrop-filter:none; backdrop-filter:none; transform:none; transition:none; }
-#app[data-mobile="true"] .miles-button { display:grid; grid-template-columns:1fr auto; gap:4px; min-height:68px; padding:4px 0 8px; text-align:left; }
-#app[data-mobile="true"] .miles-button>svg { display:none; }
-#app[data-mobile="true"] .miles-button>span:first-of-type { grid-column:1 / -1; font-size:10px; letter-spacing:0; }
-#app[data-mobile="true"] .miles-button>strong { margin:0; font-size:18px; letter-spacing:0; }
-#app[data-mobile="true"] .miles-arrow { grid-column:2; grid-row:2; }
-#app[data-mobile="true"] .company-status { display:none; }
+#app[data-mobile="true"] .journey-distance { display:grid; grid-template-columns:1fr auto; gap:4px; min-height:68px; padding:4px 0 8px; text-align:left; }
+#app[data-mobile="true"] .journey-distance>svg { display:none; }
+#app[data-mobile="true"] .journey-distance>span:first-of-type { grid-column:1 / -1; font-size:10px; letter-spacing:0; }
+#app[data-mobile="true"] .journey-distance>strong { margin:0; font-size:18px; letter-spacing:0; }
 #app[data-mobile="true"] .listening-intention { display:flex; flex-direction:column; align-items:flex-start; justify-content:flex-start; gap:5px; width:100%; min-height:56px; margin-top:6px; padding:9px 0 0; border:0; border-top:1px solid #cbd4b31a; background:transparent; color:#d7ddc7; text-align:left; cursor:pointer; }
 #app[data-mobile="true"] .listening-intention>span { display:block; font-size:10px; letter-spacing:0; }
 #app[data-mobile="true"] .listening-intention strong { font-size:12px; line-height:1.5; }
@@ -200,7 +197,7 @@
 #app[data-mobile="true"][data-listening-view="carriage"] .listening-tools { bottom:calc(122px + env(safe-area-inset-bottom,0px)); width:44px; min-height:32px; height:32px; padding:0; border:0; background:#21352fcc; }
 #app[data-mobile="true"][data-listening-view="carriage"][data-controls-open="true"] .listening-tools { bottom:calc(286px + env(safe-area-inset-bottom,0px)); }
 #app[data-mobile="true"][data-listening-view="carriage"] .listening-tools-label { display:none; }
-#app[data-mobile="true"] :is(.leaderboard-panel,.timer-menu) { position:absolute; inset:auto 0 calc(100% + 8px); width:100%; margin:0; max-height:min(340px,calc(100dvh - 300px)); overflow-y:auto; background:#213b2dde; -webkit-backdrop-filter:blur(22px); backdrop-filter:blur(22px); }
+#app[data-mobile="true"] .timer-menu { position:absolute; inset:auto 0 calc(100% + 8px); width:100%; margin:0; max-height:min(340px,calc(100dvh - 300px)); overflow-y:auto; background:#213b2dde; -webkit-backdrop-filter:blur(22px); backdrop-filter:blur(22px); }
 .listening-view-dialog { background:#1c3028db; -webkit-backdrop-filter:blur(22px); backdrop-filter:blur(22px); }
 @media(max-height:480px) and (min-width:651px) {
   #app[data-listening-view="calm"] { grid-template-rows:1fr auto 52px; }
@@ -251,8 +248,8 @@
 #app[data-listening-view="calm"] .radio-widget[data-onboarding="true"] #sound-toggle:hover { background:#e4e1c3; }
 #app[data-listening-view="calm"] .radio-widget[data-onboarding="true"] .play-icon { width:17px; height:17px; transform:translateX(1px); }
 #app[data-listening-view="calm"] .radio-mixer { position:fixed; inset:auto auto calc(80px + env(safe-area-inset-bottom,0px)) 50%; width:min(360px,calc(100vw - 48px)); max-height:calc(100dvh - 104px - env(safe-area-inset-top,0px) - env(safe-area-inset-bottom,0px)); overflow-y:auto; transform:translateX(-50%); }
-#app[data-listening-view="calm"] .journey-controls { grid-row:2; display:block; height:162px; padding-top:14px; border-top:1px solid var(--listening-divider); }
-#app[data-listening-view="calm"] :is(.account-panel,.radio-mixer,.timer-menu,.leaderboard-panel,.quiet-dialog),
+#app[data-listening-view="calm"] .journey-controls { grid-row:2; display:block; min-height:162px; height:auto; padding-top:14px; border-top:1px solid var(--listening-divider); }
+#app[data-listening-view="calm"] :is(.account-panel,.radio-mixer,.timer-menu,.quiet-dialog),
 :root:has(#app[data-listening-view="calm"]) .listening-view-dialog { border-top-color:var(--listening-divider); }
 #app[data-listening-view="calm"][data-calm-panel="focus"] .journey-summary,
 #app[data-listening-view="calm"][data-calm-panel="journey"] .focus-timer { display:none; }
@@ -262,12 +259,12 @@
 #app[data-listening-view="calm"] .timer-time { font-size:clamp(34px,10vw,42px); }
 #app[data-listening-view="calm"] .timer-controls { width:auto; gap:4px; margin:0; }
 #app[data-listening-view="calm"] #timer-progress { margin-top:16px; }
-#app[data-listening-view="calm"] .journey-summary { display:block; height:142px; padding:0; border:0; }
-#app[data-listening-view="calm"] .miles-button { min-height:66px; padding:0; align-content:center; }
-#app[data-listening-view="calm"] .miles-button>span:first-of-type { grid-column:1; }
-#app[data-listening-view="calm"] .miles-button>strong { font-size:28px; }
-#app[data-listening-view="calm"] .miles-arrow { display:flex; align-items:center; gap:6px; grid-row:1 / 3; font-size:12px; letter-spacing:0; }
-#app[data-listening-view="calm"] .miles-arrow>span { font-size:11px; }
+#app[data-listening-view="calm"] .journey-summary { display:block; height:auto; padding:0; border:0; }
+#app[data-listening-view="calm"] .miles-widget { display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1.25fr); align-items:center; gap:12px; }
+#app[data-listening-view="calm"] .riding-together { padding:0 0 0 12px; border-top:0; border-left:1px solid #cbd4b326; }
+#app[data-listening-view="calm"] .journey-distance { display:flex; flex-direction:column; align-items:flex-start; justify-content:center; gap:6px; min-height:66px; padding:0; }
+#app[data-listening-view="calm"] .journey-distance>span:first-of-type { grid-column:1; }
+#app[data-listening-view="calm"] .journey-distance>strong { font-size:28px; }
 #app[data-listening-view="calm"] .listening-intention { display:grid; grid-template-columns:minmax(0,1fr) auto; align-content:center; gap:3px 12px; min-height:64px; margin:8px 0 0; padding:9px 0 0; border-top:1px solid #cbd4b326; border-left:0; }
 #app[data-listening-view="calm"] .listening-intention strong { grid-column:1; font-size:13px; }
 #app[data-listening-view="calm"] .listening-intention>.intention-action { grid-column:2; grid-row:1 / 3; align-self:center; padding:8px 10px; border-radius:8px; background:#bec8a911; font-size:11px; }
@@ -288,8 +285,7 @@
 }
 @media(max-height:620px) {
   #app[data-listening-view="calm"] { --listening-waveform-height:72px; }
-  #app[data-listening-view="calm"] .journey-controls { height:152px; padding-top:10px; }
-  #app[data-listening-view="calm"] .journey-summary { height:132px; }
+  #app[data-listening-view="calm"] .journey-controls { min-height:152px; padding-top:10px; }
   #app[data-listening-view="calm"] .listening-intention { min-height:56px; margin-top:6px; padding-top:7px; }
   #app[data-listening-view="calm"] .cockpit { gap:16px; padding:16px 0; }
 }

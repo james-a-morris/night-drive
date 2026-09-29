@@ -113,7 +113,9 @@ test('Config endpoint never serves a secret key saved as the publishable key', a
 
 test('global headers constrain executable content and unnecessary browser capabilities', async () => {
   const rules = await nextConfig.headers();
-  const headers = Object.fromEntries(rules[0].headers.map(({ key, value }) => [key.toLowerCase(), value]));
+  const globalRule = rules.find(({ source }) => source === '/:path*');
+  assert.ok(globalRule, 'security headers must apply to every path');
+  const headers = Object.fromEntries(globalRule.headers.map(({ key, value }) => [key.toLowerCase(), value]));
   assert.match(headers['content-security-policy'], /script-src-attr 'none'/);
   assert.match(headers['content-security-policy'], /object-src 'none'/);
   assert.match(headers['content-security-policy'], /frame-ancestors 'none'/);
