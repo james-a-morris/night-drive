@@ -15,23 +15,16 @@ export default function JourneyMeter({ room, unit }: { room: Room; unit: Distanc
           <AnimatedNumber value={`${formatDistance(room.currentMiles, unit, true)} ${units}`} />
         </strong>
       </div>
-      <div className="riding-together" aria-label="Riding together">
+      <div className="riding-together">
         <p className="rider-count" id="road-count" role="status">
           <i aria-hidden="true" data-connected={riders !== undefined} />
-          {others === undefined
-            ? "Connecting…"
-            : others === 0
-              ? "Just you"
-              : `${others.toLocaleString()} other ${others === 1 ? "rider" : "riders"}`}
-        </p>
-        <p className="together-distance" title="Distance contributed by everyone since you settled in, including riders who have left.">
-          <strong>
-            <span id="together-distance">
-              {room.togetherMiles === null ? "—" : formatDistance(room.togetherMiles, unit)}
-            </span>
-            <span className="together-unit">{units}</span>
-          </strong>
-          <span>together</span>
+          <span>
+            {others === undefined
+              ? "Finding fellow travelers…"
+              : others === 0
+                ? "Just you and the music, for now."
+                : <><strong>{others.toLocaleString()} {others === 1 ? "person" : "folks"}</strong> sharing the night with you.</>}
+          </span>
         </p>
       </div>
       <p id="road-status" className="road-status" role="status" hidden={!room.status}>{room.status}</p>
