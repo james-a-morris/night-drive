@@ -8,6 +8,8 @@ const settle = () => new Promise(resolve => setImmediate(resolve));
 
 test('room client establishes identity before starting, checks in only while visible, and cancels stale results', async t => {
   t.mock.timers.enable({ apis: ['setInterval'] });
+  let now = 0;
+  t.mock.method(performance, 'now', () => now);
   const oldWindow = globalThis.window, oldDocument = globalThis.document;
   globalThis.window = new EventTarget();
   globalThis.document = Object.assign(new EventTarget(), { hidden: false });
@@ -56,20 +58,25 @@ test('room client establishes identity before starting, checks in only while vis
   assert.equal(snapshots.at(-1).togetherMiles, 0);
   drive.distance = 150;
   togetherMiles = 3;
+  now = 15000;
   t.mock.timers.tick(15000);
   await settle();
   assert.equal(checkIns().length, 2, 'one request per interval carries distance, plant time and the board');
   assert.equal(checkIns().at(-1).body.metres, 100);
   assert.equal(checkIns().at(-1).body.resumed, undefined);
   assert.equal(snapshots.at(-1).currentMiles, 100 / 1609.344, 'acknowledged miles are not also counted as pending');
-  assert.equal(snapshots.at(-1).togetherMiles, 3, 'shared miles use the server total without counting pending personal miles twice');
+  assert.equal(snapshots.at(-1).togetherMiles, 0, 'a server update does not jump the shared display');
+  now += 1000;
+  t.mock.timers.tick(1000);
+  const shared = snapshots.at(-1).togetherMiles;
+  assert.ok(shared > 0 && shared < 3, 'the shared display advances between check-ins');
   togetherMiles = 2;
   await client.refresh();
-  assert.equal(snapshots.at(-1).togetherMiles, 3, 'a delayed lower snapshot cannot decrease the shared total');
+  assert.equal(snapshots.at(-1).togetherMiles, shared, 'a delayed lower snapshot cannot decrease the shared total');
   differentJourney = true;
   togetherMiles = 100;
   await client.refresh();
-  assert.equal(snapshots.at(-1).togetherMiles, 3, 'another tab cannot replace this journey’s shared total');
+  assert.equal(snapshots.at(-1).togetherMiles, shared, 'another tab cannot replace this journey’s shared total');
   differentJourney = false;
   togetherMiles = 3;
   document.hidden = true;
@@ -78,6 +85,7 @@ test('room client establishes identity before starting, checks in only while vis
   t.mock.timers.tick(60000);
   await settle();
   assert.equal(checkIns().length, 3, 'a hidden tab checks in once as it leaves, then stays quiet');
+  assert.equal(snapshots.at(-1).togetherMiles, shared, 'the hidden counter stays still');
   document.hidden = false;
   document.dispatchEvent(new Event('visibilitychange'));
   await settle();
