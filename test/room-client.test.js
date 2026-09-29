@@ -15,8 +15,9 @@ test('room client establishes identity before starting, checks in only while vis
   const requests = [], snapshots = [];
   let releaseConfig, releaseInitial, releaseRefresh, holdRefresh = false, currentMiles = 0, currentJourneyId = null, sequence = 0;
   let serverTime = 1790200000000;
+  let togetherMiles = 0, differentJourney = false;
   const profile = () => ({ id: 'guest', name: 'Guest', signedIn: false, intention: null, intentionExpiresAt: null, totalMiles: currentMiles, currentMiles, currentJourneyId });
-  const room = () => ({ me: profile(), leaderboard: [], activeCount: 1, othersCount: 0, serverTime: ++serverTime });
+  const room = () => ({ me: profile(), leaderboard: [], activeCount: 1, othersCount: 0, together: { riders: 1, journeyId: differentJourney ? 'other-tab' : currentJourneyId, miles: togetherMiles }, serverTime: ++serverTime });
   t.mock.method(globalThis, 'fetch', async (url, options) => {
     if (url === '/api/config') return new Promise(resolve => { releaseConfig = () => resolve(Response.json({ clerkPublishableKey: null })); });
     const body = options.body ? JSON.parse(options.body) : null;
@@ -52,13 +53,25 @@ test('room client establishes identity before starting, checks in only while vis
   await client.startJourney();
   assert.equal(requests.filter(item => item.body?.action === 'start').length, 1);
   assert.deepEqual(checkIns().map(item => item.body.resumed), [true], 'boarding checks in at once and starts a fresh stretch');
+  assert.equal(snapshots.at(-1).togetherMiles, 0);
   drive.distance = 150;
+  togetherMiles = 3;
   t.mock.timers.tick(15000);
   await settle();
   assert.equal(checkIns().length, 2, 'one request per interval carries distance, plant time and the board');
   assert.equal(checkIns().at(-1).body.metres, 100);
   assert.equal(checkIns().at(-1).body.resumed, undefined);
   assert.equal(snapshots.at(-1).currentMiles, 100 / 1609.344, 'acknowledged miles are not also counted as pending');
+  assert.equal(snapshots.at(-1).togetherMiles, 3, 'shared miles use the server total without counting pending personal miles twice');
+  togetherMiles = 2;
+  await client.refresh();
+  assert.equal(snapshots.at(-1).togetherMiles, 3, 'a delayed lower snapshot cannot decrease the shared total');
+  differentJourney = true;
+  togetherMiles = 100;
+  await client.refresh();
+  assert.equal(snapshots.at(-1).togetherMiles, 3, 'another tab cannot replace this journey’s shared total');
+  differentJourney = false;
+  togetherMiles = 3;
   document.hidden = true;
   document.dispatchEvent(new Event('visibilitychange'));
   await settle();

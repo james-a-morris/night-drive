@@ -100,7 +100,7 @@ function IntentionDialog({
           id="intention-input"
           name="intention"
           aria-labelledby="intention-title"
-          aria-describedby="intention-count intention-sharing"
+          aria-describedby="intention-count intention-visibility"
           rows={2}
           minLength={5}
           maxLength={60}
@@ -163,8 +163,8 @@ function IntentionDialog({
             )}
           </Popover>
         </div>
-        <p className="field-note" id="intention-sharing">
-          Shared with your fellow riders until it expires.
+        <p className="field-note" id="intention-visibility">
+          Shown in your own study space until it expires.
         </p>
         <p id="intention-error" className="form-error" role="alert">
           {action.error}

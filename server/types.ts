@@ -25,11 +25,7 @@ export interface JourneyRow {
   driver_id: string;
   reported_metres: number | string;
   credited_metres: number | string;
+  together_start_metres: number | string;
   sequence: number;
   last_seen: number | string;
-}
-export interface RankingRow extends ProfileRow {
-  rank: number | string;
-  journey_id: string;
-  credited_metres: number | string;
 }

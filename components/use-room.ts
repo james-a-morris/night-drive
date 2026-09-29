@@ -18,6 +18,7 @@ export function useRoom(drive: Drive, garden?: TreeGardenController) {
     journey: null,
     totalMiles: 0,
     currentMiles: 0,
+    togetherMiles: null,
     now: 0,
     status: "",
   });

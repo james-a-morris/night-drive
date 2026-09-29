@@ -14,21 +14,19 @@ export interface RiderProfile extends Intention {
   name: string;
   totalMiles: number;
   signedIn: boolean;
-  rank?: number | null;
   currentJourneyId?: string | null;
   currentMiles?: number;
-}
-export interface Leader extends Intention {
-  you: boolean;
-  name: string;
-  rank: number;
-  currentMiles: number;
-  live: boolean;
 }
 export interface RoomView {
   garden: TreeGarden;
   me: RiderProfile;
-  leaderboard: Leader[];
+  // Keep older open tabs compatible without publishing rider lists.
+  leaderboard: never[];
+  together: {
+    riders: number;
+    journeyId: string | null;
+    miles: number | null;
+  };
   activeCount: number;
   othersCount: number;
   serverTime: number;
@@ -73,6 +71,7 @@ export interface RoomSnapshot {
   journey: string | null;
   totalMiles: number;
   currentMiles: number;
+  togetherMiles: number | null;
   now: number;
   status: string;
 }
