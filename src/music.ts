@@ -9,8 +9,8 @@ import { createConductorWhir } from "./conductor-whir.ts";
 import { playDepartureChime } from "./departure-chime.ts";
 import { DEFAULT_AUDIO_MIX, type AudioMix } from "./audio-mix.ts";
 
-// Original lo-fi pieces with locally synthesized weather and carriage ambience.
-// The audio clock keeps the offline playlist independent of scene rendering.
+// Seeded lo-fi arrangements with local instruments, weather and carriage ambience.
+// Tone's audio clock keeps the playlist independent of scene rendering.
 export class LocalSoundscape {
   onChange: (enabled: boolean, error?: unknown) => void;
   enabled: boolean;
@@ -64,7 +64,7 @@ export class LocalSoundscape {
     this.ambienceVolume = audio.createGain();
     this.ambienceVolume.gain.value = this.mix.ambience;
     this.ambienceVolume.connect(this.master);
-    // Music fades between pieces; the weather and train continue underneath it.
+    // Music has its own sequencer and fades; weather and train continue underneath.
     this.musicGain = audio.createGain();
     this.musicGain.connect(this.musicVolume);
     this.playlist = new LocalPlaylist(audio, this.musicGain, () => this.onChange(this.enabled));

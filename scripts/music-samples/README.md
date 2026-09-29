@@ -1,10 +1,10 @@
 # CC0 instrument notes
 
-These files are authoring inputs to `../render-local-music.py`. They are not
-downloaded by the PWA; the app caches the three rendered arrangements instead.
+These files are authoring inputs to `../prepare-music-samples.py`. They are not
+downloaded by the PWA; the app caches a small, prepared WAV bank for Tone.js instead.
 All FLAC files are unchanged copies of the source recordings, renamed only for
 the piano's MIDI pitches. `manifest.json` records source URLs and SHA-256 hashes;
-the renderer checks every hash before using a sample.
+the preparation script checks every hash before using a sample.
 
 - **Piano:** FreePats Upright Piano KW, 2022-02-21. Ten soft-velocity notes from
   C3 through D#5, recorded by Gonzalo and Roberto in January 2017. Original
