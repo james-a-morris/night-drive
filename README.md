@@ -47,7 +47,7 @@ The browser talks directly to `127.0.0.1:8765`; cards, grades, media, and API ke
 
 ## Run locally
 
-Requires Node.js 22.18 or newer and pnpm.
+Requires a patched Node.js release (22.23.4+, 24.22.1+, or 26.12.1+) and pnpm.
 
 ```sh
 pnpm install
